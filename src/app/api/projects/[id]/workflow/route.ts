@@ -175,7 +175,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const stage = await prisma.workflowStage.update({
       where: { id: stageId, projectId },
       data: {
-        status: newStageStatus,
+        status: newStageStatus as never,
         completedAt: ["APPROVED", "REJECTED"].includes(newStageStatus) ? new Date() : null,
       },
       include: STAGE_INCLUDE,

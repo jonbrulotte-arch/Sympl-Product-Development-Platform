@@ -252,7 +252,7 @@ function WorkflowView({
 }: {
   project: ProjectWithRelations; canEdit: boolean; currentUserId: string;
 }) {
-  const [stages, setStages] = useState<Stage[]>((project.workflowStages ?? []) as Stage[]);
+  const [stages, setStages] = useState<Stage[]>((project.workflowStages ?? []) as unknown as Stage[]);
   const [addingStage, setAddingStage] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
