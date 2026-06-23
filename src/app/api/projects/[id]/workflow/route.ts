@@ -129,6 +129,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Ensure raw-SQL columns exist before any path that calls withTriggerFields
+  await ensureWorkflowStageColumns();
+
   const body = await req.json();
   const { stageId, status, name, description, onApproveSetStatus, onRejectSetStatus, vote, voteComment, reset } = body;
   if (!stageId) return NextResponse.json({ error: "stageId required" }, { status: 400 });
@@ -197,7 +200,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   // Handle trigger fields via raw SQL; keep only schema fields in data
   if (onApproveSetStatus !== undefined || onRejectSetStatus !== undefined) {
-    await ensureWorkflowStageColumns();
     await setTriggerFields(stageId, onApproveSetStatus, onRejectSetStatus);
   }
 
