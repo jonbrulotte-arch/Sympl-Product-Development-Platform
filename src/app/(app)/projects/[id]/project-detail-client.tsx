@@ -183,8 +183,9 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        {activeTab === "grid" && (
+      <div className="flex-1 overflow-hidden relative">
+        {/* ProductGrid stays mounted so in-progress edits survive tab switches */}
+        <div className={activeTab === "grid" ? "absolute inset-0 flex flex-col" : "hidden"}>
           <ProductGrid
             projectId={project.id}
             initialProducts={initialProducts as never}
@@ -195,7 +196,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
             onExport={handleExport}
             onImport={() => router.push(`/import?projectId=${project.id}`)}
           />
-        )}
+        </div>
 
         {activeTab === "workflow" && (
           <WorkflowView project={project} canEdit={canEdit} currentUserId={currentUserId} />
