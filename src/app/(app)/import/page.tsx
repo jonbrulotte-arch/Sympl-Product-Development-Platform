@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -77,10 +77,12 @@ interface PreviewData {
   totalRows: number;
 }
 
+interface Project { id: string; name: string; }
+
 function ImportWizardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const projectId = searchParams.get("projectId");
+  const initialProjectId = searchParams.get("projectId");
 
   const [step, setStep] = useState<Step>("upload");
   const [file, setFile] = useState<File | null>(null);
@@ -93,6 +95,45 @@ function ImportWizardContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId ?? "");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
+
+  const projectId = selectedProjectId || initialProjectId;
+
+  useEffect(() => {
+    if (initialProjectId) return;
+    setProjectsLoading(true);
+    fetch("/api/projects?pageSize=200")
+      .then((r) => r.json())
+      .then((d) => setProjects(Array.isArray(d.data) ? d.data : []))
+      .catch(() => {})
+      .finally(() => setProjectsLoading(false));
+  }, [initialProjectId]);
+
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) return;
+    setCreatingProject(true);
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newProjectName.trim() }),
+      });
+      if (!res.ok) throw new Error("Failed to create project");
+      const created = await res.json();
+      setProjects((prev) => [created, ...prev]);
+      setSelectedProjectId(created.id);
+      setNewProjectName("");
+    } catch {
+      setError("Failed to create project. Please try again.");
+    } finally {
+      setCreatingProject(false);
+    }
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -312,12 +353,58 @@ function ImportWizardContent() {
             </CardContent>
           </Card>
 
+          {!initialProjectId && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Select Destination Project</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {projectsLoading ? (
+                  <p className="text-sm text-gray-500">Loading projects…</p>
+                ) : (
+                  <select
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                  >
+                    <option value="">— Choose a project —</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                )}
+                <div className="flex items-center gap-2">
+                  <div className="h-px flex-1 bg-gray-200" />
+                  <span className="text-xs text-gray-400">or create new</span>
+                  <div className="h-px flex-1 bg-gray-200" />
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="New project name"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleCreateProject()}
+                    className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                  <Button
+                    variant="outline"
+                    disabled={!newProjectName.trim() || creatingProject}
+                    onClick={handleCreateProject}
+                  >
+                    {creatingProject ? "Creating…" : "Create"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="flex justify-between">
             <Button variant="outline" onClick={() => setStep("preview")}>
               <ArrowLeft className="h-4 w-4" /> Back
             </Button>
             <Button onClick={handleImport} disabled={loading || !projectId}>
-              {!projectId ? "No project selected" : "Start Import"} <ArrowRight className="h-4 w-4" />
+              {!projectId ? "Select a project to continue" : "Start Import"} <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
         </div>

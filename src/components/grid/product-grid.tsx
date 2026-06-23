@@ -26,14 +26,18 @@ interface AttrDef {
   attributeType: string;
   requirement: string;
   maxValues: number;
+  section: { id: string; name: string } | null;
   lovItems: { value: string; label: string }[];
 }
 
+// key → joined display string; raw arrays kept in _eavArrays
 type EavMap = Record<string, string | undefined>;
+type EavArrayMap = Record<string, string[]>;
 
 type ProductRow = ProductRecord & {
   _saveStatus?: "idle" | "saving" | "saved" | "error";
-  _eavValues?: EavMap; // key → textValue
+  _eavValues?: EavMap;
+  _eavArrays?: EavArrayMap;
 };
 
 const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
@@ -196,6 +200,7 @@ interface ProductGridProps {
   initialProducts: ProductRow[];
   globalAttrs?: AttrDef[];
   categoryAttrs?: AttrDef[];
+  coreAttrDefs?: AttrDef[];
   canEdit: boolean;
   onExport?: () => void;
   onImport?: () => void;
@@ -206,17 +211,27 @@ export function ProductGrid({
   initialProducts,
   globalAttrs = [],
   categoryAttrs = [],
+  coreAttrDefs = [],
   canEdit,
   onExport,
   onImport,
 }: ProductGridProps) {
-  // Enrich products with _eavValues map for EAV column access
-  const enriched = (initialProducts as (ProductRow & { attributeValues?: { attributeDefinition: { key: string }; textValue?: string | null }[] })[]).map((p) => ({
-    ...p,
-    _eavValues: Object.fromEntries(
-      (p.attributeValues ?? []).map((av) => [av.attributeDefinition.key, av.textValue ?? undefined])
-    ),
-  }));
+  // Enrich products: collect multi-value arrays per key, join for display
+  const enriched = (initialProducts as (ProductRow & {
+    attributeValues?: { attributeDefinition: { key: string }; valueIndex: number; textValue?: string | null }[]
+  })[]).map((p) => {
+    const arrays: EavArrayMap = {};
+    for (const av of (p.attributeValues ?? []).sort((a, b) => a.valueIndex - b.valueIndex)) {
+      const k = av.attributeDefinition.key;
+      if (!arrays[k]) arrays[k] = [];
+      arrays[k].push(av.textValue ?? "");
+    }
+    return {
+      ...p,
+      _eavArrays: arrays,
+      _eavValues: Object.fromEntries(Object.entries(arrays).map(([k, vals]) => [k, vals.join(" · ")])),
+    };
+  });
 
   const [products, setProducts] = useState<ProductRow[]>(enriched);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
@@ -240,14 +255,22 @@ export function ProductGrid({
 
       const timeout = setTimeout(async () => {
         try {
-          const body = attrDef
-            ? {
-                attributeValues: [{
-                  attributeDefinitionId: attrDef.id,
-                  textValue: value != null ? String(value) : "",
-                }],
-              }
-            : { [field]: value };
+          let body: Record<string, unknown>;
+          if (attrDef) {
+            const raw = value != null ? String(value) : "";
+            const vals = attrDef.maxValues > 1
+              ? raw.split("\n").map((s) => s.trim()).filter(Boolean)
+              : [raw];
+            body = {
+              attributeValues: vals.map((textValue, valueIndex) => ({
+                attributeDefinitionId: attrDef.id,
+                valueIndex,
+                textValue,
+              })),
+            };
+          } else {
+            body = { [field]: value };
+          }
 
           const res = await fetch(`/api/projects/${projectId}/products/${productId}`, {
             method: "PATCH",
@@ -325,19 +348,65 @@ export function ProductGrid({
 
   const allAttrs = useMemo(() => [...globalAttrs, ...categoryAttrs], [globalAttrs, categoryAttrs]);
 
-  const eavColumns = useMemo<ColumnDef<ProductRow>[]>(
-    () =>
-      allAttrs.map((attr) => ({
+  const eavColumns = useMemo<ColumnDef<ProductRow>[]>(() => {
+    // Group attrs by section name
+    const sectionMap = new Map<string, AttrDef[]>();
+    for (const attr of allAttrs) {
+      const sectionName = attr.section?.name ?? "General";
+      if (!sectionMap.has(sectionName)) sectionMap.set(sectionName, []);
+      sectionMap.get(sectionName)!.push(attr);
+    }
+    return [...sectionMap.entries()].map(([sectionName, attrs]) => ({
+      id: `section_${sectionName}`,
+      header: sectionName,
+      meta: { eav: true, isGroup: true },
+      columns: attrs.map((attr) => ({
         id: `eav_${attr.key}`,
         header: attr.label,
         size: 160,
-        meta: { section: "Category Specifications", eav: true, attrDef: attr },
+        meta: { eav: true, attrDef: attr },
         accessorFn: (row: ProductRow) => (row as ProductRow & { _eavValues?: EavMap })._eavValues?.[attr.key] ?? "",
       })),
-    [allAttrs]
+    }));
+  }, [allAttrs]);
+
+  const coreAttrMap = useMemo(
+    () => new Map(coreAttrDefs.map((a) => [a.key, a])),
+    [coreAttrDefs]
   );
 
-  const columns = useMemo(() => [...CORE_COLUMNS, ...eavColumns], [eavColumns]);
+  const coreColumnsWithAttrs = useMemo(
+    () =>
+      CORE_COLUMNS.map((col) => {
+        const key = (col as { accessorKey?: string }).accessorKey;
+        const attrDef = key ? coreAttrMap.get(key) : undefined;
+        if (!attrDef) return col;
+        return { ...col, meta: { ...col.meta, attrDef } };
+      }),
+    [coreAttrMap]
+  );
+
+  // Group core columns by section so TanStack creates proper section headers in row 0,
+  // matching the same pattern as EAV columns. rowActions stays flat (no section).
+  const coreGroupedColumns = useMemo<ColumnDef<ProductRow>[]>(() => {
+    const rowActionsCol = coreColumnsWithAttrs.find((c) => (c as { id?: string }).id === "rowActions");
+    const dataCols = coreColumnsWithAttrs.filter((c) => (c as { id?: string }).id !== "rowActions");
+    const sectionMap = new Map<string, ColumnDef<ProductRow>[]>();
+    for (const col of dataCols) {
+      const section = ((col.meta as { section?: string }) ?? {}).section ?? "General";
+      if (!sectionMap.has(section)) sectionMap.set(section, []);
+      sectionMap.get(section)!.push(col);
+    }
+    const groups = [...sectionMap.entries()].map(([section, cols]) => ({
+      id: `core_section_${section}`,
+      header: section,
+      meta: { isGroup: true, section },
+      columns: cols,
+    } as ColumnDef<ProductRow>));
+    return rowActionsCol ? [rowActionsCol, ...groups] : groups;
+  }, [coreColumnsWithAttrs]);
+
+  const columns = useMemo(() => [...coreGroupedColumns, ...eavColumns], [coreGroupedColumns, eavColumns]);
 
   const table = useReactTable({
     data: products,
@@ -352,6 +421,27 @@ export function ProductGrid({
     getFilteredRowModel: getFilteredRowModel(),
     getRowId: (row) => row.id,
   });
+
+  const navigateCell = useCallback(
+    (direction: 1 | -1) => {
+      setEditingCell((current) => {
+        if (!current) return current;
+        const rows = table.getRowModel().rows;
+        const leafCols = table.getVisibleLeafColumns().filter((c) => c.id !== "rowActions");
+        const rowIdx = rows.findIndex((r) => r.id === current.rowId);
+        const colIdx = leafCols.findIndex((c) => c.id === current.columnId);
+        if (rowIdx === -1 || colIdx === -1) return null;
+
+        let nextRow = rowIdx;
+        let nextCol = colIdx + direction;
+        if (nextCol < 0) { nextRow--; nextCol = leafCols.length - 1; }
+        else if (nextCol >= leafCols.length) { nextRow++; nextCol = 0; }
+        if (nextRow < 0 || nextRow >= rows.length) return null;
+        return { rowId: rows[nextRow].id, columnId: leafCols[nextCol].id };
+      });
+    },
+    [table]
+  );
 
   // Cleanup timeouts
   useEffect(() => {
@@ -420,33 +510,45 @@ export function ProductGrid({
       <div className="flex-1 overflow-auto">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-gray-50">
-            {table.getHeaderGroups().map((headerGroup) => (
+            {table.getHeaderGroups().map((headerGroup, groupIdx) => (
               <tr key={headerGroup.id}>
-                {/* Checkbox column */}
-                <th className="w-9 border-b border-r border-gray-200 bg-gray-50 px-2">
-                  <input
-                    type="checkbox"
-                    className="rounded"
-                    checked={selectedRows.size === products.length && products.length > 0}
-                    onChange={(e) => {
-                      setSelectedRows(e.target.checked ? new Set(products.map((p) => p.id)) : new Set());
-                    }}
-                  />
-                </th>
+                {/* Checkbox column — only in first header row */}
+                {groupIdx === 0 && (
+                  <th
+                    rowSpan={table.getHeaderGroups().length}
+                    className="w-9 border-b border-r border-gray-200 bg-gray-50 px-2"
+                  >
+                    <input
+                      type="checkbox"
+                      className="rounded"
+                      checked={selectedRows.size === products.length && products.length > 0}
+                      onChange={(e) => {
+                        setSelectedRows(e.target.checked ? new Set(products.map((p) => p.id)) : new Set());
+                      }}
+                    />
+                  </th>
+                )}
                 {headerGroup.headers.slice(1).map((header) => {
+                  if (header.isPlaceholder) return null;
+
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const isEav = !!(header.column.columnDef.meta as any)?.eav;
+                  const meta = header.column.columnDef.meta as any;
+                  const isEav = !!meta?.eav;
+                  const isGroup = !!meta?.isGroup;
+
                   return (
                     <th
                       key={header.id}
-                      style={{ width: header.getSize() }}
+                      colSpan={header.colSpan}
+                      style={{ width: header.subHeaders.length === 0 ? header.getSize() : undefined }}
                       className={cn(
                         "border-b border-r border-gray-200 px-2 py-2 text-left text-xs font-semibold whitespace-nowrap select-none",
-                        isEav ? "bg-amber-50 text-amber-800" : "bg-gray-50 text-gray-600"
+                        (isEav || isGroup) ? "bg-amber-50 text-amber-800" : "bg-gray-50 text-gray-600",
+                        isGroup && "text-center font-bold border-t-2 border-amber-300"
                       )}
-                      onClick={header.column.getToggleSortingHandler()}
+                      onClick={header.subHeaders.length === 0 ? header.column.getToggleSortingHandler() : undefined}
                     >
-                      <div className="flex items-center gap-1 cursor-pointer">
+                      <div className={cn("flex items-center gap-1", header.subHeaders.length === 0 && "cursor-pointer")}>
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {header.column.getIsSorted() === "asc" && <ChevronUp className="h-3 w-3" />}
                         {header.column.getIsSorted() === "desc" && <ChevronDown className="h-3 w-3" />}
@@ -474,12 +576,22 @@ export function ProductGrid({
                 editingCell={editingCell}
                 onCellEdit={(columnId) => setEditingCell({ rowId: row.id, columnId })}
                 onCellBlur={() => setEditingCell(null)}
+                onNavigateCell={navigateCell}
                 onCellChange={(field, value, attrDef) => {
                   setProducts((prev) =>
                     prev.map((p) => {
                       if (p.id !== row.original.id) return p;
                       if (attrDef) {
-                        return { ...p, _eavValues: { ...(p as ProductRow & { _eavValues?: EavMap })._eavValues, [attrDef.key]: String(value) } };
+                        const raw = String(value);
+                        const vals = attrDef.maxValues > 1
+                          ? raw.split("\n").map((s) => s.trim()).filter(Boolean)
+                          : [raw];
+                        const displayStr = vals.join(" · ");
+                        return {
+                          ...p,
+                          _eavValues: { ...p._eavValues, [attrDef.key]: displayStr },
+                          _eavArrays: { ...p._eavArrays, [attrDef.key]: vals },
+                        };
                       }
                       return { ...p, [field]: value };
                     })
@@ -519,6 +631,7 @@ export function ProductGrid({
           selectedIds={[...selectedRows]}
           products={products}
           allAttrs={allAttrs}
+          coreAttrDefs={coreAttrDefs}
           projectId={projectId}
           onClose={() => setBulkEditOpen(false)}
           onApplied={(updatedProducts) => {
@@ -547,6 +660,7 @@ interface GridRowProps {
   onCellEdit: (columnId: string) => void;
   onCellBlur: () => void;
   onCellChange: (field: string, value: unknown, attrDef?: AttrDef) => void;
+  onNavigateCell: (direction: 1 | -1) => void;
   saveStatus: "idle" | "saving" | "saved" | "error";
   canEdit: boolean;
 }
@@ -559,9 +673,11 @@ function GridRow({
   onCellEdit,
   onCellBlur,
   onCellChange,
+  onNavigateCell,
   saveStatus,
   canEdit,
 }: GridRowProps) {
+  const navigatingRef = useRef(false);
   const isEditing = (colId: string) =>
     editingCell?.rowId === row.id && editingCell?.columnId === colId;
 
@@ -602,16 +718,26 @@ function GridRow({
         const editing = isEditing(colId);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const attrDef: AttrDef | undefined = (cell.column.columnDef.meta as any)?.attrDef;
-        const isEav = !!attrDef;
+        const isEav = !!(cell.column.columnDef.meta as any)?.eav;
 
-        const commit = (raw: string) => {
+        const commit = (raw: string, navigate?: 1 | -1) => {
           if (isEav) {
             onCellChange(colId, raw, attrDef);
           } else {
             const parsed = typeof value === "number" ? parseFloat(raw) || 0 : raw;
             onCellChange(colId, parsed);
           }
-          onCellBlur();
+          if (navigate !== undefined) {
+            navigatingRef.current = true;
+            onNavigateCell(navigate);
+          } else {
+            onCellBlur();
+          }
+        };
+
+        const handleBlur = (raw: string) => {
+          if (navigatingRef.current) { navigatingRef.current = false; return; }
+          commit(raw);
         };
 
         return (
@@ -625,35 +751,71 @@ function GridRow({
             )}
             onClick={() => canEdit && onCellEdit(colId)}
           >
-            {editing ? (
-              attrDef?.lovItems?.length ? (
-                <select
-                  autoFocus
-                  className="w-full h-full px-2 py-1 text-sm outline-none bg-white"
-                  defaultValue={value != null ? String(value) : ""}
-                  onChange={(e) => commit(e.target.value)}
-                  onBlur={(e) => commit(e.target.value)}
-                >
-                  <option value="">—</option>
-                  {attrDef.lovItems.map((lov) => (
-                    <option key={lov.value} value={lov.value}>{lov.label}</option>
-                  ))}
-                </select>
-              ) : (
+            {editing ? (() => {
+              const isMulti = attrDef && attrDef.maxValues > 1;
+              // For multi-value, get current array values joined by newline for editing
+              const editDefault = isMulti
+                ? ((row.original as ProductRow)._eavArrays?.[attrDef!.key] ?? []).join("\n")
+                : (value != null ? String(value) : "");
+
+              if (isMulti) {
+                return (
+                  <textarea
+                    autoFocus
+                    rows={Math.min(attrDef!.maxValues, 5)}
+                    className="w-full px-2 py-1 text-sm outline-none bg-white resize-none"
+                    defaultValue={editDefault}
+                    placeholder={`One value per line (max ${attrDef!.maxValues})`}
+                    onBlur={(e) => handleBlur(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") onCellBlur();
+                      if (e.key === "Tab") { e.preventDefault(); commit(e.currentTarget.value, e.shiftKey ? -1 : 1); }
+                    }}
+                  />
+                );
+              }
+              if (attrDef?.lovItems?.length) {
+                return (
+                  <select
+                    autoFocus
+                    className="w-full h-full px-2 py-1 text-sm outline-none bg-white"
+                    defaultValue={editDefault}
+                    onChange={(e) => commit(e.target.value)}
+                    onBlur={(e) => handleBlur(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Tab") { e.preventDefault(); commit(e.currentTarget.value, e.shiftKey ? -1 : 1); }
+                      if (e.key === "Escape") onCellBlur();
+                    }}
+                  >
+                    <option value="">—</option>
+                    {attrDef.lovItems.map((lov) => (
+                      <option key={lov.value} value={lov.value}>{lov.label}</option>
+                    ))}
+                  </select>
+                );
+              }
+              return (
                 <input
                   autoFocus
                   className="w-full h-full px-2 py-1 text-sm outline-none bg-white"
-                  defaultValue={value != null ? String(value) : ""}
-                  onBlur={(e) => commit(e.target.value)}
+                  defaultValue={editDefault}
+                  onBlur={(e) => handleBlur(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === "Tab") commit(e.currentTarget.value);
+                    if (e.key === "Tab") { e.preventDefault(); commit(e.currentTarget.value, e.shiftKey ? -1 : 1); return; }
+                    if (e.key === "Enter") commit(e.currentTarget.value);
                     if (e.key === "Escape") onCellBlur();
                   }}
                 />
-              )
-            ) : (
-              <div className={cn("px-2 py-1 text-sm truncate min-h-[32px] flex items-center", isEav ? "text-amber-900" : "text-gray-700")}>
+              );
+            })() : (
+              <div className={cn("px-2 py-1 text-sm truncate min-h-[32px] flex items-center gap-1 flex-wrap", isEav ? "text-amber-900" : "text-gray-700")}>
                 {value != null && String(value) !== "" ? (() => {
+                  if (attrDef?.maxValues && attrDef.maxValues > 1) {
+                    const vals = (row.original as ProductRow)._eavArrays?.[attrDef.key] ?? [];
+                    return vals.map((v, i) => (
+                      <span key={i} className="inline-block bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded">{v}</span>
+                    ));
+                  }
                   if (attrDef?.lovItems?.length) {
                     return attrDef.lovItems.find((l) => l.value === String(value))?.label ?? String(value);
                   }
@@ -686,12 +848,13 @@ interface BulkEditDialogProps {
   selectedIds: string[];
   products: ProductRow[];
   allAttrs: AttrDef[];
+  coreAttrDefs: AttrDef[];
   projectId: string;
   onClose: () => void;
   onApplied: (updated: ProductRow[]) => void;
 }
 
-function BulkEditDialog({ selectedIds, allAttrs, projectId, onClose, onApplied }: BulkEditDialogProps) {
+function BulkEditDialog({ selectedIds, allAttrs, coreAttrDefs, projectId, onClose, onApplied }: BulkEditDialogProps) {
   const [field, setField] = useState("");
   const [value, setValue] = useState("");
   const [applying, setApplying] = useState(false);
@@ -699,6 +862,7 @@ function BulkEditDialog({ selectedIds, allAttrs, projectId, onClose, onApplied }
 
   const selectedAttr = allAttrs.find((a) => `eav_${a.key}` === field);
   const selectedCore = BULK_CORE_FIELDS.find((f) => f.key === field);
+  const selectedCoreAttrDef = selectedCore ? coreAttrDefs.find((a) => a.key === selectedCore.key) : undefined;
 
   const apply = async () => {
     if (!field) return;
@@ -759,14 +923,14 @@ function BulkEditDialog({ selectedIds, allAttrs, projectId, onClose, onApplied }
         {field && (
           <div className="space-y-2">
             <label className="text-xs font-medium text-gray-600">New value</label>
-            {selectedAttr?.lovItems?.length ? (
+            {(selectedAttr?.lovItems?.length || selectedCoreAttrDef?.lovItems?.length) ? (
               <select
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
               >
                 <option value="">—</option>
-                {selectedAttr.lovItems.map((l) => (
+                {(selectedAttr?.lovItems ?? selectedCoreAttrDef?.lovItems ?? []).map((l) => (
                   <option key={l.value} value={l.value}>{l.label}</option>
                 ))}
               </select>
