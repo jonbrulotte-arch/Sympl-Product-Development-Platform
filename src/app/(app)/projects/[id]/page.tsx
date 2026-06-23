@@ -52,10 +52,13 @@ export default async function ProjectDetailPage({
   if (!project) notFound();
 
   const attrInclude = {
-    include: { lovItems: { orderBy: { sortOrder: "asc" as const } } },
+    include: {
+      lovItems: { orderBy: { sortOrder: "asc" as const } },
+      section: true,
+    },
   };
 
-  const [products, globalAttrs, categoryAttrs] = await Promise.all([
+  const [products, globalAttrs, categoryAttrs, coreAttrDefs] = await Promise.all([
     prisma.productRecord.findMany({
       where: { projectId: id, isArchived: false },
       include: {
@@ -86,6 +89,11 @@ export default async function ProjectDetailPage({
           orderBy: { sortOrder: "asc" },
         })
       : Promise.resolve([]),
+    // Core column attribute definitions (for LOV support on typed columns)
+    prisma.attributeDefinition.findMany({
+      where: { key: { in: Array.from(CORE_COLUMN_KEYS) }, isActive: true },
+      ...attrInclude,
+    }),
   ]);
 
   const canEdit = canEditProject(
@@ -100,6 +108,7 @@ export default async function ProjectDetailPage({
       initialProducts={products as never}
       globalAttrs={globalAttrs as never}
       categoryAttrs={categoryAttrs as never}
+      coreAttrDefs={coreAttrDefs as never}
       canEdit={canEdit}
       currentUserId={session.user.id}
     />

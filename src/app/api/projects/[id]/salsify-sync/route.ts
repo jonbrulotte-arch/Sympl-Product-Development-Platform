@@ -50,10 +50,12 @@ export async function POST(_req: NextRequest, { params }: Params) {
     // Map EAV attribute values where salsify is enabled
     for (const attr of salsifyAttrs) {
       if (!attr.salsifyPropertyId) continue;
-      const av = product.attributeValues.find((v) => v.attributeDefinitionId === attr.id);
-      if (av) {
-        salsifyProduct[attr.salsifyPropertyId] = av.textValue ?? av.numberValue ?? av.booleanValue;
-      }
+      const avs = product.attributeValues
+        .filter((v) => v.attributeDefinitionId === attr.id)
+        .sort((a, b) => a.valueIndex - b.valueIndex);
+      if (avs.length === 0) continue;
+      const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
+      salsifyProduct[attr.salsifyPropertyId] = attr.maxValues > 1 ? values : values[0];
     }
 
     // Map core fields that have a salsify property ID set

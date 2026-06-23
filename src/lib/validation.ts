@@ -20,6 +20,7 @@ export const projectSchema = z.object({
   retailer: z.string().optional(),
   channel: z.string().optional(),
   tags: z.array(z.string()).optional().default([]),
+  status: z.enum(["DRAFT","IN_PROGRESS","NEEDS_REVIEW","CHANGES_REQUESTED","APPROVED","EXPORT_READY","ARCHIVED"]).optional(),
 });
 
 export const productSchema = z.object({

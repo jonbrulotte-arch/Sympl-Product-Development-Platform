@@ -1,10 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Plus, X, Edit2, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Plus, X, Pencil, ChevronDown, ChevronRight, Download, Upload,
+  Type, AlignLeft, Hash, ToggleLeft, CalendarDays, List, Link2,
+  Mail, Barcode, GripVertical, Layers, Zap, Settings2, Trash2, Check,
+} from "lucide-react";
+
+interface Section {
+  id: string;
+  name: string;
+  slug: string;
+  sortOrder: number;
+}
 
 interface LovItem {
   id: string;
@@ -20,13 +30,14 @@ interface AttributeDef {
   description: string | null;
   attributeType: string;
   requirement: string;
+  maxValues: number;
   isCore: boolean;
   salsifyEnabled: boolean;
   salsifyPropertyId: string | null;
   categoryId: string | null;
   sectionId: string | null;
   sortOrder: number;
-  section: { name: string } | null;
+  section: { id?: string; name: string } | null;
   category: { name: string } | null;
   lovItems: LovItem[];
 }
@@ -38,28 +49,70 @@ interface Category {
 
 interface Props {
   initialAttributes: AttributeDef[];
+  initialSections: Section[];
   categories: Category[];
 }
 
 const ATTR_TYPES = ["TEXT","TEXTAREA","NUMBER","DECIMAL","BOOLEAN","DATE","SELECT","MULTI_SELECT","URL","EMAIL","UPC","GTIN"];
 const REQUIREMENTS = ["REQUIRED","CONDITIONAL","OPTIONAL"];
 
-export function AttributesClient({ initialAttributes, categories }: Props) {
+const TYPE_META: Record<string, { icon: React.ElementType; color: string; label: string }> = {
+  TEXT:         { icon: Type,        color: "text-gray-500  bg-gray-100",   label: "Text" },
+  TEXTAREA:     { icon: AlignLeft,   color: "text-gray-500  bg-gray-100",   label: "Long text" },
+  NUMBER:       { icon: Hash,        color: "text-blue-600  bg-blue-50",    label: "Number" },
+  DECIMAL:      { icon: Hash,        color: "text-blue-600  bg-blue-50",    label: "Decimal" },
+  BOOLEAN:      { icon: ToggleLeft,  color: "text-purple-600 bg-purple-50", label: "Boolean" },
+  DATE:         { icon: CalendarDays,color: "text-orange-600 bg-orange-50", label: "Date" },
+  SELECT:       { icon: List,        color: "text-teal-600  bg-teal-50",    label: "Select" },
+  MULTI_SELECT: { icon: Layers,      color: "text-teal-600  bg-teal-50",    label: "Multi-select" },
+  URL:          { icon: Link2,       color: "text-indigo-600 bg-indigo-50", label: "URL" },
+  EMAIL:        { icon: Mail,        color: "text-pink-600  bg-pink-50",    label: "Email" },
+  UPC:          { icon: Barcode,     color: "text-yellow-600 bg-yellow-50", label: "UPC" },
+  GTIN:         { icon: Barcode,     color: "text-yellow-600 bg-yellow-50", label: "GTIN" },
+};
+
+const REQ_STYLE: Record<string, string> = {
+  REQUIRED:    "bg-red-100 text-red-700 border-red-200",
+  CONDITIONAL: "bg-amber-100 text-amber-700 border-amber-200",
+  OPTIONAL:    "bg-gray-100 text-gray-500 border-gray-200",
+};
+
+export function AttributesClient({ initialAttributes, initialSections, categories }: Props) {
   const [attributes, setAttributes] = useState<AttributeDef[]>(initialAttributes);
+  const [sections, setSections] = useState<Section[]>(initialSections);
   const [editTarget, setEditTarget] = useState<AttributeDef | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["global"]));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    () => new Set([...initialSections.map((s) => s.name), "Global"])
+  );
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+  const [sectionManagerOpen, setSectionManagerOpen] = useState(false);
+  // Drag state
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [dragOverSection, setDragOverSection] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Group by section
-  const grouped: Record<string, AttributeDef[]> = {};
-  for (const attr of attributes) {
-    if (attr.label.toLowerCase().includes(search.toLowerCase()) || attr.key.toLowerCase().includes(search.toLowerCase())) {
+  const grouped = useMemo(() => {
+    const g: Record<string, AttributeDef[]> = {};
+    const q = search.toLowerCase();
+    for (const attr of attributes) {
+      if (q && !attr.label.toLowerCase().includes(q) && !attr.key.toLowerCase().includes(q)) continue;
       const key = attr.section?.name ?? "Global";
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(attr);
+      if (!g[key]) g[key] = [];
+      g[key].push(attr);
     }
-  }
+    return g;
+  }, [attributes, search]);
+
+  // Section display order follows sections.sortOrder then "Global" at end
+  const sectionOrder = useMemo(() => {
+    const names = sections.map((s) => s.name).filter((n) => grouped[n]);
+    if (grouped["Global"]) names.push("Global");
+    return names;
+  }, [sections, grouped]);
 
   const toggleSection = (name: string) => {
     setExpandedSections((prev) => {
@@ -70,6 +123,195 @@ export function AttributesClient({ initialAttributes, categories }: Props) {
     });
   };
 
+  // ── Drag handlers ─────────────────────────────────────────────────────────
+
+  const handleDragStart = useCallback((e: React.DragEvent, attrId: string) => {
+    setDraggingId(attrId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", attrId);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingId(null);
+    setDragOverId(null);
+    setDragOverSection(null);
+  }, []);
+
+  const saveOrders = useCallback(
+    (updates: { id: string; sortOrder: number; sectionId?: string | null }[]) => {
+      for (const u of updates) {
+        fetch(`/api/attributes/${u.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sortOrder: u.sortOrder,
+            ...(u.sectionId !== undefined ? { sectionId: u.sectionId } : {}),
+          }),
+        });
+      }
+    },
+    []
+  );
+
+  const handleDragOverAttr = useCallback(
+    (e: React.DragEvent, attrId: string) => {
+      if (attrId === draggingId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      setDragOverId(attrId);
+      setDragOverSection(null);
+    },
+    [draggingId]
+  );
+
+  const handleDragOverSectionHeader = useCallback(
+    (e: React.DragEvent, sectionName: string) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      setDragOverSection(sectionName);
+      setDragOverId(null);
+    },
+    []
+  );
+
+  const handleDropOnAttr = useCallback(
+    (e: React.DragEvent, targetAttrId: string, sectionName: string) => {
+      e.preventDefault();
+      if (!draggingId || draggingId === targetAttrId) { handleDragEnd(); return; }
+
+      const draggingAttr = attributes.find((a) => a.id === draggingId);
+      if (!draggingAttr) { handleDragEnd(); return; }
+
+      const targetSection = sections.find((s) => s.name === sectionName) ?? null;
+      const targetSectionId = sectionName === "Global" ? null : (targetSection?.id ?? null);
+
+      const sectionAttrs = grouped[sectionName] ?? [];
+      const withoutDragging = sectionAttrs.filter((a) => a.id !== draggingId);
+      const targetIdx = withoutDragging.findIndex((a) => a.id === targetAttrId);
+      const reordered = [...withoutDragging];
+      reordered.splice(targetIdx, 0, draggingAttr);
+
+      const updates: { id: string; sortOrder: number; sectionId?: string | null }[] = reordered.map(
+        (a, i) => ({
+          id: a.id,
+          sortOrder: i,
+          ...(a.id === draggingId ? { sectionId: targetSectionId } : {}),
+        })
+      );
+
+      const sourceSectionName = draggingAttr.section?.name ?? "Global";
+      let sourceUpdates: { id: string; sortOrder: number }[] = [];
+      if (sourceSectionName !== sectionName) {
+        sourceUpdates = (grouped[sourceSectionName] ?? [])
+          .filter((a) => a.id !== draggingId)
+          .map((a, i) => ({ id: a.id, sortOrder: i }));
+      }
+
+      setAttributes((prev) =>
+        prev.map((a) => {
+          const u = updates.find((u) => u.id === a.id);
+          if (u)
+            return {
+              ...a,
+              sortOrder: u.sortOrder,
+              ...(u.sectionId !== undefined
+                ? { sectionId: u.sectionId, section: targetSection ? { name: targetSection.name } : null }
+                : {}),
+            };
+          const su = sourceUpdates.find((u) => u.id === a.id);
+          if (su) return { ...a, sortOrder: su.sortOrder };
+          return a;
+        })
+      );
+
+      saveOrders([...updates, ...sourceUpdates]);
+      handleDragEnd();
+    },
+    [draggingId, attributes, grouped, sections, handleDragEnd, saveOrders]
+  );
+
+  const handleDropOnSectionHeader = useCallback(
+    (e: React.DragEvent, sectionName: string) => {
+      e.preventDefault();
+      if (!draggingId) { handleDragEnd(); return; }
+
+      const draggingAttr = attributes.find((a) => a.id === draggingId);
+      if (!draggingAttr) { handleDragEnd(); return; }
+
+      const sourceSectionName = draggingAttr.section?.name ?? "Global";
+      if (sourceSectionName === sectionName) { handleDragEnd(); return; }
+
+      const targetSectionObj = sections.find((s) => s.name === sectionName) ?? null;
+      const targetSectionId = sectionName === "Global" ? null : (targetSectionObj?.id ?? null);
+      const existingInTarget = (grouped[sectionName] ?? []).filter((a) => a.id !== draggingId);
+      const newSortOrder = existingInTarget.length;
+
+      const sourceUpdates = (grouped[sourceSectionName] ?? [])
+        .filter((a) => a.id !== draggingId)
+        .map((a, i) => ({ id: a.id, sortOrder: i }));
+
+      setAttributes((prev) =>
+        prev.map((a) => {
+          if (a.id === draggingId)
+            return {
+              ...a,
+              sectionId: targetSectionId,
+              section: targetSectionObj ? { name: targetSectionObj.name } : null,
+              sortOrder: newSortOrder,
+            };
+          const su = sourceUpdates.find((u) => u.id === a.id);
+          if (su) return { ...a, sortOrder: su.sortOrder };
+          return a;
+        })
+      );
+
+      saveOrders([{ id: draggingId, sortOrder: newSortOrder, sectionId: targetSectionId }, ...sourceUpdates]);
+      // Expand target section so user can see where it landed
+      setExpandedSections((prev) => new Set([...prev, sectionName]));
+      handleDragEnd();
+    },
+    [draggingId, attributes, grouped, sections, handleDragEnd, saveOrders]
+  );
+
+  // ── Export / Import ────────────────────────────────────────────────────────
+
+  const handleExport = async () => {
+    const res = await fetch("/api/attributes/export");
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `attribute-definitions-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/attributes/import", { method: "POST", body: fd });
+      const data = await res.json();
+      if (res.ok) {
+        setImportResult(`Import complete: ${data.created} created, ${data.updated} updated${data.errors?.length ? ` (${data.errors.length} errors)` : ""}`);
+        const refresh = await fetch("/api/attributes");
+        if (refresh.ok) setAttributes(await refresh.json());
+      } else {
+        setImportResult(`Import failed: ${data.error}`);
+      }
+    } catch {
+      setImportResult("Import failed — network error");
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -77,68 +319,162 @@ export function AttributesClient({ initialAttributes, categories }: Props) {
           <h1 className="text-2xl font-bold text-gray-900">Attribute Definitions</h1>
           <p className="text-gray-500 text-sm mt-1">{attributes.length} attributes configured</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" />
-          New Attribute
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setSectionManagerOpen(true)}>
+            <Settings2 className="h-4 w-4" />
+            Manage Groups
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download className="h-4 w-4" />
+            Export
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+            <Upload className="h-4 w-4" />
+            {importing ? "Importing…" : "Import"}
+          </Button>
+          <input ref={fileInputRef} type="file" accept=".xlsx,.csv" className="hidden" onChange={handleImport} />
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" />
+            New Attribute
+          </Button>
+        </div>
       </div>
 
-      <Input
-        placeholder="Search attributes..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="mb-4 max-w-xs"
-      />
+      {importResult && (
+        <div className={`mb-4 px-4 py-3 rounded-lg text-sm flex items-center justify-between ${importResult.includes("failed") || importResult.includes("error") ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
+          <span>{importResult}</span>
+          <button onClick={() => setImportResult(null)}><X className="h-4 w-4" /></button>
+        </div>
+      )}
+
+      <div className="mb-4 flex items-center gap-3">
+        <Input
+          placeholder="Search attributes..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-xs"
+        />
+        <p className="text-xs text-gray-400">
+          Drag the <GripVertical className="inline h-3 w-3" /> handle to reorder. Drop onto a section header to move between groups.
+        </p>
+      </div>
 
       <div className="space-y-3">
-        {Object.entries(grouped).map(([section, attrs]) => (
-          <div key={section} className="border border-gray-200 rounded-lg overflow-hidden">
-            <button
-              className="w-full flex items-center gap-2 px-4 py-3 bg-gray-50 hover:bg-gray-100 text-left"
-              onClick={() => toggleSection(section)}
-            >
-              {expandedSections.has(section) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              <span className="font-medium text-gray-700">{section}</span>
-              <span className="text-xs text-gray-400">({attrs.length})</span>
-            </button>
+        {sectionOrder.map((sectionName) => {
+          const attrs = grouped[sectionName] ?? [];
+          const isDragOverHeader = dragOverSection === sectionName;
+          return (
+            <div key={sectionName} className="border border-gray-200 rounded-lg overflow-hidden">
+              <button
+                className={`w-full flex items-center gap-2 px-4 py-3 text-left transition-colors ${isDragOverHeader ? "bg-blue-100 border-blue-300" : "bg-gray-50 hover:bg-gray-100"}`}
+                onClick={() => toggleSection(sectionName)}
+                onDragOver={(e) => handleDragOverSectionHeader(e, sectionName)}
+                onDragLeave={() => setDragOverSection(null)}
+                onDrop={(e) => handleDropOnSectionHeader(e, sectionName)}
+              >
+                {expandedSections.has(sectionName)
+                  ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
+                  : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
+                <span className="font-semibold text-gray-700 text-sm">{sectionName}</span>
+                <span className="ml-1 text-xs text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5">{attrs.length}</span>
+                {isDragOverHeader && (
+                  <span className="ml-auto text-xs text-blue-600 font-medium">Drop to move here</span>
+                )}
+              </button>
 
-            {expandedSections.has(section) && (
-              <div className="divide-y divide-gray-100">
-                {attrs.map((attr) => (
-                  <div key={attr.id} className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium text-gray-900">{attr.label}</span>
-                        <code className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{attr.key}</code>
-                        <Badge variant={attr.requirement === "REQUIRED" ? "destructive" : "secondary"} className="text-xs">
-                          {attr.requirement}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">{attr.attributeType}</Badge>
-                        {attr.category && <Badge variant="outline" className="text-xs text-purple-600">{attr.category.name}</Badge>}
-                        {attr.salsifyEnabled && <Badge variant="outline" className="text-xs text-green-600">Salsify</Badge>}
-                        {attr.lovItems.length > 0 && (
-                          <span className="text-xs text-gray-400">{attr.lovItems.length} options</span>
-                        )}
+              {expandedSections.has(sectionName) && (
+                <div className="divide-y divide-gray-100">
+                  {attrs.map((attr) => {
+                    const meta = TYPE_META[attr.attributeType] ?? TYPE_META.TEXT;
+                    const TypeIcon = meta.icon;
+                    const isDragging = draggingId === attr.id;
+                    const isOver = dragOverId === attr.id;
+                    return (
+                      <div
+                        key={attr.id}
+                        className={`flex items-center gap-3 px-4 py-3 group transition-colors ${isDragging ? "opacity-40 bg-blue-50" : isOver ? "bg-blue-50 border-t-2 border-t-blue-400" : "hover:bg-gray-50"}`}
+                        onDragOver={(e) => handleDragOverAttr(e, attr.id)}
+                        onDragLeave={() => setDragOverId(null)}
+                        onDrop={(e) => handleDropOnAttr(e, attr.id, sectionName)}
+                      >
+                        {/* Drag handle — only this element is draggable */}
+                        <div
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, attr.id)}
+                          onDragEnd={handleDragEnd}
+                          className="cursor-grab active:cursor-grabbing shrink-0 touch-none"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <GripVertical className="h-4 w-4 text-gray-200 group-hover:text-gray-400 transition-colors" />
+                        </div>
+
+                        {/* Type icon */}
+                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${meta.color}`}>
+                          <TypeIcon className="h-4 w-4" />
+                        </div>
+
+                        {/* Main info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-semibold text-gray-900">{attr.label}</span>
+                            <code className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded font-mono">{attr.key}</code>
+                            {attr.isCore && <span className="text-xs text-blue-500 font-medium">core</span>}
+                          </div>
+                          {attr.description && (
+                            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-lg">{attr.description}</p>
+                          )}
+                        </div>
+
+                        {/* Right-side metadata */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded border ${REQ_STYLE[attr.requirement] ?? REQ_STYLE.OPTIONAL}`}>
+                            {attr.requirement}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded font-medium ${meta.color}`}>
+                            {meta.label}{attr.maxValues > 1 ? ` ×${attr.maxValues}` : ""}
+                          </span>
+                          {attr.lovItems.length > 0 && (
+                            <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded">
+                              {attr.lovItems.length} option{attr.lovItems.length !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                          {attr.category ? (
+                            <span className="text-xs text-purple-600 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded">
+                              {attr.category.name}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded">
+                              Global
+                            </span>
+                          )}
+                          {attr.salsifyEnabled && (
+                            <span className="flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded">
+                              <Zap className="h-3 w-3" />
+                              Salsify
+                            </span>
+                          )}
+                          <button
+                            onClick={() => setEditTarget(attr)}
+                            className="ml-1 p-1.5 rounded text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
-                      {attr.description && (
-                        <p className="text-xs text-gray-400 mt-0.5 truncate">{attr.description}</p>
-                      )}
-                    </div>
-                    <Button size="sm" variant="ghost" onClick={() => setEditTarget(attr)}>
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {(editTarget || createOpen) && (
         <AttributeDialog
           attr={editTarget}
           categories={categories}
+          sections={sections}
           onClose={() => { setEditTarget(null); setCreateOpen(false); }}
           onSaved={(saved) => {
             setAttributes((prev) => {
@@ -155,6 +491,183 @@ export function AttributesClient({ initialAttributes, categories }: Props) {
           }}
         />
       )}
+
+      {sectionManagerOpen && (
+        <SectionManager
+          sections={sections}
+          onSectionsChange={setSections}
+          onClose={() => setSectionManagerOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Section Manager Modal ────────────────────────────────────────────────────
+
+interface SectionManagerProps {
+  sections: Section[];
+  onSectionsChange: (sections: Section[]) => void;
+  onClose: () => void;
+}
+
+function SectionManager({ sections, onSectionsChange, onClose }: SectionManagerProps) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [newName, setNewName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const startEdit = (s: Section) => {
+    setEditingId(s.id);
+    setEditName(s.name);
+    setError(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName("");
+  };
+
+  const saveEdit = async (id: string) => {
+    if (!editName.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/attributes/sections/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName.trim() }),
+      });
+      if (!res.ok) { setError("Failed to rename"); return; }
+      const updated = await res.json();
+      onSectionsChange(sections.map((s) => (s.id === id ? updated : s)));
+      setEditingId(null);
+    } catch {
+      setError("Network error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteSection = async (id: string) => {
+    setDeleting(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/attributes/sections/${id}`, { method: "DELETE" });
+      if (!res.ok) { setError("Failed to delete"); return; }
+      onSectionsChange(sections.filter((s) => s.id !== id));
+    } catch {
+      setError("Network error");
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const createSection = async () => {
+    if (!newName.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/attributes/sections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      if (!res.ok) { setError("Failed to create"); return; }
+      const created = await res.json();
+      onSectionsChange([...sections, created]);
+      setNewName("");
+    } catch {
+      setError("Network error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h3 className="text-base font-semibold text-gray-900">Manage Attribute Groups</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-2 max-h-80 overflow-y-auto">
+          {sections.length === 0 && (
+            <p className="text-sm text-gray-400 italic text-center py-4">No groups yet</p>
+          )}
+          {sections.map((s) => (
+            <div key={s.id} className="flex items-center gap-2 p-2 border border-gray-200 rounded-lg">
+              {editingId === s.id ? (
+                <>
+                  <Input
+                    className="flex-1 h-8 text-sm"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveEdit(s.id);
+                      if (e.key === "Escape") cancelEdit();
+                    }}
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => saveEdit(s.id)}
+                    disabled={saving}
+                    className="p-1.5 rounded text-green-600 hover:bg-green-50"
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button onClick={cancelEdit} className="p-1.5 rounded text-gray-400 hover:bg-gray-100">
+                    <X className="h-4 w-4" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="flex-1 text-sm font-medium text-gray-800">{s.name}</span>
+                  <button
+                    onClick={() => startEdit(s)}
+                    className="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => deleteSection(s.id)}
+                    disabled={deleting === s.id}
+                    className="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-2">
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div className="flex gap-2">
+            <Input
+              placeholder="New group name…"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") createSection(); }}
+              className="flex-1"
+            />
+            <Button size="sm" onClick={createSection} disabled={!newName.trim() || saving}>
+              <Plus className="h-4 w-4" />
+              Add
+            </Button>
+          </div>
+          <p className="text-xs text-gray-400">Deleting a group moves its attributes to &quot;Global&quot;.</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -164,11 +677,12 @@ export function AttributesClient({ initialAttributes, categories }: Props) {
 interface DialogProps {
   attr: AttributeDef | null;
   categories: Category[];
+  sections: Section[];
   onClose: () => void;
   onSaved: (attr: AttributeDef) => void;
 }
 
-function AttributeDialog({ attr, categories, onClose, onSaved }: DialogProps) {
+function AttributeDialog({ attr, categories, sections, onClose, onSaved }: DialogProps) {
   const isNew = !attr;
   const [form, setForm] = useState({
     key: attr?.key ?? "",
@@ -176,7 +690,9 @@ function AttributeDialog({ attr, categories, onClose, onSaved }: DialogProps) {
     description: attr?.description ?? "",
     attributeType: attr?.attributeType ?? "TEXT",
     requirement: attr?.requirement ?? "OPTIONAL",
+    maxValues: attr?.maxValues ?? 1,
     categoryId: attr?.categoryId ?? "",
+    sectionId: attr?.sectionId ?? "",
     salsifyEnabled: attr?.salsifyEnabled ?? false,
     salsifyPropertyId: attr?.salsifyPropertyId ?? "",
   });
@@ -193,7 +709,9 @@ function AttributeDialog({ attr, categories, onClose, onSaved }: DialogProps) {
     try {
       const payload = {
         ...form,
+        maxValues: Math.max(1, Number(form.maxValues) || 1),
         categoryId: form.categoryId || null,
+        sectionId: form.sectionId || null,
         salsifyPropertyId: form.salsifyPropertyId || null,
       };
 
@@ -214,7 +732,13 @@ function AttributeDialog({ attr, categories, onClose, onSaved }: DialogProps) {
         setError(data.error ?? "Save failed");
       } else {
         const saved = await res.json();
-        onSaved({ ...saved, lovItems, section: attr?.section ?? null, category: categories.find((c) => c.id === form.categoryId) ?? null });
+        const targetSection = sections.find((s) => s.id === form.sectionId) ?? null;
+        onSaved({
+          ...saved,
+          lovItems,
+          section: targetSection ? { name: targetSection.name } : null,
+          category: categories.find((c) => c.id === form.categoryId) ?? null,
+        });
       }
     } catch {
       setError("Network error");
@@ -245,9 +769,13 @@ function AttributeDialog({ attr, categories, onClose, onSaved }: DialogProps) {
   };
 
   const showLov = form.attributeType === "SELECT" || form.attributeType === "MULTI_SELECT";
+  const isMultiValue = Number(form.maxValues) > 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <h3 className="text-base font-semibold">{isNew ? "New Attribute" : `Edit: ${attr.label}`}</h3>
@@ -255,7 +783,6 @@ function AttributeDialog({ attr, categories, onClose, onSaved }: DialogProps) {
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Core fields */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Label *</label>
@@ -284,6 +811,33 @@ function AttributeDialog({ attr, categories, onClose, onSaved }: DialogProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Group / Section</label>
+              <select
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                value={form.sectionId}
+                onChange={(e) => setForm((f) => ({ ...f, sectionId: e.target.value }))}
+              >
+                <option value="">— Global (no group) —</option>
+                {sections.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Category scope</label>
+              <select
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                value={form.categoryId}
+                onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
+              >
+                <option value="">— Global (all categories) —</option>
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
               <select
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
@@ -303,24 +857,24 @@ function AttributeDialog({ attr, categories, onClose, onSaved }: DialogProps) {
                 {REQUIREMENTS.map((r) => <option key={r}>{r}</option>)}
               </select>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Category (leave blank for global)</label>
-            <select
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-              value={form.categoryId}
-              onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
-            >
-              <option value="">— Global (applies to all) —</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Max Values</label>
+              <Input
+                type="number"
+                min={1}
+                max={50}
+                value={form.maxValues}
+                onChange={(e) => setForm((f) => ({ ...f, maxValues: parseInt(e.target.value) || 1 }))}
+              />
+              <p className="text-xs text-gray-400 mt-1">{isMultiValue ? `Up to ${form.maxValues} values` : "Single value"}</p>
+            </div>
           </div>
 
           {/* Salsify section */}
           <div className="border border-green-200 rounded-lg p-4 space-y-3 bg-green-50">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-green-800">Salsify Integration</span>
+              {isMultiValue && <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">sends as array</span>}
             </div>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -340,7 +894,9 @@ function AttributeDialog({ attr, categories, onClose, onSaved }: DialogProps) {
                   onChange={(e) => setForm((f) => ({ ...f, salsifyPropertyId: e.target.value }))}
                 />
                 <p className="text-xs text-gray-400 mt-1">
-                  The Salsify property name where this attribute&apos;s value will be saved
+                  {isMultiValue
+                    ? "Values will be sent as a JSON array to this Salsify property"
+                    : "The Salsify property name where this attribute's value will be saved"}
                 </p>
               </div>
             )}

@@ -496,19 +496,32 @@ model WorkflowStageTemplate {
 }
 
 model WorkflowStage {
-  id          String              @id @default(cuid())
-  projectId   String
-  name        String
-  description String?
-  sortOrder   Int                 @default(0)
-  status      WorkflowStageStatus @default(PENDING)
-  isRequired  Boolean             @default(true)
-  completedAt DateTime?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  id                 String              @id @default(cuid())
+  projectId          String
+  name               String
+  description        String?
+  sortOrder          Int                 @default(0)
+  status             WorkflowStageStatus @default(PENDING)
+  isRequired         Boolean             @default(true)
+  onApproveSetStatus ProjectStatus?
+  completedAt        DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   approvals WorkflowApproval[]
+}
+
+model ProjectStatusConfig {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  label       String
+  color       String   @default("gray")
+  description String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model WorkflowApproval {
@@ -522,6 +535,8 @@ model WorkflowApproval {
 
   stage    WorkflowStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
   approver User          @relation(fields: [approverId], references: [id])
+
+  @@unique([stageId, approverId])
 }
 
 // ─── Comments ─────────────────────────────────────────────────────────────────
