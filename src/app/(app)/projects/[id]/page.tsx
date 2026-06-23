@@ -102,13 +102,17 @@ export default async function ProjectDetailPage({
     project
   );
 
+  // Serialize through JSON to convert Prisma Decimal/Date objects to plain primitives
+  // before crossing the server→client boundary
+  const serialized = JSON.parse(JSON.stringify({ project, products, globalAttrs, categoryAttrs, coreAttrDefs }));
+
   return (
     <ProjectDetailClient
-      project={project as never}
-      initialProducts={products as never}
-      globalAttrs={globalAttrs as never}
-      categoryAttrs={categoryAttrs as never}
-      coreAttrDefs={coreAttrDefs as never}
+      project={serialized.project}
+      initialProducts={serialized.products}
+      globalAttrs={serialized.globalAttrs}
+      categoryAttrs={serialized.categoryAttrs}
+      coreAttrDefs={serialized.coreAttrDefs}
       canEdit={canEdit}
       currentUserId={session.user.id}
     />
