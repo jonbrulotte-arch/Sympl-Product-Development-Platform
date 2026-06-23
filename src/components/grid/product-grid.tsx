@@ -689,7 +689,21 @@ export function ProductGrid({
             setProducts((prev) =>
               prev.map((p) => {
                 const u = updatedProducts.find((u) => u.id === p.id);
-                return u ? { ...p, ...u } : p;
+                if (!u) return p;
+                // Re-derive EAV display maps from the returned attributeValues
+                const raw = u as typeof u & { attributeValues?: { attributeDefinition: { key: string }; valueIndex: number; textValue?: string | null }[] };
+                const arrays: EavArrayMap = { ...p._eavArrays };
+                for (const av of (raw.attributeValues ?? []).sort((a, b) => a.valueIndex - b.valueIndex)) {
+                  const k = av.attributeDefinition.key;
+                  if (!arrays[k]) arrays[k] = [];
+                  arrays[k].push(av.textValue ?? "");
+                }
+                return {
+                  ...p,
+                  ...u,
+                  _eavArrays: arrays,
+                  _eavValues: Object.fromEntries(Object.entries(arrays).map(([k, vals]) => [k, vals.join(" · ")])),
+                };
               })
             );
             setSelectedRows(new Set());
@@ -929,6 +943,7 @@ function BulkEditDialog({ selectedIds, allAttrs, coreAttrDefs, projectId, onClos
     let succeeded = 0;
     let failed = 0;
 
+    const updated: ProductRow[] = [];
     await Promise.all(
       selectedIds.map(async (productId) => {
         const body = selectedAttr
@@ -939,7 +954,7 @@ function BulkEditDialog({ selectedIds, allAttrs, coreAttrDefs, projectId, onClos
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        if (res.ok) succeeded++;
+        if (res.ok) { succeeded++; updated.push(await res.json()); }
         else failed++;
       })
     );
@@ -947,7 +962,7 @@ function BulkEditDialog({ selectedIds, allAttrs, coreAttrDefs, projectId, onClos
     setResult(`${succeeded} saved${failed ? `, ${failed} failed` : ""}`);
     setApplying(false);
     if (!failed) setTimeout(onClose, 1200);
-    onApplied([]);
+    onApplied(updated);
   };
 
   return (
