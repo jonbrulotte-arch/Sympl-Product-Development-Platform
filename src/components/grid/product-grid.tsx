@@ -244,13 +244,14 @@ export function ProductGrid({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [columnPinning, setColumnPinning] = useState<ColumnPinningState>({ left: [], right: [] });
-  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
-    if (typeof window === "undefined") return {};
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({});
+  // Load saved column sizes after mount to avoid SSR/client hydration mismatch
+  useEffect(() => {
     try {
       const saved = localStorage.getItem(`grid-col-sizes-${projectId}`);
-      return saved ? JSON.parse(saved) : {};
-    } catch { return {}; }
-  });
+      if (saved) setColumnSizing(JSON.parse(saved));
+    } catch { /* ignore */ }
+  }, [projectId]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ rowId: string; columnId: string } | null>(null);
