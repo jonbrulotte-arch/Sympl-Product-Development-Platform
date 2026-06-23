@@ -90,13 +90,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
   }
 
-  // Log field-level changes
+  // Log field-level changes — fire-and-forget so missing ActivityLog table doesn't crash saves
   const changedFields = Object.keys(parsed.data) as (keyof typeof parsed.data)[];
   for (const field of changedFields) {
     const oldVal = oldProduct?.[field as keyof typeof oldProduct];
     const newVal = parsed.data[field];
     if (String(oldVal) !== String(newVal)) {
-      await logActivity({
+      logActivity({
         userId: session.user.id,
         action: "UPDATED",
         entityType: "ProductRecord",
@@ -106,11 +106,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         fieldKey: field,
         oldValue: oldVal != null ? String(oldVal) : undefined,
         newValue: newVal != null ? String(newVal) : undefined,
-      });
+      }).catch(() => {});
     }
   }
 
-  await prisma.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } });
+  prisma.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } }).catch(() => {});
 
   return NextResponse.json(updated);
 }
@@ -126,14 +126,14 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     data: { isArchived: true },
   });
 
-  await logActivity({
+  logActivity({
     userId: session.user.id,
     action: "DELETED",
     entityType: "ProductRecord",
     entityId: productId,
     projectId,
     productId,
-  });
+  }).catch(() => {});
 
   return NextResponse.json({ success: true });
 }

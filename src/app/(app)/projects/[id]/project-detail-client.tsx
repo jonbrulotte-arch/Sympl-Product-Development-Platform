@@ -10,21 +10,55 @@ import { ProductGrid } from "@/components/grid/product-grid";
 import { formatDate } from "@/lib/utils";
 import {
   Package, Calendar, Edit2, Download, ArrowLeft, Users,
-  MessageSquare, Clock, CheckCircle, Settings
+  MessageSquare, Clock, CheckCircle, Settings, RefreshCw
 } from "lucide-react";
 import type { ProjectWithRelations, ProductWithAttributes } from "@/types";
 import Link from "next/link";
 
+interface AttributeDef {
+  id: string;
+  key: string;
+  label: string;
+  attributeType: string;
+  requirement: string;
+  maxValues: number;
+  salsifyEnabled: boolean;
+  salsifyPropertyId: string | null;
+  lovItems: { id: string; value: string; label: string; sortOrder: number }[];
+}
+
 interface Props {
   project: ProjectWithRelations;
   initialProducts: ProductWithAttributes[];
+  globalAttrs?: AttributeDef[];
+  categoryAttrs?: AttributeDef[];
   canEdit: boolean;
   currentUserId: string;
 }
 
-export function ProjectDetailClient({ project, initialProducts, canEdit }: Props) {
+export function ProjectDetailClient({ project, initialProducts, globalAttrs = [], categoryAttrs = [], canEdit }: Props) {
   const [activeTab, setActiveTab] = useState("grid");
+  const [salsifySyncing, setSalsifySyncing] = useState(false);
+  const [salsifySyncResult, setSalsifySyncResult] = useState<string | null>(null);
   const router = useRouter();
+
+  const handleSalsifySync = async () => {
+    setSalsifySyncing(true);
+    setSalsifySyncResult(null);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/salsify-sync`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setSalsifySyncResult(`Synced ${data.synced} product(s) to Salsify`);
+      } else {
+        setSalsifySyncResult(data.error ?? "Sync failed");
+      }
+    } catch {
+      setSalsifySyncResult("Sync failed — network error");
+    } finally {
+      setSalsifySyncing(false);
+    }
+  };
 
   const handleExport = async () => {
     const res = await fetch(`/api/projects/${project.id}/export`);
@@ -95,6 +129,22 @@ export function ProjectDetailClient({ project, initialProducts, canEdit }: Props
                 Submit for Review
               </Button>
             )}
+            {project.status === "EXPORT_READY" && (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  onClick={handleSalsifySync}
+                  disabled={salsifySyncing}
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${salsifySyncing ? "animate-spin" : ""}`} />
+                  {salsifySyncing ? "Syncing…" : "Sync to Salsify"}
+                </Button>
+                {salsifySyncResult && (
+                  <span className="text-xs text-gray-600">{salsifySyncResult}</span>
+                )}
+              </div>
+            )}
             <Button size="sm" variant="outline" onClick={handleExport}>
               <Download className="h-3.5 w-3.5" />
               Export
@@ -142,6 +192,8 @@ export function ProjectDetailClient({ project, initialProducts, canEdit }: Props
           <ProductGrid
             projectId={project.id}
             initialProducts={initialProducts as never}
+            globalAttrs={globalAttrs as never}
+            categoryAttrs={categoryAttrs as never}
             canEdit={canEdit}
             onExport={handleExport}
             onImport={() => router.push(`/import?projectId=${project.id}`)}

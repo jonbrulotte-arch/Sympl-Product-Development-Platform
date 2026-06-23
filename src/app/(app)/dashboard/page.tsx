@@ -13,7 +13,7 @@ export default async function DashboardPage() {
 
   const userId = session.user.id;
 
-  const [myProjects, needsReview, recentActivity, stats] = await Promise.all([
+  const [myProjects, needsReview, recentActivity, stats, pendingApprovalsData] = await Promise.all([
     prisma.project.findMany({
       where: {
         isArchived: false,
@@ -54,14 +54,26 @@ export default async function DashboardPage() {
       take: 10,
     }),
     prisma.$transaction([
-      prisma.project.count({ where: { ownerId: userId, isArchived: false } }),
-      prisma.project.count({ where: { ownerId: userId, status: "APPROVED" } }),
-      prisma.project.count({ where: { ownerId: userId, status: { in: ["NEEDS_REVIEW", "CHANGES_REQUESTED"] } } }),
-      prisma.project.count({ where: { ownerId: userId, status: "EXPORT_READY" } }),
+      prisma.project.count({ where: { isArchived: false, OR: [{ ownerId: userId }, { members: { some: { userId } } }] } }),
+      prisma.project.count({ where: { OR: [{ ownerId: userId }, { members: { some: { userId } } }], status: "APPROVED" } }),
+      prisma.project.count({ where: { OR: [{ ownerId: userId }, { members: { some: { userId } } }], status: { in: ["NEEDS_REVIEW", "CHANGES_REQUESTED"] } } }),
+      prisma.project.count({ where: { OR: [{ ownerId: userId }, { members: { some: { userId } } }], status: "EXPORT_READY" } }),
     ]),
+    prisma.workflowApproval.findMany({
+      where: { approverId: userId, status: "PENDING" },
+      include: {
+        stage: {
+          include: {
+            project: { select: { id: true, name: true } },
+          },
+        },
+      },
+      take: 5,
+    }),
   ]);
 
-  const [totalProjects, approvedProjects, needsActionCount, exportReadyCount] = stats;
+  const [totalProjects, approvedProjects, needsReviewCount, exportReadyCount] = stats;
+  const needsActionCount = needsReviewCount + pendingApprovalsData.length;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -150,6 +162,31 @@ export default async function DashboardPage() {
 
         {/* Needs Review + Activity */}
         <div className="space-y-6">
+          {pendingApprovalsData.length > 0 && (
+            <Card className="border-yellow-300">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base text-yellow-800">Pending Your Approval</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-gray-100">
+                  {pendingApprovalsData.map((approval) => (
+                    <Link
+                      key={approval.id}
+                      href={`/projects/${approval.stage.project.id}?tab=workflow`}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-yellow-50"
+                    >
+                      <AlertCircle className="h-4 w-4 text-yellow-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{approval.stage.project.name}</p>
+                        <p className="text-xs text-gray-500">{approval.stage.name}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {needsReview.length > 0 && (
             <Card>
               <CardHeader className="pb-3">

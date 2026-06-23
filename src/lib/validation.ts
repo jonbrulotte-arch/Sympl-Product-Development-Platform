@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+// Coerce string inputs from grid cells to numbers; empty string → undefined
+const optNum = z.preprocess(
+  (v) => (v === "" || v == null ? undefined : Number(v)),
+  z.number().optional()
+);
+const optInt = z.preprocess(
+  (v) => (v === "" || v == null ? undefined : Math.round(Number(v))),
+  z.number().int().optional()
+);
+
 export const projectSchema = z.object({
   name: z.string().min(1, "Project name is required").max(200),
   description: z.string().optional(),
@@ -34,39 +44,39 @@ export const productSchema = z.object({
   needsProp65: z.boolean().optional(),
   packagingType: z.string().optional(),
   packSize: z.string().optional(),
-  numberOfPieces: z.number().int().optional(),
+  numberOfPieces: optInt,
   individualOrSet: z.string().optional(),
   material: z.string().optional(),
   size: z.string().optional(),
   jspCategory: z.string().optional(),
-  // Dimension fields
-  upcHeight: z.number().optional(),
-  upcWidth: z.number().optional(),
-  upcLength: z.number().optional(),
-  upcWeight: z.number().optional(),
-  itemHeight: z.number().optional(),
-  itemWidth: z.number().optional(),
-  itemLength: z.number().optional(),
-  itemWeight: z.number().optional(),
-  innerCartonHeight: z.number().optional(),
-  innerCartonWidth: z.number().optional(),
-  innerCartonLength: z.number().optional(),
-  innerCartonWeight: z.number().optional(),
-  innerCartonQty: z.number().int().optional(),
+  // Dimension fields — coerce strings from grid inputs
+  upcHeight: optNum,
+  upcWidth: optNum,
+  upcLength: optNum,
+  upcWeight: optNum,
+  itemHeight: optNum,
+  itemWidth: optNum,
+  itemLength: optNum,
+  itemWeight: optNum,
+  innerCartonHeight: optNum,
+  innerCartonWidth: optNum,
+  innerCartonLength: optNum,
+  innerCartonWeight: optNum,
+  innerCartonQty: optInt,
   masterCartonGtin: z.string().optional(),
-  masterCartonHeight: z.number().optional(),
-  masterCartonWidth: z.number().optional(),
-  masterCartonLength: z.number().optional(),
-  masterCartonWeight: z.number().optional(),
-  masterCartonQty: z.number().int().optional(),
+  masterCartonHeight: optNum,
+  masterCartonWidth: optNum,
+  masterCartonLength: optNum,
+  masterCartonWeight: optNum,
+  masterCartonQty: optInt,
   palletGtin: z.string().optional(),
-  palletHeight: z.number().optional(),
-  palletWidth: z.number().optional(),
-  palletLength: z.number().optional(),
-  palletWeight: z.number().optional(),
+  palletHeight: optNum,
+  palletWidth: optNum,
+  palletLength: optNum,
+  palletWeight: optNum,
   palletStackable: z.boolean().optional(),
-  layersPerPallet: z.number().int().optional(),
-  palletQty: z.number().int().optional(),
+  layersPerPallet: optInt,
+  palletQty: optInt,
 });
 
 export type ProjectInput = z.infer<typeof projectSchema>;

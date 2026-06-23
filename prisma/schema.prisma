@@ -113,6 +113,7 @@ model User {
   notifications     Notification[]
   createdProducts   ProductRecord[]    @relation("ProductCreator")
   updatedProducts   ProductRecord[]    @relation("ProductUpdater")
+  salsifySyncLogs   SalsifySyncLog[]
 }
 
 model Account {
@@ -215,28 +216,56 @@ model AttributeSection {
 }
 
 model AttributeDefinition {
-  id              String           @id @default(cuid())
-  key             String           @unique
-  label           String
-  description     String?
-  sectionId       String?
-  categoryId      String?
-  attributeType   AttributeType    @default(TEXT)
-  requirement     FieldRequirement @default(OPTIONAL)
-  maxValues       Int              @default(1)
-  sortOrder       Int              @default(0)
-  isCore          Boolean          @default(true)
-  isActive        Boolean          @default(true)
-  validationRules Json?
-  defaultValue    String?
-  unit            String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id                String           @id @default(cuid())
+  key               String           @unique
+  label             String
+  description       String?
+  sectionId         String?
+  categoryId        String?
+  attributeType     AttributeType    @default(TEXT)
+  requirement       FieldRequirement @default(OPTIONAL)
+  maxValues         Int              @default(1)
+  sortOrder         Int              @default(0)
+  isCore            Boolean          @default(true)
+  isActive          Boolean          @default(true)
+  validationRules   Json?
+  defaultValue      String?
+  unit              String?
+  salsifyEnabled    Boolean          @default(false)
+  salsifyPropertyId String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   section  AttributeSection?     @relation(fields: [sectionId], references: [id])
   category Category?             @relation(fields: [categoryId], references: [id])
   lovItems LovItem[]
   values   ProductAttributeValue[]
+}
+
+// ─── Salsify Integration ────────────────────────────────────────────────────────
+
+model SalsifyConfig {
+  id           String   @id @default(cuid())
+  apiKey       String   @db.Text
+  organizationId String
+  channelId    String?
+  isEnabled    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model SalsifySyncLog {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  status    String   @default("PENDING")
+  productsSynced Int @default(0)
+  errors    Json?
+  startedAt DateTime @default(now())
+  completedAt DateTime?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
 }
 
 model LovItem {
@@ -281,6 +310,7 @@ model Project {
   importHistory  ImportHistory[]
   savedViews     SavedGridView[]
   notifications  Notification[]
+  salsifySyncLogs SalsifySyncLog[]
 }
 
 model ProjectMember {
