@@ -522,7 +522,10 @@ export function ProductGrid({
 
       {/* Grid */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full border-collapse text-sm">
+        <table
+          className="border-collapse text-sm"
+          style={{ width: CHECKBOX_COL_WIDTH + table.getTotalSize(), tableLayout: "fixed", minWidth: "100%" }}
+        >
           <thead className="sticky top-0 z-10 bg-gray-50">
             {headerGroups.map((headerGroup, groupIdx) => (
               <tr key={headerGroup.id}>
