@@ -543,27 +543,26 @@ export function ProductGrid({
                     />
                   </th>
                 )}
-                {headerGroup.headers.slice(1).map((header) => {
+                {headerGroup.headers
+                  .filter((h) => h.column.id !== "rowActions")
+                  .map((header) => {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const meta = header.column.columnDef.meta as any;
                   const isEav = !!meta?.eav;
                   const isGroup = !!meta?.isGroup;
                   const isLeaf = header.subHeaders.length === 0;
+                  // Only leaf columns can be pinned; group headers span multiple cols and can't be sticky
                   const isPinned = isLeaf && header.column.getIsPinned() === "left";
-                  const pinnedStyle = isLeaf ? getPinnedStyle(header.column) : {};
+                  const pinnedStyle = isPinned ? getPinnedStyle(header.column) : {};
 
-                  // Placeholder cells must still render a <th> to keep colspans correct;
-                  // without this, section headers shift left and misalign over columns.
+                  // Placeholder cells must render an empty <th> to keep colspans correct;
+                  // returning null removes the cell and shifts section headers left.
                   if (header.isPlaceholder) {
                     return (
                       <th
                         key={header.id}
                         colSpan={header.colSpan}
-                        className={cn(
-                          "border-b border-r border-gray-200",
-                          isPinned ? "bg-white" : "bg-gray-50"
-                        )}
-                        style={pinnedStyle}
+                        className="border-b border-r border-gray-200 bg-gray-50"
                       />
                     );
                   }
@@ -580,8 +579,7 @@ export function ProductGrid({
                         "border-b border-r border-gray-200 px-2 py-2 text-left text-xs font-semibold whitespace-nowrap select-none",
                         (isEav || isGroup) ? "bg-amber-50 text-amber-800" : "bg-gray-50 text-gray-600",
                         isGroup && "text-center font-bold border-t-2 border-amber-300",
-                        isPinned && "bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]",
-                        isPinned && !isGroup && "z-20"
+                        isPinned && "!bg-blue-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]"
                       )}
                       onClick={isLeaf ? header.column.getToggleSortingHandler() : undefined}
                     >
@@ -770,7 +768,7 @@ function GridRow({
       </td>
 
       {/* Data cells */}
-      {row.getVisibleCells().slice(1).map((cell) => {
+      {row.getVisibleCells().filter((c) => c.column.id !== "rowActions").map((cell) => {
         const value = cell.getValue();
         const colId = cell.column.id;
         const editing = isEditing(colId);
