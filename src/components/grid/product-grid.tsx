@@ -926,18 +926,21 @@ interface BulkEditDialogProps {
   onApplied: (updated: ProductRow[]) => void;
 }
 
-function BulkEditDialog({ selectedIds, allAttrs, coreAttrDefs, projectId, onClose, onApplied }: BulkEditDialogProps) {
+function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, projectId, onClose, onApplied }: BulkEditDialogProps) {
   const [field, setField] = useState("");
   const [value, setValue] = useState("");
+  const [writeMode, setWriteMode] = useState<"" | "overwrite" | "append">("");
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
   const selectedAttr = allAttrs.find((a) => `eav_${a.key}` === field);
   const selectedCore = BULK_CORE_FIELDS.find((f) => f.key === field);
   const selectedCoreAttrDef = selectedCore ? coreAttrDefs.find((a) => a.key === selectedCore.key) : undefined;
+  // Append only meaningful for multi-value EAV attributes
+  const supportsAppend = !!(selectedAttr && selectedAttr.maxValues > 1);
 
   const apply = async () => {
-    if (!field) return;
+    if (!field || !writeMode) return;
     setApplying(true);
     setResult(null);
     let succeeded = 0;
@@ -946,9 +949,34 @@ function BulkEditDialog({ selectedIds, allAttrs, coreAttrDefs, projectId, onClos
     const updated: ProductRow[] = [];
     await Promise.all(
       selectedIds.map(async (productId) => {
-        const body = selectedAttr
-          ? { attributeValues: [{ attributeDefinitionId: selectedAttr.id, textValue: value }] }
-          : { [field]: value };
+        let body: Record<string, unknown>;
+        if (selectedAttr) {
+          let vals: string[];
+          if (writeMode === "append" && supportsAppend) {
+            const existing = products.find((p) => p.id === productId)?._eavArrays?.[selectedAttr.key] ?? [];
+            const incoming = value.split("\n").map((s) => s.trim()).filter(Boolean);
+            // Deduplicate while preserving order; respect maxValues cap
+            const merged = [...existing];
+            for (const v of incoming) {
+              if (!merged.includes(v)) merged.push(v);
+            }
+            vals = merged.slice(0, selectedAttr.maxValues);
+          } else {
+            vals = selectedAttr.maxValues > 1
+              ? value.split("\n").map((s) => s.trim()).filter(Boolean)
+              : [value];
+          }
+          body = {
+            attributeValues: vals.map((textValue, valueIndex) => ({
+              attributeDefinitionId: selectedAttr.id,
+              valueIndex,
+              textValue,
+            })),
+          };
+        } else {
+          body = { [field]: value };
+        }
+
         const res = await fetch(`/api/projects/${projectId}/products/${productId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -975,7 +1003,7 @@ function BulkEditDialog({ selectedIds, allAttrs, coreAttrDefs, projectId, onClos
           <select
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
             value={field}
-            onChange={(e) => { setField(e.target.value); setValue(""); }}
+            onChange={(e) => { setField(e.target.value); setValue(""); setWriteMode(""); }}
           >
             <option value="">— select a field —</option>
             <optgroup label="Core Fields">
@@ -994,29 +1022,85 @@ function BulkEditDialog({ selectedIds, allAttrs, coreAttrDefs, projectId, onClos
         </div>
 
         {field && (
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-600">New value</label>
-            {(selectedAttr?.lovItems?.length || selectedCoreAttrDef?.lovItems?.length) ? (
-              <select
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-              >
-                <option value="">—</option>
-                {(selectedAttr?.lovItems ?? selectedCoreAttrDef?.lovItems ?? []).map((l) => (
-                  <option key={l.value} value={l.value}>{l.label}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type={selectedCore?.type === "NUMBER" ? "number" : "text"}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder="Enter value..."
-              />
-            )}
-          </div>
+          <>
+            {/* Write mode — required */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-600">
+                Write mode <span className="text-red-500">*</span>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["overwrite", "append"] as const).map((mode) => {
+                  const disabled = mode === "append" && !supportsAppend;
+                  return (
+                    <label
+                      key={mode}
+                      className={cn(
+                        "flex items-start gap-2.5 border rounded-lg px-3 py-2.5 cursor-pointer transition-colors",
+                        writeMode === mode
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 hover:border-gray-300",
+                        disabled && "opacity-40 cursor-not-allowed"
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="writeMode"
+                        value={mode}
+                        checked={writeMode === mode}
+                        disabled={disabled}
+                        onChange={() => setWriteMode(mode)}
+                        className="mt-0.5 accent-blue-600"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">
+                          {mode === "overwrite" ? "Overwrite" : "Append"}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {mode === "overwrite"
+                            ? "Replace existing value with the new value"
+                            : supportsAppend
+                              ? "Add to existing values without removing any"
+                              : "Only available for multi-value attributes"}
+                        </p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-600">New value</label>
+              {(selectedAttr?.lovItems?.length || selectedCoreAttrDef?.lovItems?.length) ? (
+                <select
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                >
+                  <option value="">—</option>
+                  {(selectedAttr?.lovItems ?? selectedCoreAttrDef?.lovItems ?? []).map((l) => (
+                    <option key={l.value} value={l.value}>{l.label}</option>
+                  ))}
+                </select>
+              ) : selectedAttr && selectedAttr.maxValues > 1 ? (
+                <textarea
+                  rows={3}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  placeholder={`One value per line (max ${selectedAttr.maxValues})`}
+                />
+              ) : (
+                <input
+                  type={selectedCore?.type === "NUMBER" ? "number" : "text"}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  placeholder="Enter value..."
+                />
+              )}
+            </div>
+          </>
         )}
 
         {result && <p className="text-xs text-gray-600">{result}</p>}
@@ -1026,7 +1110,7 @@ function BulkEditDialog({ selectedIds, allAttrs, coreAttrDefs, projectId, onClos
           <button
             className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
             onClick={apply}
-            disabled={!field || applying}
+            disabled={!field || !writeMode || applying}
           >
             {applying ? "Applying…" : "Apply to All Selected"}
           </button>
