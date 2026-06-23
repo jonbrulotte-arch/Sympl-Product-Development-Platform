@@ -53,7 +53,7 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" },
       take: 10,
     }),
-    prisma.$transaction([
+    Promise.all([
       prisma.project.count({ where: { isArchived: false, OR: [{ ownerId: userId }, { members: { some: { userId } } }] } }),
       prisma.project.count({ where: { OR: [{ ownerId: userId }, { members: { some: { userId } } }], status: "APPROVED" } }),
       prisma.project.count({ where: { OR: [{ ownerId: userId }, { members: { some: { userId } } }], status: { in: ["NEEDS_REVIEW", "CHANGES_REQUESTED"] } } }),
