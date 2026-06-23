@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canEditProject } from "@/lib/permissions";
+import type { ProjectStatus } from "@prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -15,44 +16,11 @@ const STAGE_INCLUDE = {
   },
 } as const;
 
-// Ensure pending schema migrations are applied inline — no-op if already present
-async function ensureWorkflowStageColumns() {
-  await prisma.$executeRaw`ALTER TABLE "WorkflowStage" ADD COLUMN IF NOT EXISTS "onApproveSetStatus" "ProjectStatus"`.catch(() => {});
-  await prisma.$executeRaw`ALTER TABLE "WorkflowStage" ADD COLUMN IF NOT EXISTS "onRejectSetStatus" "ProjectStatus"`.catch(() => {});
-}
-
-// Fetch the trigger fields via raw SQL and merge into a stage object.
-// Prisma's generated client doesn't include onApproveSetStatus/onRejectSetStatus yet.
-async function withTriggerFields<T extends object>(stage: T, stageId: string): Promise<T & { onApproveSetStatus: string | null; onRejectSetStatus: string | null }> {
-  const rows = await prisma.$queryRaw<{ onApproveSetStatus: string | null; onRejectSetStatus: string | null }[]>`
-    SELECT "onApproveSetStatus", "onRejectSetStatus" FROM "WorkflowStage" WHERE id = ${stageId}
-  `;
-  return { ...stage, ...(rows[0] ?? { onApproveSetStatus: null, onRejectSetStatus: null }) };
-}
-
-// Set onApproveSetStatus and/or onRejectSetStatus via raw SQL
-async function setTriggerFields(stageId: string, onApprove: string | null | undefined, onReject: string | null | undefined) {
-  if (onApprove !== undefined) {
-    if (onApprove) {
-      await prisma.$executeRaw`UPDATE "WorkflowStage" SET "onApproveSetStatus" = ${onApprove}::"ProjectStatus" WHERE id = ${stageId}`;
-    } else {
-      await prisma.$executeRaw`UPDATE "WorkflowStage" SET "onApproveSetStatus" = NULL WHERE id = ${stageId}`;
-    }
-  }
-  if (onReject !== undefined) {
-    if (onReject) {
-      await prisma.$executeRaw`UPDATE "WorkflowStage" SET "onRejectSetStatus" = ${onReject}::"ProjectStatus" WHERE id = ${stageId}`;
-    } else {
-      await prisma.$executeRaw`UPDATE "WorkflowStage" SET "onRejectSetStatus" = NULL WHERE id = ${stageId}`;
-    }
-  }
-}
-
 async function maybeAutoUpdateProject(projectId: string, newStatus: string | null) {
   if (!newStatus) return;
   await prisma.project.update({
     where: { id: projectId },
-    data: { status: newStatus as never },
+    data: { status: newStatus as ProjectStatus },
   });
 }
 
@@ -98,24 +66,19 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { name, description, sortOrder, onApproveSetStatus, onRejectSetStatus } = body;
   if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
-  await ensureWorkflowStageColumns();
-
-  // Create stage without trigger fields (not in Prisma schema), then set via raw SQL
   const stage = await prisma.workflowStage.create({
     data: {
       projectId,
       name: name.trim(),
       description: description?.trim() || null,
       sortOrder: sortOrder ?? 0,
+      onApproveSetStatus: (onApproveSetStatus as ProjectStatus) || null,
+      onRejectSetStatus: (onRejectSetStatus as ProjectStatus) || null,
     },
     include: STAGE_INCLUDE,
   });
 
-  if (onApproveSetStatus || onRejectSetStatus) {
-    await setTriggerFields(stage.id, onApproveSetStatus || null, onRejectSetStatus || null);
-  }
-
-  return NextResponse.json(await withTriggerFields(stage, stage.id), { status: 201 });
+  return NextResponse.json(stage, { status: 201 });
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -128,9 +91,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!canEditProject(session.user.role as never, session.user.id, project)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-
-  // Ensure raw-SQL columns exist before any path that calls withTriggerFields
-  await ensureWorkflowStageColumns();
 
   const body = await req.json();
   const { stageId, status, name, description, onApproveSetStatus, onRejectSetStatus, vote, voteComment, reset } = body;
@@ -147,7 +107,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data: { status: "PENDING", completedAt: null },
       include: STAGE_INCLUDE,
     });
-    return NextResponse.json(await withTriggerFields(stage, stageId));
+    return NextResponse.json(stage);
   }
 
   // Individual approver vote — unanimous logic
@@ -184,23 +144,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       include: STAGE_INCLUDE,
     });
 
-    const stageWithTriggers = await withTriggerFields(stage, stageId);
     if (newStageStatus === "APPROVED") {
-      await maybeAutoUpdateProject(projectId, stageWithTriggers.onApproveSetStatus);
+      await maybeAutoUpdateProject(projectId, stage.onApproveSetStatus);
     } else if (newStageStatus === "REJECTED") {
-      await maybeAutoUpdateProject(projectId, stageWithTriggers.onRejectSetStatus);
+      await maybeAutoUpdateProject(projectId, stage.onRejectSetStatus);
     }
 
-    return NextResponse.json(stageWithTriggers);
+    return NextResponse.json(stage);
   }
 
   if (status && !VALID_STATUSES.includes(status)) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-  }
-
-  // Handle trigger fields via raw SQL; keep only schema fields in data
-  if (onApproveSetStatus !== undefined || onRejectSetStatus !== undefined) {
-    await setTriggerFields(stageId, onApproveSetStatus, onRejectSetStatus);
   }
 
   const data: Record<string, unknown> = {};
@@ -210,27 +164,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
   if (name !== undefined) data.name = name;
   if (description !== undefined) data.description = description || null;
+  if (onApproveSetStatus !== undefined) data.onApproveSetStatus = (onApproveSetStatus as ProjectStatus) || null;
+  if (onRejectSetStatus !== undefined) data.onRejectSetStatus = (onRejectSetStatus as ProjectStatus) || null;
 
-  let stage;
-  if (Object.keys(data).length > 0) {
-    stage = await prisma.workflowStage.update({
-      where: { id: stageId, projectId },
-      data,
-      include: STAGE_INCLUDE,
-    });
-  } else {
-    stage = await prisma.workflowStage.findUnique({ where: { id: stageId }, include: STAGE_INCLUDE });
-    if (!stage) return NextResponse.json({ error: "Stage not found" }, { status: 404 });
-  }
+  const stage = Object.keys(data).length > 0
+    ? await prisma.workflowStage.update({ where: { id: stageId, projectId }, data, include: STAGE_INCLUDE })
+    : await prisma.workflowStage.findUnique({ where: { id: stageId }, include: STAGE_INCLUDE });
 
-  const stageWithTriggers = await withTriggerFields(stage, stageId);
+  if (!stage) return NextResponse.json({ error: "Stage not found" }, { status: 404 });
+
   if (status === "APPROVED") {
-    await maybeAutoUpdateProject(projectId, stageWithTriggers.onApproveSetStatus);
+    await maybeAutoUpdateProject(projectId, stage.onApproveSetStatus);
   } else if (status === "REJECTED") {
-    await maybeAutoUpdateProject(projectId, stageWithTriggers.onRejectSetStatus);
+    await maybeAutoUpdateProject(projectId, stage.onRejectSetStatus);
   }
 
-  return NextResponse.json(stageWithTriggers);
+  return NextResponse.json(stage);
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
