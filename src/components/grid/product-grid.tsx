@@ -11,9 +11,11 @@ import {
   type SortingState,
   type ColumnFiltersState,
   type VisibilityState,
+  type ColumnPinningState,
   type Row,
+  type Column,
 } from "@tanstack/react-table";
-import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3 } from "lucide-react";
+import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -195,6 +197,9 @@ const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
   },
 ];
 
+// Width of the manually-rendered checkbox column that sits outside TanStack's column model
+const CHECKBOX_COL_WIDTH = 36;
+
 interface ProductGridProps {
   projectId: string;
   initialProducts: ProductRow[];
@@ -216,7 +221,6 @@ export function ProductGrid({
   onExport,
   onImport,
 }: ProductGridProps) {
-  // Enrich products: collect multi-value arrays per key, join for display
   const enriched = (initialProducts as (ProductRow & {
     attributeValues?: { attributeDefinition: { key: string }; valueIndex: number; textValue?: string | null }[]
   })[]).map((p) => {
@@ -238,6 +242,7 @@ export function ProductGrid({
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnPinning, setColumnPinning] = useState<ColumnPinningState>({ left: [], right: [] });
   const [globalFilter, setGlobalFilter] = useState("");
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ rowId: string; columnId: string } | null>(null);
@@ -349,7 +354,6 @@ export function ProductGrid({
   const allAttrs = useMemo(() => [...globalAttrs, ...categoryAttrs], [globalAttrs, categoryAttrs]);
 
   const eavColumns = useMemo<ColumnDef<ProductRow>[]>(() => {
-    // Group attrs by section name
     const sectionMap = new Map<string, AttrDef[]>();
     for (const attr of allAttrs) {
       const sectionName = attr.section?.name ?? "General";
@@ -386,8 +390,6 @@ export function ProductGrid({
     [coreAttrMap]
   );
 
-  // Group core columns by section so TanStack creates proper section headers in row 0,
-  // matching the same pattern as EAV columns. rowActions stays flat (no section).
   const coreGroupedColumns = useMemo<ColumnDef<ProductRow>[]>(() => {
     const rowActionsCol = coreColumnsWithAttrs.find((c) => (c as { id?: string }).id === "rowActions");
     const dataCols = coreColumnsWithAttrs.filter((c) => (c as { id?: string }).id !== "rowActions");
@@ -411,16 +413,27 @@ export function ProductGrid({
   const table = useReactTable({
     data: products,
     columns,
-    state: { sorting, columnFilters, columnVisibility, globalFilter },
+    state: { sorting, columnFilters, columnVisibility, globalFilter, columnPinning },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
+    onColumnPinningChange: setColumnPinning,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getRowId: (row) => row.id,
   });
+
+  // Returns sticky positioning style for a pinned leaf column
+  const getPinnedStyle = useCallback((column: Column<ProductRow>): React.CSSProperties => {
+    if (column.getIsPinned() !== "left") return {};
+    return {
+      position: "sticky",
+      left: CHECKBOX_COL_WIDTH + column.getStart("left"),
+      zIndex: 2,
+    };
+  }, []);
 
   const navigateCell = useCallback(
     (direction: 1 | -1) => {
@@ -443,11 +456,12 @@ export function ProductGrid({
     [table]
   );
 
-  // Cleanup timeouts
   useEffect(() => {
     const timeouts = saveTimeouts.current;
     return () => { timeouts.forEach(clearTimeout); };
   }, []);
+
+  const headerGroups = table.getHeaderGroups();
 
   return (
     <div className="flex flex-col h-full">
@@ -510,13 +524,14 @@ export function ProductGrid({
       <div className="flex-1 overflow-auto">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-gray-50">
-            {table.getHeaderGroups().map((headerGroup, groupIdx) => (
+            {headerGroups.map((headerGroup, groupIdx) => (
               <tr key={headerGroup.id}>
-                {/* Checkbox column — only in first header row */}
+                {/* Checkbox — sticky, spans all header rows */}
                 {groupIdx === 0 && (
                   <th
-                    rowSpan={table.getHeaderGroups().length}
-                    className="w-9 border-b border-r border-gray-200 bg-gray-50 px-2"
+                    rowSpan={headerGroups.length}
+                    className="w-9 border-b border-r border-gray-200 bg-gray-50 px-2 sticky left-0 z-20"
+                    style={{ width: CHECKBOX_COL_WIDTH }}
                   >
                     <input
                       type="checkbox"
@@ -529,29 +544,66 @@ export function ProductGrid({
                   </th>
                 )}
                 {headerGroup.headers.slice(1).map((header) => {
-                  if (header.isPlaceholder) return null;
-
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const meta = header.column.columnDef.meta as any;
                   const isEav = !!meta?.eav;
                   const isGroup = !!meta?.isGroup;
+                  const isLeaf = header.subHeaders.length === 0;
+                  const isPinned = isLeaf && header.column.getIsPinned() === "left";
+                  const pinnedStyle = isLeaf ? getPinnedStyle(header.column) : {};
+
+                  // Placeholder cells must still render a <th> to keep colspans correct;
+                  // without this, section headers shift left and misalign over columns.
+                  if (header.isPlaceholder) {
+                    return (
+                      <th
+                        key={header.id}
+                        colSpan={header.colSpan}
+                        className={cn(
+                          "border-b border-r border-gray-200",
+                          isPinned ? "bg-white" : "bg-gray-50"
+                        )}
+                        style={pinnedStyle}
+                      />
+                    );
+                  }
 
                   return (
                     <th
                       key={header.id}
                       colSpan={header.colSpan}
-                      style={{ width: header.subHeaders.length === 0 ? header.getSize() : undefined }}
+                      style={{
+                        width: isLeaf ? header.getSize() : undefined,
+                        ...pinnedStyle,
+                      }}
                       className={cn(
                         "border-b border-r border-gray-200 px-2 py-2 text-left text-xs font-semibold whitespace-nowrap select-none",
                         (isEav || isGroup) ? "bg-amber-50 text-amber-800" : "bg-gray-50 text-gray-600",
-                        isGroup && "text-center font-bold border-t-2 border-amber-300"
+                        isGroup && "text-center font-bold border-t-2 border-amber-300",
+                        isPinned && "bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]",
+                        isPinned && !isGroup && "z-20"
                       )}
-                      onClick={header.subHeaders.length === 0 ? header.column.getToggleSortingHandler() : undefined}
+                      onClick={isLeaf ? header.column.getToggleSortingHandler() : undefined}
                     >
-                      <div className={cn("flex items-center gap-1", header.subHeaders.length === 0 && "cursor-pointer")}>
+                      <div className={cn("flex items-center gap-1 group/hdr", isLeaf && "cursor-pointer")}>
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {header.column.getIsSorted() === "asc" && <ChevronUp className="h-3 w-3" />}
                         {header.column.getIsSorted() === "desc" && <ChevronDown className="h-3 w-3" />}
+                        {isLeaf && (
+                          <button
+                            className={cn(
+                              "ml-auto p-0.5 rounded hover:bg-gray-200 transition-colors",
+                              isPinned ? "opacity-100 text-blue-600" : "opacity-0 group-hover/hdr:opacity-100 text-gray-400"
+                            )}
+                            title={isPinned ? "Unfreeze column" : "Freeze column"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              header.column.pin(isPinned ? false : "left");
+                            }}
+                          >
+                            {isPinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
+                          </button>
+                        )}
                       </div>
                     </th>
                   );
@@ -600,6 +652,7 @@ export function ProductGrid({
                 }}
                 saveStatus={row.original._saveStatus ?? "idle"}
                 canEdit={canEdit}
+                getPinnedStyle={getPinnedStyle}
               />
             ))}
             {table.getRowModel().rows.length === 0 && (
@@ -663,6 +716,7 @@ interface GridRowProps {
   onNavigateCell: (direction: 1 | -1) => void;
   saveStatus: "idle" | "saving" | "saved" | "error";
   canEdit: boolean;
+  getPinnedStyle: (column: Column<ProductRow>) => React.CSSProperties;
 }
 
 function GridRow({
@@ -676,6 +730,7 @@ function GridRow({
   onNavigateCell,
   saveStatus,
   canEdit,
+  getPinnedStyle,
 }: GridRowProps) {
   const navigatingRef = useRef(false);
   const isEditing = (colId: string) =>
@@ -690,8 +745,11 @@ function GridRow({
         saveStatus === "error" && "bg-red-50"
       )}
     >
-      {/* Checkbox */}
-      <td className="border-r border-gray-100 px-2 py-1 text-center">
+      {/* Checkbox — always sticky */}
+      <td
+        className="border-r border-gray-100 px-2 py-1 text-center bg-white sticky left-0 z-10"
+        style={{ width: CHECKBOX_COL_WIDTH }}
+      >
         <div className="flex items-center gap-1">
           <input
             type="checkbox"
@@ -719,6 +777,8 @@ function GridRow({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const attrDef: AttrDef | undefined = (cell.column.columnDef.meta as any)?.attrDef;
         const isEav = !!(cell.column.columnDef.meta as any)?.eav;
+        const isPinned = cell.column.getIsPinned() === "left";
+        const pinnedStyle = getPinnedStyle(cell.column);
 
         const commit = (raw: string, navigate?: 1 | -1) => {
           if (isEav) {
@@ -743,17 +803,17 @@ function GridRow({
         return (
           <td
             key={cell.id}
-            style={{ width: cell.column.getSize() }}
+            style={{ width: cell.column.getSize(), ...pinnedStyle }}
             className={cn(
               "border-r border-gray-100 px-0 py-0 relative",
-              isEav && "bg-amber-50/40",
+              isEav && !isPinned && "bg-amber-50/40",
+              isPinned && "bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]",
               editing && "ring-2 ring-inset ring-blue-500 z-10"
             )}
             onClick={() => canEdit && onCellEdit(colId)}
           >
             {editing ? (() => {
               const isMulti = attrDef && attrDef.maxValues > 1;
-              // For multi-value, get current array values joined by newline for editing
               const editDefault = isMulti
                 ? ((row.original as ProductRow)._eavArrays?.[attrDef!.key] ?? []).join("\n")
                 : (value != null ? String(value) : "");
@@ -763,7 +823,7 @@ function GridRow({
                   <textarea
                     autoFocus
                     rows={Math.min(attrDef!.maxValues, 5)}
-                    className="w-full px-2 py-1 text-sm outline-none bg-white resize-none"
+                    className="w-full px-2 py-1 text-sm outline-none bg-white resize-none text-gray-900"
                     defaultValue={editDefault}
                     placeholder={`One value per line (max ${attrDef!.maxValues})`}
                     onBlur={(e) => handleBlur(e.target.value)}
@@ -778,7 +838,7 @@ function GridRow({
                 return (
                   <select
                     autoFocus
-                    className="w-full h-full px-2 py-1 text-sm outline-none bg-white"
+                    className="w-full h-full px-2 py-1 text-sm outline-none bg-white text-gray-900"
                     defaultValue={editDefault}
                     onChange={(e) => commit(e.target.value)}
                     onBlur={(e) => handleBlur(e.target.value)}
@@ -797,7 +857,7 @@ function GridRow({
               return (
                 <input
                   autoFocus
-                  className="w-full h-full px-2 py-1 text-sm outline-none bg-white"
+                  className="w-full h-full px-2 py-1 text-sm outline-none bg-white text-gray-900"
                   defaultValue={editDefault}
                   onBlur={(e) => handleBlur(e.target.value)}
                   onKeyDown={(e) => {
@@ -900,7 +960,7 @@ function BulkEditDialog({ selectedIds, allAttrs, coreAttrDefs, projectId, onClos
         <div className="space-y-2">
           <label className="text-xs font-medium text-gray-600">Field to edit</label>
           <select
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
             value={field}
             onChange={(e) => { setField(e.target.value); setValue(""); }}
           >
@@ -925,7 +985,7 @@ function BulkEditDialog({ selectedIds, allAttrs, coreAttrDefs, projectId, onClos
             <label className="text-xs font-medium text-gray-600">New value</label>
             {(selectedAttr?.lovItems?.length || selectedCoreAttrDef?.lovItems?.length) ? (
               <select
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
               >
@@ -937,7 +997,7 @@ function BulkEditDialog({ selectedIds, allAttrs, coreAttrDefs, projectId, onClos
             ) : (
               <input
                 type={selectedCore?.type === "NUMBER" ? "number" : "text"}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 placeholder="Enter value..."
