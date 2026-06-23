@@ -45,8 +45,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Capture old values for audit
+  // Capture old values for audit (also verifies product exists and belongs to project)
   const oldProduct = await prisma.productRecord.findUnique({ where: { id: productId } });
+  if (!oldProduct || oldProduct.projectId !== projectId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const updated = await prisma.productRecord.update({
     where: { id: productId },

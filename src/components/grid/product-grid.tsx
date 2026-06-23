@@ -436,7 +436,7 @@ export function ProductGrid({
       });
     },
     columnResizeMode: "onChange",
-    defaultColumn: { minSize: 60, maxSize: 800 },
+    defaultColumn: { minSize: 60 },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -544,6 +544,16 @@ export function ProductGrid({
           className="border-collapse text-sm"
           style={{ width: CHECKBOX_COL_WIDTH + table.getTotalSize(), tableLayout: "fixed" }}
         >
+          {/* colgroup is the authoritative source for fixed-layout column widths;
+              without it, grouped header colSpans confuse the browser's width distribution */}
+          <colgroup>
+            <col style={{ width: CHECKBOX_COL_WIDTH }} />
+            {table.getVisibleLeafColumns()
+              .filter((c) => c.id !== "rowActions")
+              .map((col) => (
+                <col key={col.id} style={{ width: col.getSize() }} />
+              ))}
+          </colgroup>
           <thead className="sticky top-0 z-10 bg-gray-50">
             {headerGroups.map((headerGroup, groupIdx) => (
               <tr key={headerGroup.id}>

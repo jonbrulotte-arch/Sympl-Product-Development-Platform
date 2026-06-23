@@ -103,7 +103,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data: { status: "PENDING", comments: null, reviewedAt: null },
     });
     const stage = await prisma.workflowStage.update({
-      where: { id: stageId, projectId },
+      where: { id: stageId },
       data: { status: "PENDING", completedAt: null },
       include: STAGE_INCLUDE,
     });
@@ -136,7 +136,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const stage = await prisma.workflowStage.update({
-      where: { id: stageId, projectId },
+      where: { id: stageId },
       data: {
         status: newStageStatus as never,
         completedAt: ["APPROVED", "REJECTED"].includes(newStageStatus) ? new Date() : null,
@@ -167,8 +167,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (onApproveSetStatus !== undefined) data.onApproveSetStatus = (onApproveSetStatus as ProjectStatus) || null;
   if (onRejectSetStatus !== undefined) data.onRejectSetStatus = (onRejectSetStatus as ProjectStatus) || null;
 
+  // projectId ownership already verified above; update only by id (projectId is not unique)
   const stage = Object.keys(data).length > 0
-    ? await prisma.workflowStage.update({ where: { id: stageId, projectId }, data, include: STAGE_INCLUDE })
+    ? await prisma.workflowStage.update({ where: { id: stageId }, data, include: STAGE_INCLUDE })
     : await prisma.workflowStage.findUnique({ where: { id: stageId }, include: STAGE_INCLUDE });
 
   if (!stage) return NextResponse.json({ error: "Stage not found" }, { status: 404 });
@@ -196,6 +197,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const { stageId } = await req.json();
   if (!stageId) return NextResponse.json({ error: "stageId required" }, { status: 400 });
 
-  await prisma.workflowStage.delete({ where: { id: stageId, projectId } });
+  await prisma.workflowStage.delete({ where: { id: stageId } });
   return NextResponse.json({ success: true });
 }
