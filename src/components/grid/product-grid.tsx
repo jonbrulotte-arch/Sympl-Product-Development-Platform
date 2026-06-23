@@ -244,7 +244,13 @@ export function ProductGrid({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [columnPinning, setColumnPinning] = useState<ColumnPinningState>({ left: [], right: [] });
-  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({});
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const saved = localStorage.getItem(`grid-col-sizes-${projectId}`);
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
   const [globalFilter, setGlobalFilter] = useState("");
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ rowId: string; columnId: string } | null>(null);
@@ -422,7 +428,13 @@ export function ProductGrid({
     onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
     onColumnPinningChange: setColumnPinning,
-    onColumnSizingChange: setColumnSizing,
+    onColumnSizingChange: (updater) => {
+      setColumnSizing((old) => {
+        const next = typeof updater === "function" ? updater(old) : updater;
+        try { localStorage.setItem(`grid-col-sizes-${projectId}`, JSON.stringify(next)); } catch { /* ignore */ }
+        return next;
+      });
+    },
     columnResizeMode: "onChange",
     defaultColumn: { minSize: 60, maxSize: 800 },
     getCoreRowModel: getCoreRowModel(),
@@ -530,7 +542,7 @@ export function ProductGrid({
       <div className="flex-1 overflow-auto">
         <table
           className="border-collapse text-sm"
-          style={{ width: CHECKBOX_COL_WIDTH + table.getTotalSize(), tableLayout: "fixed", minWidth: "100%" }}
+          style={{ width: CHECKBOX_COL_WIDTH + table.getTotalSize(), tableLayout: "fixed" }}
         >
           <thead className="sticky top-0 z-10 bg-gray-50">
             {headerGroups.map((headerGroup, groupIdx) => (

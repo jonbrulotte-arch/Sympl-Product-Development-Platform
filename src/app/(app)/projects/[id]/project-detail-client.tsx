@@ -252,6 +252,7 @@ function WorkflowView({
 }: {
   project: ProjectWithRelations; canEdit: boolean; currentUserId: string;
 }) {
+  const router = useRouter();
   const [stages, setStages] = useState<Stage[]>((project.workflowStages ?? []) as unknown as Stage[]);
   const [addingStage, setAddingStage] = useState(false);
   const [newName, setNewName] = useState("");
@@ -331,7 +332,10 @@ function WorkflowView({
     setEditingDescFor(null);
   };
 
-  const updateStatus = (stageId: string, status: string) => patchStage(stageId, { status });
+  const updateStatus = async (stageId: string, status: string) => {
+    const ok = await patchStage(stageId, { status });
+    if (ok) router.refresh();
+  };
 
   const resetVote = async (stageId: string) => {
     setSaving(true);
@@ -420,6 +424,8 @@ function WorkflowView({
       setStages((prev) => prev.map((s) => s.id === stageId ? updated : s));
       setVotingFor(null);
       setVoteComment("");
+      // Refresh server data in case project status changed due to onApproveSetStatus/onRejectSetStatus
+      router.refresh();
     }
     setSaving(false);
   };
