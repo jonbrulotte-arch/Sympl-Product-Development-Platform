@@ -1,0 +1,586 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  PRODUCT_MANAGER
+  CONTRIBUTOR
+  REVIEWER
+  APPROVER
+  VIEWER
+}
+
+enum ProjectStatus {
+  DRAFT
+  IN_PROGRESS
+  NEEDS_REVIEW
+  CHANGES_REQUESTED
+  APPROVED
+  EXPORT_READY
+  ARCHIVED
+}
+
+enum FieldRequirement {
+  REQUIRED
+  CONDITIONAL
+  OPTIONAL
+}
+
+enum AttributeType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  DECIMAL
+  BOOLEAN
+  DATE
+  SELECT
+  MULTI_SELECT
+  URL
+  EMAIL
+  UPC
+  GTIN
+}
+
+enum WorkflowStageStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  SKIPPED
+}
+
+enum CommentEntityType {
+  PROJECT
+  PRODUCT
+  FIELD
+}
+
+enum ActivityAction {
+  CREATED
+  UPDATED
+  DELETED
+  STATUS_CHANGED
+  APPROVED
+  REJECTED
+  SUBMITTED
+  IMPORTED
+  EXPORTED
+  COMMENTED
+  ASSIGNED
+  ARCHIVED
+  RESTORED
+  DUPLICATED
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+// ─── Users & Auth ─────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  passwordHash  String?
+  role          UserRole  @default(CONTRIBUTOR)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts          Account[]
+  sessions          Session[]
+  ownedProjects     Project[]          @relation("ProjectOwner")
+  projectMembers    ProjectMember[]
+  comments          Comment[]
+  activityLogs      ActivityLog[]
+  workflowApprovals WorkflowApproval[]
+  importHistory     ImportHistory[]
+  userPreferences   UserPreferences?
+  notifications     Notification[]
+  createdProducts   ProductRecord[]    @relation("ProductCreator")
+  updatedProducts   ProductRecord[]    @relation("ProductUpdater")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── User Preferences / Session State ─────────────────────────────────────────
+
+model UserPreferences {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  lastOpenedProjectId String?
+  recentProjectIds    String[] @default([])
+  theme               String   @default("light")
+  updatedAt           DateTime @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedGridViews SavedGridView[]
+}
+
+model SavedGridView {
+  id                String   @id @default(cuid())
+  userPreferencesId String
+  projectId         String
+  name              String
+  columnOrder       String[] @default([])
+  hiddenColumns     String[] @default([])
+  pinnedColumns     String[] @default([])
+  columnWidths      Json     @default("{}")
+  sortConfig        Json     @default("[]")
+  filterConfig      Json     @default("[]")
+  isDefault         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  userPreferences UserPreferences @relation(fields: [userPreferencesId], references: [id], onDelete: Cascade)
+  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ─── Category & Attribute Definitions ─────────────────────────────────────────
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  parentId    String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent     Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children   Category[] @relation("CategoryHierarchy")
+  attributes AttributeDefinition[]
+  projects   Project[]
+  products   ProductRecord[]
+}
+
+model AttributeSection {
+  id        String @id @default(cuid())
+  name      String
+  slug      String @unique
+  sortOrder Int    @default(0)
+  isCore    Boolean @default(true)
+
+  attributes AttributeDefinition[]
+}
+
+model AttributeDefinition {
+  id              String           @id @default(cuid())
+  key             String           @unique
+  label           String
+  description     String?
+  sectionId       String?
+  categoryId      String?
+  attributeType   AttributeType    @default(TEXT)
+  requirement     FieldRequirement @default(OPTIONAL)
+  maxValues       Int              @default(1)
+  sortOrder       Int              @default(0)
+  isCore          Boolean          @default(true)
+  isActive        Boolean          @default(true)
+  validationRules Json?
+  defaultValue    String?
+  unit            String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  section  AttributeSection?     @relation(fields: [sectionId], references: [id])
+  category Category?             @relation(fields: [categoryId], references: [id])
+  lovItems LovItem[]
+  values   ProductAttributeValue[]
+}
+
+model LovItem {
+  id                    String  @id @default(cuid())
+  attributeDefinitionId String
+  value                 String
+  label                 String
+  sortOrder             Int     @default(0)
+  isActive              Boolean @default(true)
+
+  attributeDefinition AttributeDefinition @relation(fields: [attributeDefinitionId], references: [id], onDelete: Cascade)
+
+  @@unique([attributeDefinitionId, value])
+}
+
+// ─── Projects ─────────────────────────────────────────────────────────────────
+
+model Project {
+  id                String        @id @default(cuid())
+  name              String
+  description       String?
+  brand             String?
+  categoryId        String?
+  productFamilyName String?
+  status            ProjectStatus @default(DRAFT)
+  ownerId           String
+  targetLaunchDate  DateTime?
+  retailer          String?
+  channel           String?
+  tags              String[]      @default([])
+  isArchived        Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  owner          User            @relation("ProjectOwner", fields: [ownerId], references: [id])
+  category       Category?       @relation(fields: [categoryId], references: [id])
+  members        ProjectMember[]
+  products       ProductRecord[]
+  workflowStages WorkflowStage[]
+  comments       Comment[]
+  activityLogs   ActivityLog[]
+  importHistory  ImportHistory[]
+  savedViews     SavedGridView[]
+  notifications  Notification[]
+}
+
+model ProjectMember {
+  id         String   @id @default(cuid())
+  projectId  String
+  userId     String
+  role       String   @default("VIEWER")
+  canEdit    Boolean  @default(false)
+  canApprove Boolean  @default(false)
+  addedAt    DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+// ─── Products ─────────────────────────────────────────────────────────────────
+
+model ProductRecord {
+  id              String   @id @default(cuid())
+  projectId       String
+  categoryId      String?
+  rowIndex        Int      @default(0)
+  isArchived      Boolean  @default(false)
+  isDuplicate     Boolean  @default(false)
+  sourceProductId String?
+  createdById     String
+  updatedById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Core identity fields
+  partNumber   String?
+  modelNumber  String?
+  itemName     String?
+  brand        String?
+  upc          String?
+  masterCartonGtin String?
+  innerCartonGtin  String?
+  palletGtin       String?
+  altCartonGtin    String?
+
+  // Status & project info
+  inventoryStatus    String?
+  inventoryStatusErp String?
+  projectFolder      String?
+  wrikeUrl           String?
+  psir               String?
+
+  // Regulatory
+  warrantyInfo       String?
+  needsProp65        Boolean?
+  htsCode            String?
+  htsCodeCanada      String?
+  productComposition String?
+  batteriesRequired  String?
+
+  // Packaging & dims — Selling Unit (UPC box)
+  packagingType     String?
+  packagingLangType String?
+  upcHeight         Decimal? @db.Decimal(10, 4)
+  upcWidth          Decimal? @db.Decimal(10, 4)
+  upcLength         Decimal? @db.Decimal(10, 4)
+  upcWeight         Decimal? @db.Decimal(10, 4)
+
+  // Individual item (unpackaged)
+  itemHeight Decimal? @db.Decimal(10, 4)
+  itemWidth  Decimal? @db.Decimal(10, 4)
+  itemLength Decimal? @db.Decimal(10, 4)
+  itemWeight Decimal? @db.Decimal(10, 4)
+
+  // Inner carton
+  innerCartonHeight Decimal? @db.Decimal(10, 4)
+  innerCartonWidth  Decimal? @db.Decimal(10, 4)
+  innerCartonLength Decimal? @db.Decimal(10, 4)
+  innerCartonWeight Decimal? @db.Decimal(10, 4)
+  innerCartonQty    Int?
+
+  // Alternate carton
+  altCartonHeight Decimal? @db.Decimal(10, 4)
+  altCartonWidth  Decimal? @db.Decimal(10, 4)
+  altCartonLength Decimal? @db.Decimal(10, 4)
+  altCartonWeight Decimal? @db.Decimal(10, 4)
+  altCartonType   String?
+  altCartonQty    Int?
+
+  // Master carton
+  masterCartonHeight Decimal? @db.Decimal(10, 4)
+  masterCartonWidth  Decimal? @db.Decimal(10, 4)
+  masterCartonLength Decimal? @db.Decimal(10, 4)
+  masterCartonWeight Decimal? @db.Decimal(10, 4)
+  masterCartonQty    Int?
+
+  // Pallet
+  palletHeight    Decimal? @db.Decimal(10, 4)
+  palletWidth     Decimal? @db.Decimal(10, 4)
+  palletLength    Decimal? @db.Decimal(10, 4)
+  palletWeight    Decimal? @db.Decimal(10, 4)
+  palletStackable Boolean?
+  layersPerPallet Int?
+  palletQty       Int?
+
+  // Universal product attributes
+  jspCategory    String?
+  packSize       String?
+  numberOfPieces Int?
+  individualOrSet String?
+  material       String?
+  size           String?
+  userManual     String?
+  cutSheets      String?
+
+  project         Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  category        Category?               @relation(fields: [categoryId], references: [id])
+  createdBy       User                    @relation("ProductCreator", fields: [createdById], references: [id])
+  updatedBy       User?                   @relation("ProductUpdater", fields: [updatedById], references: [id])
+  attributeValues ProductAttributeValue[]
+  comments        Comment[]
+  activityLogs    ActivityLog[]
+  components      ProductComponent[]      @relation("ParentProduct")
+  componentOf     ProductComponent[]      @relation("ChildProduct")
+
+  @@index([projectId])
+  @@index([partNumber])
+  @@index([upc])
+}
+
+model ProductAttributeValue {
+  id                    String   @id @default(cuid())
+  productId             String
+  attributeDefinitionId String
+  valueIndex            Int      @default(0)
+  textValue             String?
+  numberValue           Decimal? @db.Decimal(15, 6)
+  booleanValue          Boolean?
+  updatedAt             DateTime @updatedAt
+
+  product             ProductRecord       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attributeDefinition AttributeDefinition @relation(fields: [attributeDefinitionId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, attributeDefinitionId, valueIndex])
+  @@index([productId])
+}
+
+model ProductComponent {
+  id             String @id @default(cuid())
+  parentId       String
+  childId        String
+  sortOrder      Int    @default(0)
+  componentIndex Int    @default(0)
+
+  parent ProductRecord @relation("ParentProduct", fields: [parentId], references: [id], onDelete: Cascade)
+  child  ProductRecord @relation("ChildProduct", fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, childId])
+}
+
+// ─── Approval Workflows ────────────────────────────────────────────────────────
+
+model WorkflowTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stageTemplates WorkflowStageTemplate[]
+}
+
+model WorkflowStageTemplate {
+  id                 String   @id @default(cuid())
+  workflowTemplateId String
+  name               String
+  description        String?
+  sortOrder          Int      @default(0)
+  isRequired         Boolean  @default(true)
+  requiredFields     String[] @default([])
+
+  workflowTemplate WorkflowTemplate @relation(fields: [workflowTemplateId], references: [id], onDelete: Cascade)
+}
+
+model WorkflowStage {
+  id          String              @id @default(cuid())
+  projectId   String
+  name        String
+  description String?
+  sortOrder   Int                 @default(0)
+  status      WorkflowStageStatus @default(PENDING)
+  isRequired  Boolean             @default(true)
+  completedAt DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  approvals WorkflowApproval[]
+}
+
+model WorkflowApproval {
+  id         String              @id @default(cuid())
+  stageId    String
+  approverId String
+  status     WorkflowStageStatus @default(PENDING)
+  comments   String?
+  reviewedAt DateTime?
+  createdAt  DateTime            @default(now())
+
+  stage    WorkflowStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  approver User          @relation(fields: [approverId], references: [id])
+}
+
+// ─── Comments ─────────────────────────────────────────────────────────────────
+
+model Comment {
+  id         String            @id @default(cuid())
+  entityType CommentEntityType
+  projectId  String?
+  productId  String?
+  fieldKey   String?
+  authorId   String
+  content    String            @db.Text
+  isResolved Boolean           @default(false)
+  parentId   String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  project Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  product ProductRecord? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  author  User           @relation(fields: [authorId], references: [id])
+  parent  Comment?       @relation("CommentThread", fields: [parentId], references: [id])
+  replies Comment[]      @relation("CommentThread")
+
+  @@index([projectId])
+  @@index([productId])
+}
+
+// ─── Activity Log ─────────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id         String         @id @default(cuid())
+  projectId  String?
+  productId  String?
+  userId     String
+  action     ActivityAction
+  entityType String
+  entityId   String
+  fieldKey   String?
+  oldValue   String?        @db.Text
+  newValue   String?        @db.Text
+  metadata   Json?
+  createdAt  DateTime       @default(now())
+
+  project Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  product ProductRecord? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  user    User           @relation(fields: [userId], references: [id])
+
+  @@index([projectId])
+  @@index([productId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ─── Import / Export ──────────────────────────────────────────────────────────
+
+model ImportHistory {
+  id            String       @id @default(cuid())
+  projectId     String
+  userId        String
+  fileName      String
+  status        ImportStatus @default(PENDING)
+  totalRows     Int          @default(0)
+  importedRows  Int          @default(0)
+  errorRows     Int          @default(0)
+  skippedRows   Int          @default(0)
+  columnMapping Json?
+  errorReport   Json?
+  completedAt   DateTime?
+  createdAt     DateTime     @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+}
+
+// ─── Notifications ─────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String?
+  title     String
+  message   String
+  type      String   @default("info")
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead])
+}

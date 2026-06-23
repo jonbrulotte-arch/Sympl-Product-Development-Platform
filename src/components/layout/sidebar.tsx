@@ -1,0 +1,143 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
+import {
+  LayoutDashboard,
+  FolderKanban,
+  Package,
+  Upload,
+  Settings,
+  Users,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  Bell,
+  Tag,
+  ListFilter,
+} from "lucide-react";
+import { cn, getInitials } from "@/lib/utils";
+import { useState } from "react";
+import type { SafeUser } from "@/types";
+
+const navItems = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/projects", label: "Projects", icon: FolderKanban },
+  { href: "/import", label: "Import", icon: Upload },
+];
+
+const adminItems = [
+  { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/categories", label: "Categories", icon: Tag },
+  { href: "/admin/attributes", label: "Attributes", icon: ListFilter },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
+];
+
+interface SidebarProps {
+  user: SafeUser;
+}
+
+export function Sidebar({ user }: SidebarProps) {
+  const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <aside
+      className={cn(
+        "flex flex-col h-screen bg-gray-900 text-white transition-all duration-200 shrink-0",
+        collapsed ? "w-16" : "w-56"
+      )}
+    >
+      {/* Logo */}
+      <div className="flex items-center h-14 px-4 border-b border-gray-700">
+        {!collapsed && (
+          <span className="text-lg font-bold text-white tracking-tight">Sympl</span>
+        )}
+        {collapsed && (
+          <span className="text-lg font-bold text-white mx-auto">S</span>
+        )}
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto py-4 space-y-1 px-2">
+        {navItems.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
+              pathname.startsWith(href)
+                ? "bg-blue-600 text-white"
+                : "text-gray-300 hover:bg-gray-800 hover:text-white"
+            )}
+          >
+            <Icon className="h-5 w-5 shrink-0" />
+            {!collapsed && <span>{label}</span>}
+          </Link>
+        ))}
+
+        {(user.role === "ADMIN" || user.role === "PRODUCT_MANAGER") && (
+          <>
+            <div className={cn("pt-4 pb-1", collapsed ? "px-0" : "px-2")}>
+              {!collapsed && (
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Admin</p>
+              )}
+            </div>
+            {adminItems.map(({ href, label, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
+                  pathname.startsWith(href)
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                )}
+              >
+                <Icon className="h-5 w-5 shrink-0" />
+                {!collapsed && <span>{label}</span>}
+              </Link>
+            ))}
+          </>
+        )}
+      </nav>
+
+      {/* User section */}
+      <div className="border-t border-gray-700 p-3">
+        <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
+          <div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white">
+            {getInitials(user.name)}
+          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">{user.name}</p>
+              <p className="text-xs text-gray-400 truncate">{user.role}</p>
+            </div>
+          )}
+        </div>
+        {!collapsed && (
+          <div className="mt-3 flex items-center gap-2">
+            <Link href="/notifications" className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800">
+              <Bell className="h-4 w-4" />
+            </Link>
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Collapse toggle */}
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className="flex items-center justify-center h-8 border-t border-gray-700 text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+      >
+        {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+      </button>
+    </aside>
+  );
+}
