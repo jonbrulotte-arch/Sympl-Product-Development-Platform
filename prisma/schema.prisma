@@ -504,6 +504,7 @@ model WorkflowStage {
   status             WorkflowStageStatus @default(PENDING)
   isRequired         Boolean             @default(true)
   onApproveSetStatus ProjectStatus?
+  onRejectSetStatus  ProjectStatus?
   completedAt        DateTime?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt

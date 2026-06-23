@@ -12,6 +12,7 @@ import {
   type ColumnFiltersState,
   type VisibilityState,
   type ColumnPinningState,
+  type ColumnSizingState,
   type Row,
   type Column,
 } from "@tanstack/react-table";
@@ -243,6 +244,7 @@ export function ProductGrid({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [columnPinning, setColumnPinning] = useState<ColumnPinningState>({ left: [], right: [] });
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({});
   const [globalFilter, setGlobalFilter] = useState("");
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ rowId: string; columnId: string } | null>(null);
@@ -367,7 +369,8 @@ export function ProductGrid({
       columns: attrs.map((attr) => ({
         id: `eav_${attr.key}`,
         header: attr.label,
-        size: 160,
+        size: 180,
+        minSize: 80,
         meta: { eav: true, attrDef: attr },
         accessorFn: (row: ProductRow) => (row as ProductRow & { _eavValues?: EavMap })._eavValues?.[attr.key] ?? "",
       })),
@@ -413,12 +416,15 @@ export function ProductGrid({
   const table = useReactTable({
     data: products,
     columns,
-    state: { sorting, columnFilters, columnVisibility, globalFilter, columnPinning },
+    state: { sorting, columnFilters, columnVisibility, globalFilter, columnPinning, columnSizing },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
     onColumnPinningChange: setColumnPinning,
+    onColumnSizingChange: setColumnSizing,
+    columnResizeMode: "onChange",
+    defaultColumn: { minSize: 60, maxSize: 800 },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -579,7 +585,7 @@ export function ProductGrid({
                         ...pinnedStyle,
                       }}
                       className={cn(
-                        "border-b border-r border-gray-200 px-2 py-2 text-left text-xs font-semibold whitespace-nowrap select-none",
+                        "border-b border-r border-gray-200 px-2 py-2 text-left text-xs font-semibold whitespace-nowrap select-none relative overflow-visible",
                         (isEav || isGroup) ? "bg-amber-50 text-amber-800" : "bg-gray-50 text-gray-600",
                         isGroup && "text-center font-bold border-t-2 border-amber-300",
                         isPinned && "!bg-blue-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]"
@@ -606,6 +612,17 @@ export function ProductGrid({
                           </button>
                         )}
                       </div>
+                      {isLeaf && (
+                        <div
+                          onMouseDown={(e) => { e.stopPropagation(); header.getResizeHandler()(e); }}
+                          onTouchStart={(e) => { e.stopPropagation(); header.getResizeHandler()(e); }}
+                          className={cn(
+                            "absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none touch-none group/resize",
+                            "hover:bg-blue-400/60",
+                            header.column.getIsResizing() && "bg-blue-500"
+                          )}
+                        />
+                      )}
                     </th>
                   );
                 })}
