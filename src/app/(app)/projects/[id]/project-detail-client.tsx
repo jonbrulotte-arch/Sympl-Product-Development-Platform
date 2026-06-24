@@ -55,7 +55,8 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
       const res = await fetch(`/api/projects/${project.id}/salsify-sync`, { method: "POST" });
       const data = await res.json();
       if (res.ok) {
-        setSalsifySyncResult(`Synced ${data.synced} product(s) to Salsify`);
+        const errSummary = data.errors?.length ? ` — ${data.errors.length} error(s): ${data.errors[0]}` : "";
+        setSalsifySyncResult(`Synced ${data.synced} of ${data.total} product(s) to Salsify${errSummary}`);
       } else {
         setSalsifySyncResult(data.error ?? "Sync failed");
       }
