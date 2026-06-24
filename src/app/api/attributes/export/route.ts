@@ -26,6 +26,7 @@ export async function GET(_req: NextRequest) {
     type: a.attributeType,
     requirement: a.requirement,
     maxValues: a.maxValues,
+    sortOrder: a.sortOrder,
     section: a.section?.name ?? "",
     category: a.category?.name ?? "",
     salsifyEnabled: a.salsifyEnabled ? "true" : "false",

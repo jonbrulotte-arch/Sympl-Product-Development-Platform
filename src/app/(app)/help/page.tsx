@@ -269,6 +269,17 @@ const sections: Section[] = [
 
         <H3>Salsify integration</H3>
         <P>Enable <strong>Salsify</strong> on an attribute and enter the Salsify Property ID. When products are synced, this attribute's value is sent to that Salsify property. Multi-value attributes are sent as arrays.</P>
+
+        <H3>Bulk update via Export / Import</H3>
+        <P>You can update many attribute definitions at once — including their display order — using the Export/Import workflow on the Attributes admin page.</P>
+        <UL>
+          <LI>Click <strong>Export</strong> (top-right of the Attributes page) to download the current attribute list as an Excel file.</LI>
+          <LI>Edit the spreadsheet: update labels, descriptions, types, requirements, LOV values, or the <Code>sortOrder</Code> column to control display order.</LI>
+          <LI>The <Code>sortOrder</Code> column is a number — lower numbers appear first within a section. Attributes in the same section are sorted by <Code>sortOrder</Code> ascending.</LI>
+          <LI>Save the file and click <strong>Import</strong> on the Attributes page to upload it. Existing attributes (matched by <Code>key</Code>) are updated; rows with a new key create new attributes.</LI>
+          <LI>After importing, the Attributes page and all project grids will reflect the new order immediately.</LI>
+        </UL>
+        <Callout type="tip">Do not change the <Code>key</Code> column — it is the unique identifier used to match rows on import. Changing a key creates a new attribute instead of updating the existing one.</Callout>
       </>
     ),
   },

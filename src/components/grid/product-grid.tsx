@@ -30,7 +30,7 @@ interface AttrDef {
   attributeType: string;
   requirement: string;
   maxValues: number;
-  section: { id: string; name: string } | null;
+  section: { id: string; name: string; sortOrder?: number } | null;
   lovItems: { value: string; label: string }[];
 }
 
@@ -507,85 +507,76 @@ export function ProductGrid({
 
   const allAttrs = useMemo(() => [...globalAttrs, ...categoryAttrs], [globalAttrs, categoryAttrs]);
 
-  const eavColumns = useMemo<ColumnDef<ProductRow>[]>(() => {
-    const sectionMap = new Map<string, AttrDef[]>();
+  // Build a unified column list: core columns ordered by coreAttrDefs, then EAV columns,
+  // all grouped into shared section groups so the same section name never appears twice.
+  const columns = useMemo<ColumnDef<ProductRow>[]>(() => {
+    const colMap = new Map(
+      CORE_COLUMNS.map((col) => [(col as { accessorKey?: string; id?: string }).accessorKey ?? (col as { id?: string }).id ?? "", col])
+    );
+    const rowActionsCol = CORE_COLUMNS.find((c) => (c as { id?: string }).id === "rowActions");
+
+    // section name → ordered child column defs
+    const sectionMap = new Map<string, ColumnDef<ProductRow>[]>();
+    // section name → section sort order (from attr defs) for final group ordering
+    const sectionSortOrder = new Map<string, number>();
+
+    const addToSection = (sectionName: string, col: ColumnDef<ProductRow>, secSortOrder = 999) => {
+      if (!sectionMap.has(sectionName)) {
+        sectionMap.set(sectionName, []);
+        sectionSortOrder.set(sectionName, secSortOrder);
+      }
+      sectionMap.get(sectionName)!.push(col);
+    };
+
+    // 1. Core columns in attr-def order (section.sortOrder → attr.sortOrder)
+    const seenCoreKeys = new Set<string>();
+    for (const attr of coreAttrDefs) {
+      const col = colMap.get(attr.key);
+      if (col && !seenCoreKeys.has(attr.key)) {
+        const sectionName = attr.section?.name ?? "General";
+        const secOrder = attr.section?.sortOrder ?? 999;
+        addToSection(sectionName, { ...col, meta: { ...col.meta, attrDef: attr } }, secOrder);
+        seenCoreKeys.add(attr.key);
+      }
+    }
+    // Append any CORE_COLUMNS not covered by an attr def
+    for (const col of CORE_COLUMNS) {
+      const key = (col as { accessorKey?: string }).accessorKey;
+      if (key && !seenCoreKeys.has(key) && (col as { id?: string }).id !== "rowActions") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const fallbackSection = ((col.meta as any)?.section as string | undefined) ?? "General";
+        addToSection(fallbackSection, col);
+        seenCoreKeys.add(key);
+      }
+    }
+
+    // 2. EAV columns after core, sharing section groups where names match
     for (const attr of allAttrs) {
       const sectionName = attr.section?.name ?? "General";
-      if (!sectionMap.has(sectionName)) sectionMap.set(sectionName, []);
-      sectionMap.get(sectionName)!.push(attr);
-    }
-    return [...sectionMap.entries()].map(([sectionName, attrs]) => ({
-      id: `section_${sectionName}`,
-      header: sectionName,
-      meta: { eav: true, isGroup: true },
-      columns: attrs.map((attr) => ({
+      const secOrder = attr.section?.sortOrder ?? 999;
+      const eavCol: ColumnDef<ProductRow> = {
         id: `eav_${attr.key}`,
         header: attr.label,
         size: 180,
         minSize: 80,
         meta: { eav: true, attrDef: attr },
         accessorFn: (row: ProductRow) => (row as ProductRow & { _eavValues?: EavMap })._eavValues?.[attr.key] ?? "",
-      })),
-    }));
-  }, [allAttrs]);
-
-  const coreAttrMap = useMemo(
-    () => new Map(coreAttrDefs.map((a) => [a.key, a])),
-    [coreAttrDefs]
-  );
-
-  // Attach attrDef metadata and sort CORE_COLUMNS by the admin-defined attr order
-  const coreColumnsWithAttrs = useMemo(() => {
-    const colMap = new Map(
-      CORE_COLUMNS.map((col) => [(col as { accessorKey?: string; id?: string }).accessorKey ?? (col as { id?: string }).id ?? "", col])
-    );
-    const rowActionsCol = colMap.get("") ?? CORE_COLUMNS.find((c) => (c as { id?: string }).id === "rowActions");
-
-    // Order data columns by coreAttrDefs sequence (attr defs already sorted by section.sortOrder + sortOrder)
-    const ordered: ColumnDef<ProductRow>[] = [];
-    const seen = new Set<string>();
-    for (const attr of coreAttrDefs) {
-      const col = colMap.get(attr.key);
-      if (col && !seen.has(attr.key)) {
-        ordered.push({ ...col, meta: { ...col.meta, attrDef: attr } });
-        seen.add(attr.key);
-      }
+      };
+      addToSection(sectionName, eavCol, secOrder);
     }
-    // Append any CORE_COLUMNS not covered by an attr def (keeps them visible)
-    for (const col of CORE_COLUMNS) {
-      const key = (col as { accessorKey?: string }).accessorKey;
-      if (key && !seen.has(key) && (col as { id?: string }).id !== "rowActions") {
-        ordered.push(col);
-        seen.add(key);
-      }
-    }
-    return rowActionsCol ? [rowActionsCol, ...ordered] : ordered;
-  }, [coreAttrDefs]);
 
-  const coreGroupedColumns = useMemo<ColumnDef<ProductRow>[]>(() => {
-    const rowActionsCol = coreColumnsWithAttrs.find((c) => (c as { id?: string }).id === "rowActions");
-    const dataCols = coreColumnsWithAttrs.filter((c) => (c as { id?: string }).id !== "rowActions");
+    // Build groups sorted by section sort order
+    const groups = [...sectionMap.entries()]
+      .sort((a, b) => (sectionSortOrder.get(a[0]) ?? 999) - (sectionSortOrder.get(b[0]) ?? 999))
+      .map(([sectionName, cols]) => ({
+        id: `section_${sectionName}`,
+        header: sectionName,
+        meta: { isGroup: true, section: sectionName },
+        columns: cols,
+      } as ColumnDef<ProductRow>));
 
-    // Group into sections preserving the attr-def-driven order (insertion order = attr order)
-    const sectionMap = new Map<string, ColumnDef<ProductRow>[]>();
-    for (const col of dataCols) {
-      // Prefer section name from the attached attrDef, fall back to static meta
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const attrSection = (col.meta as any)?.attrDef?.section?.name as string | undefined;
-      const section = attrSection ?? ((col.meta as { section?: string }) ?? {}).section ?? "General";
-      if (!sectionMap.has(section)) sectionMap.set(section, []);
-      sectionMap.get(section)!.push(col);
-    }
-    const groups = [...sectionMap.entries()].map(([section, cols]) => ({
-      id: `core_section_${section}`,
-      header: section,
-      meta: { isGroup: true, section },
-      columns: cols,
-    } as ColumnDef<ProductRow>));
     return rowActionsCol ? [rowActionsCol, ...groups] : groups;
-  }, [coreColumnsWithAttrs]);
-
-  const columns = useMemo(() => [...coreGroupedColumns, ...eavColumns], [coreGroupedColumns, eavColumns]);
+  }, [coreAttrDefs, allAttrs]);
 
   const table = useReactTable({
     data: products,

@@ -104,6 +104,9 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
       if (!g[key]) g[key] = [];
       g[key].push(attr);
     }
+    for (const key of Object.keys(g)) {
+      g[key].sort((a, b) => a.sortOrder - b.sortOrder);
+    }
     return g;
   }, [attributes, search]);
 

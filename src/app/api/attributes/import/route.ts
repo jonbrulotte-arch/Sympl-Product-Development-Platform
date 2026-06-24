@@ -60,12 +60,16 @@ export async function POST(req: NextRequest) {
       const sectionId  = await lookupSection(String(row.section ?? "").trim());
       const categoryId = await lookupCategory(String(row.category ?? "").trim());
 
+      const rawSortOrder = row.sortOrder !== undefined && row.sortOrder !== "" ? parseInt(String(row.sortOrder)) : undefined;
+      const sortOrder = rawSortOrder !== undefined && !isNaN(rawSortOrder) ? rawSortOrder : undefined;
+
       const data = {
         label: String(row.label ?? key),
         description: row.description ? String(row.description) : null,
         attributeType: attrType as never,
         requirement: req2 as never,
         maxValues,
+        ...(sortOrder !== undefined ? { sortOrder } : {}),
         salsifyEnabled: String(row.salsifyEnabled ?? "").toLowerCase() === "true",
         salsifyPropertyId: row.salsifyPropertyId ? String(row.salsifyPropertyId) : null,
         sectionId,
