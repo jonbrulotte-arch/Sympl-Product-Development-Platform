@@ -20,6 +20,7 @@ import {
   ScrollText,
   Bug,
   GitBranch,
+  ShieldCheck,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { useState } from "react";
@@ -29,6 +30,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/products", label: "Products", icon: Package },
+  { href: "/compliance", label: "Compliance", icon: ShieldCheck },
   { href: "/import", label: "Import", icon: Upload },
   { href: "/help", label: "Help & Docs", icon: HelpCircle },
 ];
@@ -38,6 +40,7 @@ const adminItems = [
   { href: "/admin/categories", label: "Categories", icon: Tag },
   { href: "/admin/attributes", label: "Attributes", icon: ListFilter },
   { href: "/admin/workflow-templates", label: "Workflows", icon: GitBranch },
+  { href: "/admin/compliance-types", label: "Compliance Types", icon: ShieldCheck },
   { href: "/admin/settings", label: "Settings", icon: Settings },
   { href: "/admin/salsify-log", label: "Salsify Log", icon: ScrollText },
   { href: "/admin/salsify-debug", label: "Salsify Debug", icon: Bug },

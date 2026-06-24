@@ -115,6 +115,8 @@ model User {
   createdProducts   ProductRecord[]    @relation("ProductCreator")
   updatedProducts   ProductRecord[]    @relation("ProductUpdater")
   salsifySyncLogs   SalsifySyncLog[]
+  createdCompliance ComplianceEvent[]  @relation("ComplianceCreator")
+  updatedCompliance ComplianceEvent[]  @relation("ComplianceUpdater")
 }
 
 model Account {
@@ -430,11 +432,12 @@ model ProductRecord {
   category        Category?               @relation(fields: [categoryId], references: [id])
   createdBy       User                    @relation("ProductCreator", fields: [createdById], references: [id])
   updatedBy       User?                   @relation("ProductUpdater", fields: [updatedById], references: [id])
-  attributeValues ProductAttributeValue[]
-  comments        Comment[]
-  activityLogs    ActivityLog[]
-  components      ProductComponent[]      @relation("ParentProduct")
-  componentOf     ProductComponent[]      @relation("ChildProduct")
+  attributeValues   ProductAttributeValue[]
+  comments          Comment[]
+  activityLogs      ActivityLog[]
+  components        ProductComponent[]      @relation("ParentProduct")
+  componentOf       ProductComponent[]      @relation("ChildProduct")
+  complianceEvents  ComplianceEventProduct[]
 
   @@index([projectId])
   @@index([partNumber])
@@ -647,4 +650,58 @@ model Notification {
   project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([userId, isRead])
+}
+
+// ─── Compliance ──────────────────────────────────────────────────────────────
+
+model ComplianceEventType {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  color       String   @default("#6366f1")
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  events ComplianceEvent[]
+}
+
+model ComplianceEvent {
+  id          String    @id @default(cuid())
+  typeId      String
+  title       String
+  description String?
+  notes       String?   @db.Text
+  status      String    @default("OPEN")
+  severity    String    @default("MEDIUM")
+  dueDate     DateTime?
+  resolvedAt  DateTime?
+  createdById String
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  type      ComplianceEventType      @relation(fields: [typeId], references: [id])
+  createdBy User                     @relation("ComplianceCreator", fields: [createdById], references: [id])
+  updatedBy User?                    @relation("ComplianceUpdater", fields: [updatedById], references: [id])
+  products  ComplianceEventProduct[]
+
+  @@index([typeId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ComplianceEventProduct {
+  id        String   @id @default(cuid())
+  eventId   String
+  productId String
+  createdAt DateTime @default(now())
+
+  event   ComplianceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  product ProductRecord   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, productId])
+  @@index([eventId])
+  @@index([productId])
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -202,7 +203,7 @@ export function ProductsBrowser({
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
+  const router = useRouter();
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounce search input
@@ -380,7 +381,7 @@ export function ProductsBrowser({
               <tr
                 key={product.id}
                 className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer group"
-                onClick={() => setEditingProduct(product)}
+                onClick={() => router.push(`/products/${product.id}`)}
               >
                 <td className="px-4 py-3 font-mono text-xs text-gray-700 whitespace-nowrap">
                   {product.partNumber ?? <span className="text-gray-300">—</span>}
@@ -418,7 +419,7 @@ export function ProductsBrowser({
                 <td className="px-4 py-3">
                   <button
                     className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-gray-200 text-gray-500"
-                    onClick={(e) => { e.stopPropagation(); setEditingProduct(product); }}
+                    onClick={(e) => { e.stopPropagation(); router.push(`/products/${product.id}`); }}
                     title="Edit product"
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -457,17 +458,6 @@ export function ProductsBrowser({
         </div>
       )}
 
-      {/* Edit Drawer */}
-      {editingProduct && (
-        <EditDrawer
-          product={editingProduct}
-          onClose={() => setEditingProduct(null)}
-          onSaved={(updated) => {
-            setProducts((prev) => prev.map((p) => p.id === updated.id ? updated : p));
-            setEditingProduct(updated);
-          }}
-        />
-      )}
     </div>
   );
 }
