@@ -101,9 +101,13 @@ export async function POST(_req: NextRequest, { params }: Params) {
     };
 
     // Map salsify-enabled attributes — core fields read from ProductRecord directly,
-    // EAV fields read from attributeValues
+    // EAV fields read from attributeValues.
+    // Skip partNumber — it is the product_id role property in Salsify and is already
+    // covered by salsify:id in the payload; sending it again as a named property
+    // causes Salsify to reject the request with "Missing required property" errors.
     for (const attr of salsifyAttrs) {
       if (!attr.salsifyPropertyId) continue;
+      if (attr.key === "partNumber") continue;
 
       const coreAccessor = CORE_FIELD_ACCESSOR[attr.key];
       if (coreAccessor) {
