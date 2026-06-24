@@ -140,7 +140,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
       if (!res.ok) {
         const text = await res.text();
-        errors.push(`Product ${product.partNumber ?? product.id}: ${res.status} ${text.slice(0, 200)} | payload_keys: ${Object.keys(salsifyProduct).join(", ")}`);
+        errors.push(`Product ${product.partNumber ?? product.id}: ${res.status} ${text.slice(0, 200)}`);
       } else {
         synced++;
       }
