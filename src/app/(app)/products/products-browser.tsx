@@ -280,7 +280,7 @@ export function ProductsBrowser({
           <select
             value={filters.projectId}
             onChange={(e) => setFilter("projectId", e.target.value)}
-            className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All projects</option>
             {projects.map((p) => (
@@ -293,7 +293,7 @@ export function ProductsBrowser({
             <select
               value={filters.brand}
               onChange={(e) => setFilter("brand", e.target.value)}
-              className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">All brands</option>
               {brands.map((b) => (
@@ -307,7 +307,7 @@ export function ProductsBrowser({
             <select
               value={filters.inventoryStatus}
               onChange={(e) => setFilter("inventoryStatus", e.target.value)}
-              className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">All statuses</option>
               {inventoryStatuses.map((s) => (
@@ -321,7 +321,7 @@ export function ProductsBrowser({
             <select
               value={filters.categoryId}
               onChange={(e) => setFilter("categoryId", e.target.value)}
-              className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">All categories</option>
               {categories.map((c) => (

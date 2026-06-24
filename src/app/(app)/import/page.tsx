@@ -338,7 +338,7 @@ function ImportWizardContent() {
                     <div className="flex-1 text-sm text-gray-700 font-medium truncate">{header}</div>
                     <div className="text-gray-400 text-xs">→</div>
                     <select
-                      className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       value={mapping[header] ?? ""}
                       onChange={(e) => setMapping((prev) => ({ ...prev, [header]: e.target.value }))}
                     >
@@ -363,7 +363,7 @@ function ImportWizardContent() {
                   <p className="text-sm text-gray-500">Loading projects…</p>
                 ) : (
                   <select
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     value={selectedProjectId}
                     onChange={(e) => setSelectedProjectId(e.target.value)}
                   >

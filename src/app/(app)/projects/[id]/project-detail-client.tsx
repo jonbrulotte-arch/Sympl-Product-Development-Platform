@@ -527,7 +527,7 @@ function WorkflowView({
                     {editingDescFor === stage.id ? (
                       <div className="mt-1.5 flex gap-2">
                         <textarea
-                          className="flex-1 border border-blue-300 rounded-lg p-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="flex-1 border border-blue-300 rounded-lg p-1.5 text-sm text-gray-900 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
                           rows={2}
                           value={editDescValue}
                           onChange={(e) => setEditDescValue(e.target.value)}
@@ -763,7 +763,7 @@ function WorkflowView({
                   {canVote && isVoting && (
                     <div className="mt-3 space-y-2">
                       <textarea
-                        className="w-full border border-gray-300 rounded-lg p-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full border border-gray-300 rounded-lg p-2 text-xs text-gray-900 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
                         rows={2}
                         placeholder="Add a comment (optional)"
                         value={voteComment}
@@ -814,7 +814,7 @@ function WorkflowView({
               <select
                 value={newOnApprove}
                 onChange={(e) => setNewOnApprove(e.target.value)}
-                className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full text-sm text-gray-900 border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">No status change</option>
                 {projectStatuses.map((ps) => (
@@ -908,7 +908,7 @@ function CommentsView({ projectId }: { projectId: string }) {
     <div className="p-6 max-w-2xl space-y-4">
       <div className="flex gap-3">
         <textarea
-          className="flex-1 border border-gray-300 rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 border border-gray-300 rounded-lg p-3 text-sm text-gray-900 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
           rows={3}
           placeholder="Add a comment..."
           value={newComment}
@@ -1228,7 +1228,7 @@ function SettingsView({
             <div className="space-y-1">
               <label className="text-xs font-medium text-gray-600">Description</label>
               <textarea
-                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm text-gray-900 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -1319,7 +1319,7 @@ function SettingsView({
                   <select
                     value={member.role}
                     onChange={(e) => updateMember(member.user.id, { role: e.target.value })}
-                    className="text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    className="text-xs text-gray-900 border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
                   >
                     {["VIEWER","CONTRIBUTOR","REVIEWER","APPROVER","PRODUCT_MANAGER"].map((r) => (
                       <option key={r} value={r}>{r.replace("_", " ")}</option>

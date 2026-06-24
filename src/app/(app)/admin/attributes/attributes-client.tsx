@@ -802,7 +802,7 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
             <textarea
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
               rows={2}
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
@@ -813,7 +813,7 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Group / Section</label>
               <select
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
                 value={form.sectionId}
                 onChange={(e) => setForm((f) => ({ ...f, sectionId: e.target.value }))}
               >
@@ -826,7 +826,7 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Category scope</label>
               <select
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
                 value={form.categoryId}
                 onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
               >
@@ -840,7 +840,7 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
               <select
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
                 value={form.attributeType}
                 onChange={(e) => setForm((f) => ({ ...f, attributeType: e.target.value }))}
               >
@@ -850,7 +850,7 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Requirement</label>
               <select
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
                 value={form.requirement}
                 onChange={(e) => setForm((f) => ({ ...f, requirement: e.target.value }))}
               >
