@@ -51,21 +51,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const updated = await prisma.productRecord.update({
-    where: { id: productId },
-    data: {
-      ...parsed.data,
-      updatedById: session.user.id,
-    },
-    include: {
-      attributeValues: { include: { attributeDefinition: true } },
-      category: true,
-      createdBy: { select: { id: true, name: true, email: true, image: true, role: true } },
-      updatedBy: { select: { id: true, name: true, email: true, image: true, role: true } },
-    },
-  });
-
-  // Upsert multi-value attributes
+  // Upsert EAV attributes FIRST so the final update/include returns up-to-date attributeValues.
+  // Doing upserts after the update (old order) meant the response had stale pre-upsert values,
+  // causing the client to reset _eavArrays to the old state on every save.
   if (attrValues && Array.isArray(attrValues)) {
     for (const av of attrValues as { attributeDefinitionId: string; valueIndex?: number; textValue?: string; numberValue?: number; booleanValue?: boolean }[]) {
       await prisma.productAttributeValue.upsert({
@@ -92,6 +80,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       });
     }
   }
+
+  const updated = await prisma.productRecord.update({
+    where: { id: productId },
+    data: {
+      ...parsed.data,
+      updatedById: session.user.id,
+    },
+    include: {
+      attributeValues: { include: { attributeDefinition: true } },
+      category: true,
+      createdBy: { select: { id: true, name: true, email: true, image: true, role: true } },
+      updatedBy: { select: { id: true, name: true, email: true, image: true, role: true } },
+    },
+  });
 
   // Log field-level changes — fire-and-forget so missing ActivityLog table doesn't crash saves
   const changedFields = Object.keys(parsed.data) as (keyof typeof parsed.data)[];
