@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,10 +13,20 @@ import {
 } from "@/components/ui/dialog";
 import { projectSchema, type ProjectInput } from "@/lib/validation";
 
+interface CategoryOption { id: string; name: string; }
+
 export function CreateProjectDialog() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const router = useRouter();
+
+  useEffect(() => {
+    fetch("/api/categories")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => { if (Array.isArray(data)) setCategories(data); })
+      .catch(() => {});
+  }, []);
 
   const {
     register,
@@ -95,6 +105,21 @@ export function CreateProjectDialog() {
                 <Input {...register("targetLaunchDate")} type="date" />
               </div>
             </div>
+
+            {categories.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Product Category</label>
+                <select
+                  {...register("categoryId")}
+                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">— No category —</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <DialogFooter className="mt-6">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>

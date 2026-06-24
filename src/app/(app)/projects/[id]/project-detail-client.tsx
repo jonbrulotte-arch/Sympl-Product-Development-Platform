@@ -29,17 +29,20 @@ interface AttributeDef {
   lovItems: { id: string; value: string; label: string; sortOrder: number }[];
 }
 
+interface CategoryOption { id: string; name: string; }
+
 interface Props {
   project: ProjectWithRelations;
   initialProducts: ProductWithAttributes[];
   globalAttrs?: AttributeDef[];
   categoryAttrs?: AttributeDef[];
   coreAttrDefs?: AttributeDef[];
+  allCategories?: CategoryOption[];
   canEdit: boolean;
   currentUserId: string;
 }
 
-export function ProjectDetailClient({ project, initialProducts, globalAttrs = [], categoryAttrs = [], coreAttrDefs = [], canEdit, currentUserId }: Props) {
+export function ProjectDetailClient({ project, initialProducts, globalAttrs = [], categoryAttrs = [], coreAttrDefs = [], allCategories = [], canEdit, currentUserId }: Props) {
   const [activeTab, setActiveTab] = useState("grid");
   const [salsifySyncing, setSalsifySyncing] = useState(false);
   const [salsifySyncResult, setSalsifySyncResult] = useState<string | null>(null);
@@ -216,7 +219,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
         )}
 
         {activeTab === "settings" && (
-          <SettingsView project={project} canEdit={canEdit} onSaved={() => router.refresh()} />
+          <SettingsView project={project} canEdit={canEdit} onSaved={() => router.refresh()} allCategories={allCategories} />
         )}
       </div>
     </div>
@@ -1105,9 +1108,9 @@ function ActivityView({ projectId, members }: { projectId: string; members: Arra
 // ─── Settings View ─────────────────────────────────────────────────────────────
 
 function SettingsView({
-  project, canEdit, onSaved,
+  project, canEdit, onSaved, allCategories = [],
 }: {
-  project: ProjectWithRelations; canEdit: boolean; onSaved: () => void;
+  project: ProjectWithRelations; canEdit: boolean; onSaved: () => void; allCategories?: CategoryOption[];
 }) {
   const router = useRouter();
 
@@ -1117,6 +1120,7 @@ function SettingsView({
   const [brand, setBrand] = useState(project.brand ?? "");
   const [retailer, setRetailer] = useState(project.retailer ?? "");
   const [channel, setChannel] = useState(project.channel ?? "");
+  const [categoryId, setCategoryId] = useState(project.categoryId ?? "");
   const [targetLaunchDate, setTargetLaunchDate] = useState(
     project.targetLaunchDate ? new Date(project.targetLaunchDate).toISOString().split("T")[0] : ""
   );
@@ -1153,6 +1157,7 @@ function SettingsView({
         retailer: retailer.trim() || undefined,
         channel: channel.trim() || undefined,
         targetLaunchDate: targetLaunchDate || undefined,
+        categoryId: categoryId || null,
         tags,
       }),
     });
@@ -1252,6 +1257,19 @@ function SettingsView({
                 <label className="text-xs font-medium text-gray-600">Target Launch Date</label>
                 <Input type="date" value={targetLaunchDate} onChange={(e) => setTargetLaunchDate(e.target.value)} />
               </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-600">Product Category</label>
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="">— No category —</option>
+                {allCategories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-gray-600">Tags</label>

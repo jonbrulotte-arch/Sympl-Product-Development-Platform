@@ -58,7 +58,7 @@ export default async function ProjectDetailPage({
     },
   };
 
-  const [products, globalAttrs, categoryAttrs, coreAttrDefs] = await Promise.all([
+  const [products, globalAttrs, categoryAttrs, coreAttrDefs, allCategories] = await Promise.all([
     prisma.productRecord.findMany({
       where: { projectId: id, isArchived: false },
       include: {
@@ -94,6 +94,7 @@ export default async function ProjectDetailPage({
       where: { key: { in: Array.from(CORE_COLUMN_KEYS) }, isActive: true },
       ...attrInclude,
     }),
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   const canEdit = canEditProject(
@@ -104,7 +105,7 @@ export default async function ProjectDetailPage({
 
   // Serialize through JSON to convert Prisma Decimal/Date objects to plain primitives
   // before crossing the server→client boundary
-  const serialized = JSON.parse(JSON.stringify({ project, products, globalAttrs, categoryAttrs, coreAttrDefs }));
+  const serialized = JSON.parse(JSON.stringify({ project, products, globalAttrs, categoryAttrs, coreAttrDefs, allCategories }));
 
   return (
     <ProjectDetailClient
@@ -113,6 +114,7 @@ export default async function ProjectDetailPage({
       globalAttrs={serialized.globalAttrs}
       categoryAttrs={serialized.categoryAttrs}
       coreAttrDefs={serialized.coreAttrDefs}
+      allCategories={serialized.allCategories}
       canEdit={canEdit}
       currentUserId={session.user.id}
     />
