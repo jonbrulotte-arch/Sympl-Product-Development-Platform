@@ -556,7 +556,7 @@ export function ProductGrid({
                 <col key={col.id} style={{ width: col.getSize() }} />
               ))}
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-gray-50">
+          <thead className="sticky top-0 z-20 bg-gray-50">
             {headerGroups.map((headerGroup, groupIdx) => (
               <tr key={headerGroup.id}>
                 {/* Checkbox — sticky, spans all header rows */}
@@ -609,7 +609,7 @@ export function ProductGrid({
                         ...pinnedStyle,
                       }}
                       className={cn(
-                        "border-b border-r border-gray-200 px-2 py-2 text-left text-xs font-semibold whitespace-nowrap select-none relative overflow-visible",
+                        "border-b border-r border-gray-200 px-2 py-2 text-left text-xs font-semibold whitespace-nowrap select-none relative overflow-visible hover:z-30",
                         (isEav || isGroup) ? "bg-amber-50 text-amber-800" : "bg-gray-50 text-gray-600",
                         isGroup && "text-center font-bold border-t-2 border-amber-300",
                         isPinned && "!bg-blue-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]"
