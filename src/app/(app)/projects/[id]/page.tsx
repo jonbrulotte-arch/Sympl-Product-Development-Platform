@@ -92,10 +92,11 @@ export default async function ProjectDetailPage({
           orderBy: { sortOrder: "asc" },
         })
       : Promise.resolve([]),
-    // Core column attribute definitions (for LOV support on typed columns)
+    // Core column attribute definitions (for LOV support + column ordering)
     prisma.attributeDefinition.findMany({
       where: { key: { in: Array.from(CORE_COLUMN_KEYS) }, isActive: true },
       ...attrInclude,
+      orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
     }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);

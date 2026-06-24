@@ -534,23 +534,45 @@ export function ProductGrid({
     [coreAttrDefs]
   );
 
-  const coreColumnsWithAttrs = useMemo(
-    () =>
-      CORE_COLUMNS.map((col) => {
-        const key = (col as { accessorKey?: string }).accessorKey;
-        const attrDef = key ? coreAttrMap.get(key) : undefined;
-        if (!attrDef) return col;
-        return { ...col, meta: { ...col.meta, attrDef } };
-      }),
-    [coreAttrMap]
-  );
+  // Attach attrDef metadata and sort CORE_COLUMNS by the admin-defined attr order
+  const coreColumnsWithAttrs = useMemo(() => {
+    const colMap = new Map(
+      CORE_COLUMNS.map((col) => [(col as { accessorKey?: string; id?: string }).accessorKey ?? (col as { id?: string }).id ?? "", col])
+    );
+    const rowActionsCol = colMap.get("") ?? CORE_COLUMNS.find((c) => (c as { id?: string }).id === "rowActions");
+
+    // Order data columns by coreAttrDefs sequence (attr defs already sorted by section.sortOrder + sortOrder)
+    const ordered: ColumnDef<ProductRow>[] = [];
+    const seen = new Set<string>();
+    for (const attr of coreAttrDefs) {
+      const col = colMap.get(attr.key);
+      if (col && !seen.has(attr.key)) {
+        ordered.push({ ...col, meta: { ...col.meta, attrDef: attr } });
+        seen.add(attr.key);
+      }
+    }
+    // Append any CORE_COLUMNS not covered by an attr def (keeps them visible)
+    for (const col of CORE_COLUMNS) {
+      const key = (col as { accessorKey?: string }).accessorKey;
+      if (key && !seen.has(key) && (col as { id?: string }).id !== "rowActions") {
+        ordered.push(col);
+        seen.add(key);
+      }
+    }
+    return rowActionsCol ? [rowActionsCol, ...ordered] : ordered;
+  }, [coreAttrDefs]);
 
   const coreGroupedColumns = useMemo<ColumnDef<ProductRow>[]>(() => {
     const rowActionsCol = coreColumnsWithAttrs.find((c) => (c as { id?: string }).id === "rowActions");
     const dataCols = coreColumnsWithAttrs.filter((c) => (c as { id?: string }).id !== "rowActions");
+
+    // Group into sections preserving the attr-def-driven order (insertion order = attr order)
     const sectionMap = new Map<string, ColumnDef<ProductRow>[]>();
     for (const col of dataCols) {
-      const section = ((col.meta as { section?: string }) ?? {}).section ?? "General";
+      // Prefer section name from the attached attrDef, fall back to static meta
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const attrSection = (col.meta as any)?.attrDef?.section?.name as string | undefined;
+      const section = attrSection ?? ((col.meta as { section?: string }) ?? {}).section ?? "General";
       if (!sectionMap.has(section)) sectionMap.set(section, []);
       sectionMap.get(section)!.push(col);
     }
