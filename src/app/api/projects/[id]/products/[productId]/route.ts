@@ -51,32 +51,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Upsert EAV attributes FIRST so the final update/include returns up-to-date attributeValues.
-  // Doing upserts after the update (old order) meant the response had stale pre-upsert values,
-  // causing the client to reset _eavArrays to the old state on every save.
+  // Replace EAV attributes FIRST so the final update/include returns up-to-date attributeValues.
+  // We delete-then-create (not upsert) so removed values don't linger in the DB.
   if (attrValues && Array.isArray(attrValues)) {
-    for (const av of attrValues as { attributeDefinitionId: string; valueIndex?: number; textValue?: string; numberValue?: number; booleanValue?: boolean }[]) {
-      await prisma.productAttributeValue.upsert({
-        where: {
-          productId_attributeDefinitionId_valueIndex: {
-            productId,
-            attributeDefinitionId: av.attributeDefinitionId,
-            valueIndex: av.valueIndex ?? 0,
-          },
-        },
-        update: {
-          textValue: av.textValue,
-          numberValue: av.numberValue,
-          booleanValue: av.booleanValue,
-        },
-        create: {
+    type AvInput = { attributeDefinitionId: string; valueIndex?: number; textValue?: string; numberValue?: number; booleanValue?: boolean };
+    const incoming = attrValues as AvInput[];
+    // Get the unique attributeDefinitionIds being written so we can wipe their old rows
+    const affectedAttrIds = [...new Set(incoming.map((av) => av.attributeDefinitionId))];
+    await prisma.productAttributeValue.deleteMany({
+      where: { productId, attributeDefinitionId: { in: affectedAttrIds } },
+    });
+    if (incoming.length > 0) {
+      await prisma.productAttributeValue.createMany({
+        data: incoming.map((av) => ({
           productId,
           attributeDefinitionId: av.attributeDefinitionId,
           valueIndex: av.valueIndex ?? 0,
           textValue: av.textValue,
           numberValue: av.numberValue,
           booleanValue: av.booleanValue,
-        },
+        })),
       });
     }
   }
