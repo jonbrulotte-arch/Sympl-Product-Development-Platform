@@ -16,6 +16,7 @@ import {
   Bell,
   Tag,
   ListFilter,
+  HelpCircle,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { useState } from "react";
@@ -26,6 +27,7 @@ const navItems = [
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/products", label: "Products", icon: Package },
   { href: "/import", label: "Import", icon: Upload },
+  { href: "/help", label: "Help & Docs", icon: HelpCircle },
 ];
 
 const adminItems = [
@@ -53,7 +55,7 @@ export function Sidebar({ user }: SidebarProps) {
       {/* Logo */}
       <div className="flex items-center h-14 px-4 border-b border-gray-700">
         {!collapsed && (
-          <span className="text-lg font-bold text-white tracking-tight">Sympl</span>
+          <span className="text-lg font-bold text-white tracking-tight">Sympl <span className="text-blue-400">PM</span></span>
         )}
         {collapsed && (
           <span className="text-lg font-bold text-white mx-auto">S</span>

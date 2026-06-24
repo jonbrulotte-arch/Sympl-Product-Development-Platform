@@ -19,6 +19,7 @@ interface AttributeDef {
   id: string;
   key: string;
   label: string;
+  description?: string | null;
   attributeType: string;
   requirement: string;
   maxValues: number;

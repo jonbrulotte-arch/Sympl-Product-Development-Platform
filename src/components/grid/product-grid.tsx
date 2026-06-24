@@ -16,7 +16,7 @@ import {
   type Row,
   type Column,
 } from "@tanstack/react-table";
-import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff } from "lucide-react";
+import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,7 @@ interface AttrDef {
   id: string;
   key: string;
   label: string;
+  description?: string | null;
   attributeType: string;
   requirement: string;
   maxValues: number;
@@ -616,13 +617,23 @@ export function ProductGrid({
                       onClick={isLeaf ? header.column.getToggleSortingHandler() : undefined}
                     >
                       <div className={cn("flex items-center gap-1 group/hdr", isLeaf && "cursor-pointer")}>
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getIsSorted() === "asc" && <ChevronUp className="h-3 w-3" />}
-                        {header.column.getIsSorted() === "desc" && <ChevronDown className="h-3 w-3" />}
+                        <span className="truncate">{flexRender(header.column.columnDef.header, header.getContext())}</span>
+                        {header.column.getIsSorted() === "asc" && <ChevronUp className="h-3 w-3 shrink-0" />}
+                        {header.column.getIsSorted() === "desc" && <ChevronDown className="h-3 w-3 shrink-0" />}
+                        {isLeaf && meta?.attrDef?.description && (
+                          <div className="relative group/tip shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <HelpCircle className="h-3 w-3 text-gray-400 opacity-0 group-hover/hdr:opacity-100 transition-opacity cursor-default" />
+                            <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[100] w-56 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl hidden group-hover/tip:block leading-relaxed">
+                              <span className="font-medium block mb-0.5">{meta.attrDef.label}</span>
+                              {meta.attrDef.description}
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                            </div>
+                          </div>
+                        )}
                         {isLeaf && (
                           <button
                             className={cn(
-                              "ml-auto p-0.5 rounded hover:bg-gray-200 transition-colors",
+                              "ml-auto p-0.5 rounded hover:bg-gray-200 transition-colors shrink-0",
                               isPinned ? "opacity-100 text-blue-600" : "opacity-0 group-hover/hdr:opacity-100 text-gray-400"
                             )}
                             title={isPinned ? "Unfreeze column" : "Freeze column"}
