@@ -94,20 +94,19 @@ export async function POST(_req: NextRequest, { params }: Params) {
   let synced = 0;
 
   for (const product of products) {
-    // Build the Salsify product payload
+    // Build the Salsify product payload.
+    // Note: salsify:id is intentionally omitted from the body — it is already in
+    // the PUT URL path. "Part Number" (product_id role) is sent as an explicit
+    // named property so Salsify's required-field validation is satisfied.
+    const productId = product.partNumber ?? product.id;
     const salsifyProduct: Record<string, unknown> = {
-      "salsify:id": product.partNumber ?? product.id,
-      "salsify:name": product.itemName ?? product.partNumber ?? product.id,
+      "salsify:name": product.itemName ?? productId,
     };
 
     // Map salsify-enabled attributes — core fields read from ProductRecord directly,
-    // EAV fields read from attributeValues.
-    // Skip partNumber — it is the product_id role property in Salsify and is already
-    // covered by salsify:id in the payload; sending it again as a named property
-    // causes Salsify to reject the request with "Missing required property" errors.
+    // EAV fields read from attributeValues
     for (const attr of salsifyAttrs) {
       if (!attr.salsifyPropertyId) continue;
-      if (attr.key === "partNumber") continue;
 
       const coreAccessor = CORE_FIELD_ACCESSOR[attr.key];
       if (coreAccessor) {
@@ -128,7 +127,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
     }
 
     try {
-      const salsifyId = encodeURIComponent(salsifyProduct["salsify:id"] as string);
+      const salsifyId = encodeURIComponent(productId);
       const baseUrl = `https://app.salsify.com/api/v1/orgs/${config.organizationId}/products`;
       const headers = {
         Authorization: `Bearer ${config.apiKey}`,
