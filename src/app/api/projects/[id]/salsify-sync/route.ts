@@ -1,6 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { ProductRecord } from "@prisma/client";
+
+// Accessor for core fields stored directly on ProductRecord (not as EAV values)
+const CORE_FIELD_ACCESSOR: Record<string, (p: ProductRecord) => unknown> = {
+  partNumber:          (p) => p.partNumber ?? null,
+  modelNumber:         (p) => p.modelNumber ?? null,
+  itemName:            (p) => p.itemName ?? null,
+  brand:               (p) => p.brand ?? null,
+  upc:                 (p) => p.upc ?? null,
+  inventoryStatus:     (p) => p.inventoryStatus ?? null,
+  warrantyInfo:        (p) => p.warrantyInfo ?? null,
+  htsCode:             (p) => p.htsCode ?? null,
+  htsCodeCanada:       (p) => p.htsCodeCanada ?? null,
+  productComposition:  (p) => p.productComposition ?? null,
+  needsProp65:         (p) => p.needsProp65,
+  packagingType:       (p) => p.packagingType ?? null,
+  packSize:            (p) => p.packSize ?? null,
+  numberOfPieces:      (p) => p.numberOfPieces ?? null,
+  individualOrSet:     (p) => p.individualOrSet ?? null,
+  material:            (p) => p.material ?? null,
+  size:                (p) => p.size ?? null,
+  jspCategory:         (p) => p.jspCategory ?? null,
+  userManual:          (p) => p.userManual ?? null,
+  cutSheets:           (p) => p.cutSheets ?? null,
+  upcHeight:           (p) => p.upcHeight ?? null,
+  upcWidth:            (p) => p.upcWidth ?? null,
+  upcLength:           (p) => p.upcLength ?? null,
+  upcWeight:           (p) => p.upcWeight ?? null,
+  itemHeight:          (p) => p.itemHeight ?? null,
+  itemWidth:           (p) => p.itemWidth ?? null,
+  itemLength:          (p) => p.itemLength ?? null,
+  itemWeight:          (p) => p.itemWeight ?? null,
+  innerCartonGtin:     (p) => p.innerCartonGtin ?? null,
+  innerCartonHeight:   (p) => p.innerCartonHeight ?? null,
+  innerCartonWidth:    (p) => p.innerCartonWidth ?? null,
+  innerCartonLength:   (p) => p.innerCartonLength ?? null,
+  innerCartonWeight:   (p) => p.innerCartonWeight ?? null,
+  innerCartonQty:      (p) => p.innerCartonQty ?? null,
+  masterCartonGtin:    (p) => p.masterCartonGtin ?? null,
+  masterCartonHeight:  (p) => p.masterCartonHeight ?? null,
+  masterCartonWidth:   (p) => p.masterCartonWidth ?? null,
+  masterCartonLength:  (p) => p.masterCartonLength ?? null,
+  masterCartonWeight:  (p) => p.masterCartonWeight ?? null,
+  masterCartonQty:     (p) => p.masterCartonQty ?? null,
+  palletGtin:          (p) => p.palletGtin ?? null,
+  palletHeight:        (p) => p.palletHeight ?? null,
+  palletWidth:         (p) => p.palletWidth ?? null,
+  palletLength:        (p) => p.palletLength ?? null,
+  palletWeight:        (p) => p.palletWeight ?? null,
+  palletStackable:     (p) => p.palletStackable,
+  layersPerPallet:     (p) => p.layersPerPallet ?? null,
+  palletQty:           (p) => p.palletQty ?? null,
+};
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -47,19 +100,28 @@ export async function POST(_req: NextRequest, { params }: Params) {
       "salsify:name": product.itemName ?? product.partNumber ?? product.id,
     };
 
-    // Map EAV attribute values where salsify is enabled
+    // Map salsify-enabled attributes — core fields read from ProductRecord directly,
+    // EAV fields read from attributeValues
     for (const attr of salsifyAttrs) {
       if (!attr.salsifyPropertyId) continue;
-      const avs = product.attributeValues
-        .filter((v) => v.attributeDefinitionId === attr.id)
-        .sort((a, b) => a.valueIndex - b.valueIndex);
-      if (avs.length === 0) continue;
-      const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
-      salsifyProduct[attr.salsifyPropertyId] = attr.maxValues > 1 ? values : values[0];
-    }
 
-    // Map core fields that have a salsify property ID set
-    // (handled via EAV attrs mapped to core fields in seed data)
+      const coreAccessor = CORE_FIELD_ACCESSOR[attr.key];
+      if (coreAccessor) {
+        // Core field — value lives on the ProductRecord model
+        const value = coreAccessor(product);
+        if (value !== null && value !== undefined && value !== "") {
+          salsifyProduct[attr.salsifyPropertyId] = value;
+        }
+      } else {
+        // EAV field — value lives in attributeValues
+        const avs = product.attributeValues
+          .filter((v) => v.attributeDefinitionId === attr.id)
+          .sort((a, b) => a.valueIndex - b.valueIndex);
+        if (avs.length === 0) continue;
+        const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
+        salsifyProduct[attr.salsifyPropertyId] = attr.maxValues > 1 ? values : values[0];
+      }
+    }
 
     try {
       const salsifyId = encodeURIComponent(salsifyProduct["salsify:id"] as string);
