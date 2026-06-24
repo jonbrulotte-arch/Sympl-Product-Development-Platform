@@ -107,7 +107,8 @@ model User {
   projectMembers    ProjectMember[]
   comments          Comment[]
   activityLogs      ActivityLog[]
-  workflowApprovals WorkflowApproval[]
+  workflowApprovals          WorkflowApproval[]
+  workflowStageTemplateAssignments WorkflowStageTemplateAssignee[]
   importHistory     ImportHistory[]
   userPreferences   UserPreferences?
   notifications     Notification[]
@@ -493,7 +494,20 @@ model WorkflowStageTemplate {
   isRequired         Boolean  @default(true)
   requiredFields     String[] @default([])
 
-  workflowTemplate WorkflowTemplate @relation(fields: [workflowTemplateId], references: [id], onDelete: Cascade)
+  workflowTemplate WorkflowTemplate                @relation(fields: [workflowTemplateId], references: [id], onDelete: Cascade)
+  defaultAssignees WorkflowStageTemplateAssignee[]
+}
+
+model WorkflowStageTemplateAssignee {
+  id              String   @id @default(cuid())
+  stageTemplateId String
+  userId          String
+  createdAt       DateTime @default(now())
+
+  stageTemplate WorkflowStageTemplate @relation(fields: [stageTemplateId], references: [id], onDelete: Cascade)
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([stageTemplateId, userId])
 }
 
 model WorkflowStage {
@@ -506,12 +520,15 @@ model WorkflowStage {
   isRequired         Boolean             @default(true)
   onApproveSetStatus ProjectStatus?
   onRejectSetStatus  ProjectStatus?
+  dependsOnStageId   String?
   completedAt        DateTime?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
-  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  approvals WorkflowApproval[]
+  project         Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  approvals       WorkflowApproval[]
+  dependsOnStage  WorkflowStage?     @relation("StageDependency", fields: [dependsOnStageId], references: [id], onDelete: SetNull)
+  dependentStages WorkflowStage[]    @relation("StageDependency")
 }
 
 model ProjectStatusConfig {

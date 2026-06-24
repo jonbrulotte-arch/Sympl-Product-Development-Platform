@@ -15,7 +15,14 @@ const STAGE_INCLUDE = {
       approver: { select: { id: true, name: true, email: true, image: true, role: true } },
     },
   },
+  dependsOnStage: { select: { id: true, name: true, status: true } },
 } as const;
+
+// A stage is blocked when its dependency is not yet approved or skipped
+function isDependencyBlocked(depStage: { status: string } | null) {
+  if (!depStage) return false;
+  return depStage.status !== "APPROVED" && depStage.status !== "SKIPPED";
+}
 
 async function maybeAutoUpdateProject(projectId: string, newStatus: string | null) {
   if (!newStatus) return;
@@ -42,14 +49,19 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (body.applyTemplateId) {
     const template = await prisma.workflowTemplate.findUnique({
       where: { id: body.applyTemplateId },
-      include: { stageTemplates: { orderBy: { sortOrder: "asc" } } },
+      include: {
+        stageTemplates: {
+          orderBy: { sortOrder: "asc" },
+          include: { defaultAssignees: { select: { userId: true } } },
+        },
+      },
     });
     if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 });
 
     const existingCount = await prisma.workflowStage.count({ where: { projectId } });
     const stages = await Promise.all(
-      template.stageTemplates.map((st, i) =>
-        prisma.workflowStage.create({
+      template.stageTemplates.map(async (st, i) => {
+        const stage = await prisma.workflowStage.create({
           data: {
             projectId,
             name: st.name,
@@ -58,8 +70,22 @@ export async function POST(req: NextRequest, { params }: Params) {
             isRequired: st.isRequired,
           },
           include: STAGE_INCLUDE,
-        })
-      )
+        });
+        // Pre-assign default approvers from the template
+        if (st.defaultAssignees.length > 0) {
+          await prisma.workflowApproval.createMany({
+            data: st.defaultAssignees.map((a) => ({
+              stageId: stage.id,
+              approverId: a.userId,
+              status: "PENDING",
+            })),
+            skipDuplicates: true,
+          });
+          // Reload with approvals
+          return prisma.workflowStage.findUnique({ where: { id: stage.id }, include: STAGE_INCLUDE })!;
+        }
+        return stage;
+      })
     );
     for (const s of stages) {
       logActivity({ userId: session.user.id, action: "CREATED", entityType: "WorkflowStage", entityId: s.id, projectId, newValue: s.name }).catch(() => {});
@@ -67,7 +93,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json(stages, { status: 201 });
   }
 
-  const { name, description, sortOrder, onApproveSetStatus, onRejectSetStatus } = body;
+  const { name, description, sortOrder, onApproveSetStatus, onRejectSetStatus, dependsOnStageId } = body;
   if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
   const stage = await prisma.workflowStage.create({
@@ -78,6 +104,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       sortOrder: sortOrder ?? 0,
       onApproveSetStatus: (onApproveSetStatus as ProjectStatus) || null,
       onRejectSetStatus: (onRejectSetStatus as ProjectStatus) || null,
+      dependsOnStageId: dependsOnStageId || null,
     },
     include: STAGE_INCLUDE,
   });
@@ -99,7 +126,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const body = await req.json();
-  const { stageId, status, name, description, onApproveSetStatus, onRejectSetStatus, vote, voteComment, reset } = body;
+  const { stageId, status, name, description, onApproveSetStatus, onRejectSetStatus, dependsOnStageId, vote, voteComment, reset } = body;
   if (!stageId) return NextResponse.json({ error: "stageId required" }, { status: 400 });
 
   // Reset vote — clears stage back to PENDING and resets all approvals to PENDING
@@ -121,6 +148,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (vote) {
     if (!["APPROVED", "REJECTED"].includes(vote)) {
       return NextResponse.json({ error: "vote must be APPROVED or REJECTED" }, { status: 400 });
+    }
+
+    // Enforce dependency gate before allowing votes
+    const stageForVote = await prisma.workflowStage.findUnique({
+      where: { id: stageId },
+      select: { dependsOnStage: { select: { id: true, name: true, status: true } } },
+    });
+    if (stageForVote && isDependencyBlocked(stageForVote.dependsOnStage)) {
+      return NextResponse.json({
+        error: `This stage depends on "${stageForVote.dependsOnStage!.name}" which has not been approved yet.`,
+      }, { status: 409 });
     }
 
     const approval = await prisma.workflowApproval.findUnique({
@@ -175,6 +213,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 
+  // Enforce dependency gate when transitioning out of PENDING
+  if (status && status !== "PENDING") {
+    const stageForStatus = await prisma.workflowStage.findUnique({
+      where: { id: stageId },
+      select: { dependsOnStage: { select: { id: true, name: true, status: true } } },
+    });
+    if (stageForStatus && isDependencyBlocked(stageForStatus.dependsOnStage)) {
+      return NextResponse.json({
+        error: `This stage depends on "${stageForStatus.dependsOnStage!.name}" which has not been approved yet.`,
+      }, { status: 409 });
+    }
+  }
+
   const data: Record<string, unknown> = {};
   if (status) {
     data.status = status;
@@ -184,6 +235,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (description !== undefined) data.description = description || null;
   if (onApproveSetStatus !== undefined) data.onApproveSetStatus = (onApproveSetStatus as ProjectStatus) || null;
   if (onRejectSetStatus !== undefined) data.onRejectSetStatus = (onRejectSetStatus as ProjectStatus) || null;
+  if (dependsOnStageId !== undefined) data.dependsOnStageId = dependsOnStageId || null;
 
   // projectId ownership already verified above; update only by id (projectId is not unique)
   const stage = Object.keys(data).length > 0

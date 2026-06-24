@@ -14,7 +14,17 @@ export async function GET() {
 
   const templates = await prisma.workflowTemplate.findMany({
     orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-    include: { stageTemplates: { orderBy: { sortOrder: "asc" } } },
+    include: {
+      stageTemplates: {
+        orderBy: { sortOrder: "asc" },
+        include: {
+          defaultAssignees: {
+            include: { user: { select: { id: true, name: true, email: true, role: true } } },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      },
+    },
   });
   return NextResponse.json(templates);
 }
@@ -36,7 +46,12 @@ export async function POST(req: NextRequest) {
       description: description?.trim() || null,
       isDefault: isDefault ?? false,
     },
-    include: { stageTemplates: { orderBy: { sortOrder: "asc" } } },
+    include: {
+      stageTemplates: {
+        orderBy: { sortOrder: "asc" },
+        include: { defaultAssignees: { include: { user: { select: { id: true, name: true, email: true, role: true } } } } },
+      },
+    },
   });
   return NextResponse.json(template, { status: 201 });
 }

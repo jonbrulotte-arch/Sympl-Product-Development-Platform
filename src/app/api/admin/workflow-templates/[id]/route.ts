@@ -10,13 +10,28 @@ async function requireAdmin() {
   return session;
 }
 
+const STAGE_INCLUDE = {
+  defaultAssignees: {
+    include: {
+      user: { select: { id: true, name: true, email: true, role: true } },
+    },
+    orderBy: { createdAt: "asc" as const },
+  },
+};
+
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
   const body = await req.json();
-  const { name, description, isDefault, isActive, addStage, updateStage, deleteStageId } = body;
+  const {
+    name, description, isDefault, isActive,
+    addStage, updateStage, deleteStageId,
+    reorderStages,           // { stages: { id, sortOrder }[] }
+    addAssignee,             // { stageTemplateId, userId }
+    removeAssignee,          // { stageTemplateId, userId }
+  } = body;
 
   if (addStage) {
     const count = await prisma.workflowStageTemplate.count({ where: { workflowTemplateId: id } });
@@ -28,6 +43,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         sortOrder: count,
         isRequired: addStage.isRequired ?? true,
       },
+      include: STAGE_INCLUDE,
     });
     return NextResponse.json(stage, { status: 201 });
   }
@@ -36,17 +52,47 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const stage = await prisma.workflowStageTemplate.update({
       where: { id: updateStage.id },
       data: {
-        name: updateStage.name?.trim(),
-        description: updateStage.description?.trim() || null,
-        sortOrder: updateStage.sortOrder,
-        isRequired: updateStage.isRequired,
+        ...(updateStage.name !== undefined && { name: updateStage.name.trim() }),
+        ...(updateStage.description !== undefined && { description: updateStage.description?.trim() || null }),
+        ...(updateStage.sortOrder !== undefined && { sortOrder: updateStage.sortOrder }),
+        ...(updateStage.isRequired !== undefined && { isRequired: updateStage.isRequired }),
       },
+      include: STAGE_INCLUDE,
     });
     return NextResponse.json(stage);
   }
 
   if (deleteStageId) {
     await prisma.workflowStageTemplate.delete({ where: { id: deleteStageId } });
+    return NextResponse.json({ success: true });
+  }
+
+  if (reorderStages) {
+    await Promise.all(
+      (reorderStages as { id: string; sortOrder: number }[]).map((s) =>
+        prisma.workflowStageTemplate.update({
+          where: { id: s.id },
+          data: { sortOrder: s.sortOrder },
+        })
+      )
+    );
+    return NextResponse.json({ success: true });
+  }
+
+  if (addAssignee) {
+    const assignee = await prisma.workflowStageTemplateAssignee.upsert({
+      where: { stageTemplateId_userId: { stageTemplateId: addAssignee.stageTemplateId, userId: addAssignee.userId } },
+      create: { stageTemplateId: addAssignee.stageTemplateId, userId: addAssignee.userId },
+      update: {},
+      include: { user: { select: { id: true, name: true, email: true, role: true } } },
+    });
+    return NextResponse.json(assignee, { status: 201 });
+  }
+
+  if (removeAssignee) {
+    await prisma.workflowStageTemplateAssignee.deleteMany({
+      where: { stageTemplateId: removeAssignee.stageTemplateId, userId: removeAssignee.userId },
+    });
     return NextResponse.json({ success: true });
   }
 
@@ -62,7 +108,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const template = await prisma.workflowTemplate.update({
     where: { id },
     data,
-    include: { stageTemplates: { orderBy: { sortOrder: "asc" } } },
+    include: {
+      stageTemplates: {
+        orderBy: { sortOrder: "asc" },
+        include: STAGE_INCLUDE,
+      },
+    },
   });
   return NextResponse.json(template);
 }

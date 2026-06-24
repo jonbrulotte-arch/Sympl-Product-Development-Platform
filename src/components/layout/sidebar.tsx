@@ -19,6 +19,7 @@ import {
   HelpCircle,
   ScrollText,
   Bug,
+  GitBranch,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { useState } from "react";
@@ -36,6 +37,7 @@ const adminItems = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/categories", label: "Categories", icon: Tag },
   { href: "/admin/attributes", label: "Attributes", icon: ListFilter },
+  { href: "/admin/workflow-templates", label: "Workflows", icon: GitBranch },
   { href: "/admin/settings", label: "Settings", icon: Settings },
   { href: "/admin/salsify-log", label: "Salsify Log", icon: ScrollText },
   { href: "/admin/salsify-debug", label: "Salsify Debug", icon: Bug },

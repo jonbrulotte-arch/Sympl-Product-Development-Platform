@@ -9,7 +9,7 @@ import { ProductGrid } from "@/components/grid/product-grid";
 import { formatDate } from "@/lib/utils";
 import {
   Package, Calendar, Download, ArrowLeft, Users,
-  MessageSquare, Clock, CheckCircle, RefreshCw, Plus, Trash2, Settings, Pencil, X
+  MessageSquare, Clock, CheckCircle, RefreshCw, Plus, Trash2, Settings, Pencil, X, Lock
 } from "lucide-react";
 import type { ProjectWithRelations, ProductWithAttributes } from "@/types";
 import Link from "next/link";
@@ -238,6 +238,8 @@ type Stage = {
   status: string; sortOrder: number; completedAt: string | Date | null;
   onApproveSetStatus: string | null;
   onRejectSetStatus: string | null;
+  dependsOnStageId: string | null;
+  dependsOnStage: { id: string; name: string; status: string } | null;
   approvals: StageApproval[];
 };
 
@@ -504,7 +506,10 @@ function WorkflowView({
 
         {stages.map((stage, idx) => {
           const myApproval = stage.approvals.find((a) => a.approver.id === currentUserId);
-          const canVote = myApproval?.status === "PENDING" && stage.status === "IN_REVIEW";
+          // Blocked when the dependency stage exists and is not yet approved/skipped
+          const depStage = stage.dependsOnStage;
+          const isBlocked = !!depStage && depStage.status !== "APPROVED" && depStage.status !== "SKIPPED";
+          const canVote = myApproval?.status === "PENDING" && stage.status === "IN_REVIEW" && !isBlocked;
           const isVoting = votingFor === stage.id;
           const isAssigning = assigningFor === stage.id;
           const assignedIds = new Set(stage.approvals.map((a) => a.approver.id));
@@ -577,12 +582,14 @@ function WorkflowView({
                     </span>
                     {canEdit && stage.status === "PENDING" && stage.approvals.length === 0 && (
                       <Button size="sm" variant="outline" className="text-blue-600 border-blue-200"
+                        disabled={isBlocked}
                         onClick={() => updateStatus(stage.id, "IN_REVIEW")}>
                         Start Review
                       </Button>
                     )}
                     {canEdit && stage.status === "PENDING" && stage.approvals.length > 0 && (
                       <Button size="sm" variant="outline" className="text-blue-600 border-blue-200"
+                        disabled={isBlocked}
                         onClick={() => updateStatus(stage.id, "IN_REVIEW")}>
                         Open for Voting
                       </Button>
@@ -607,7 +614,18 @@ function WorkflowView({
                   </div>
                 </div>
 
-                {/* On Approval / On Rejection automations — only show when editable and not complete */}
+                {/* Dependency blocked banner */}
+                {isBlocked && depStage && (
+                  <div className="border-t border-amber-200 px-4 py-2 bg-amber-50 flex items-center gap-2 text-xs text-amber-700">
+                    <Lock className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      Blocked — waiting on <span className="font-semibold">{depStage.name}</span> (
+                      {depStage.status === "REJECTED" ? "rejected" : "not yet approved"})
+                    </span>
+                  </div>
+                )}
+
+                {/* On Approval / On Rejection automations + Depends on — only show when editable and not complete */}
                 {canEdit && stage.status !== "APPROVED" && stage.status !== "REJECTED" && (
                   <div className="border-t border-gray-100 px-4 py-2 bg-gray-50 flex flex-wrap items-center gap-x-6 gap-y-1.5">
                     <div className="flex items-center gap-2">
@@ -633,6 +651,19 @@ function WorkflowView({
                         <option value="">No status change</option>
                         {projectStatuses.map((ps) => (
                           <option key={ps.code} value={ps.code}>{ps.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400 shrink-0">Depends on →</span>
+                      <select
+                        value={stage.dependsOnStageId ?? ""}
+                        onChange={(e) => patchStage(stage.id, { dependsOnStageId: e.target.value || null })}
+                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-purple-400 text-gray-700"
+                      >
+                        <option value="">No dependency</option>
+                        {stages.filter((s) => s.id !== stage.id).map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
                         ))}
                       </select>
                     </div>
