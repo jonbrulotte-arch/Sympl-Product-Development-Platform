@@ -733,19 +733,22 @@ export function ProductGrid({
               prev.map((p) => {
                 const u = updatedProducts.find((u) => u.id === p.id);
                 if (!u) return p;
-                // Re-derive EAV display maps from the returned attributeValues
+                // Rebuild EAV maps entirely from the API response (which returns all attributeValues).
+                // Do NOT start from p._eavArrays — that would duplicate values that are already in the response.
                 const raw = u as typeof u & { attributeValues?: { attributeDefinition: { key: string }; valueIndex: number; textValue?: string | null }[] };
-                const arrays: EavArrayMap = { ...p._eavArrays };
+                const arrays: EavArrayMap = {};
                 for (const av of (raw.attributeValues ?? []).sort((a, b) => a.valueIndex - b.valueIndex)) {
                   const k = av.attributeDefinition.key;
                   if (!arrays[k]) arrays[k] = [];
                   arrays[k].push(av.textValue ?? "");
                 }
+                // Preserve any EAV keys the API response didn't include (shouldn't happen, but safe fallback)
+                const merged = { ...p._eavArrays, ...arrays };
                 return {
                   ...p,
                   ...u,
-                  _eavArrays: arrays,
-                  _eavValues: Object.fromEntries(Object.entries(arrays).map(([k, vals]) => [k, vals.join(" · ")])),
+                  _eavArrays: merged,
+                  _eavValues: Object.fromEntries(Object.entries(merged).map(([k, vals]) => [k, (vals as string[]).join(" · ")])),
                 };
               })
             );
