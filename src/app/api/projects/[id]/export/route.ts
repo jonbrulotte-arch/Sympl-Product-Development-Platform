@@ -12,8 +12,10 @@ export async function GET(
 
   const { id: projectId } = await params;
 
-  const [project, products] = await Promise.all([
-    prisma.project.findUnique({ where: { id: projectId } }),
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const [products, categoryAttrs, globalAttrs] = await Promise.all([
     prisma.productRecord.findMany({
       where: { projectId, isArchived: false },
       include: {
@@ -22,9 +24,31 @@ export async function GET(
       },
       orderBy: { rowIndex: "asc" },
     }),
+    project.categoryId
+      ? prisma.attributeDefinition.findMany({
+          where: { categoryId: project.categoryId, isActive: true },
+          orderBy: { sortOrder: "asc" },
+        })
+      : Promise.resolve([]),
+    prisma.attributeDefinition.findMany({
+      where: { categoryId: null, isActive: true },
+      orderBy: { sortOrder: "asc" },
+    }),
   ]);
 
-  if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Pre-build the ordered set of EAV column headers so every row gets them,
+  // even when no product has a value yet.
+  const eavAttrDefs = [...categoryAttrs, ...globalAttrs];
+  const eavHeadersTemplate: Record<string, string> = {};
+  for (const attr of eavAttrDefs) {
+    if (attr.maxValues > 1) {
+      for (let i = 1; i <= attr.maxValues; i++) {
+        eavHeadersTemplate[`${attr.label} ${i}`] = "";
+      }
+    } else {
+      eavHeadersTemplate[attr.label] = "";
+    }
+  }
 
   // Build rows
   const rows = products.map((p) => {
@@ -79,7 +103,10 @@ export async function GET(
       "Cut Sheets": p.cutSheets ?? "",
     };
 
-    // Add multi-value attribute values grouped by key
+    // Seed all category/global EAV columns as empty so they always appear
+    Object.assign(row, eavHeadersTemplate);
+
+    // Fill in actual EAV values
     const groupedAttrs: Record<string, string[]> = {};
     for (const av of p.attributeValues) {
       const key = av.attributeDefinition.label;
@@ -87,12 +114,13 @@ export async function GET(
       groupedAttrs[key][av.valueIndex] = av.textValue ?? av.numberValue?.toString() ?? av.booleanValue?.toString() ?? "";
     }
     for (const [key, values] of Object.entries(groupedAttrs)) {
-      if (values.length === 1) {
-        row[key] = values[0];
-      } else {
+      const maxVals = eavAttrDefs.find((a) => a.label === key)?.maxValues ?? 1;
+      if (maxVals > 1) {
         values.forEach((v, i) => {
           row[`${key} ${i + 1}`] = v;
         });
+      } else {
+        row[key] = values[0] ?? "";
       }
     }
 
