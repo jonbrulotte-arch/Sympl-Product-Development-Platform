@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canEditProject } from "@/lib/permissions";
+import { logActivity } from "@/lib/activity";
 import type { ProjectStatus } from "@prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
@@ -60,6 +61,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         })
       )
     );
+    for (const s of stages) {
+      logActivity({ userId: session.user.id, action: "CREATED", entityType: "WorkflowStage", entityId: s.id, projectId, newValue: s.name }).catch(() => {});
+    }
     return NextResponse.json(stages, { status: 201 });
   }
 
@@ -77,6 +81,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     },
     include: STAGE_INCLUDE,
   });
+
+  logActivity({ userId: session.user.id, action: "CREATED", entityType: "WorkflowStage", entityId: stage.id, projectId, newValue: stage.name }).catch(() => {});
 
   return NextResponse.json(stage, { status: 201 });
 }
@@ -107,6 +113,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data: { status: "PENDING", completedAt: null },
       include: STAGE_INCLUDE,
     });
+    logActivity({ userId: session.user.id, action: "STATUS_CHANGED", entityType: "WorkflowStage", entityId: stageId, projectId, fieldKey: "status", oldValue: "previous", newValue: "PENDING", metadata: { stageName: stage.name, reset: true } }).catch(() => {});
     return NextResponse.json(stage);
   }
 
@@ -144,6 +151,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       include: STAGE_INCLUDE,
     });
 
+    logActivity({
+      userId: session.user.id,
+      action: vote === "APPROVED" ? "APPROVED" : "REJECTED",
+      entityType: "WorkflowStage",
+      entityId: stageId,
+      projectId,
+      fieldKey: "approval",
+      newValue: vote,
+      metadata: { stageName: stage.name, comment: voteComment ?? null, stageStatus: newStageStatus },
+    }).catch(() => {});
+
     if (newStageStatus === "APPROVED") {
       await maybeAutoUpdateProject(projectId, stage.onApproveSetStatus);
     } else if (newStageStatus === "REJECTED") {
@@ -174,6 +192,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   if (!stage) return NextResponse.json({ error: "Stage not found" }, { status: 404 });
 
+  if (status) {
+    logActivity({ userId: session.user.id, action: "STATUS_CHANGED", entityType: "WorkflowStage", entityId: stageId, projectId, fieldKey: "status", newValue: status, metadata: { stageName: stage.name } }).catch(() => {});
+  }
+  if (name !== undefined) {
+    logActivity({ userId: session.user.id, action: "UPDATED", entityType: "WorkflowStage", entityId: stageId, projectId, fieldKey: "name", newValue: name, metadata: { stageName: stage.name } }).catch(() => {});
+  }
+
   if (status === "APPROVED") {
     await maybeAutoUpdateProject(projectId, stage.onApproveSetStatus);
   } else if (status === "REJECTED") {
@@ -197,6 +222,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const { stageId } = await req.json();
   if (!stageId) return NextResponse.json({ error: "stageId required" }, { status: 400 });
 
+  const deleted = await prisma.workflowStage.findUnique({ where: { id: stageId }, select: { name: true } });
   await prisma.workflowStage.delete({ where: { id: stageId } });
+  logActivity({ userId: session.user.id, action: "DELETED", entityType: "WorkflowStage", entityId: stageId, projectId, oldValue: deleted?.name ?? undefined }).catch(() => {});
   return NextResponse.json({ success: true });
 }

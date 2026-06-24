@@ -207,7 +207,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
         )}
 
         {activeTab === "activity" && (
-          <ActivityView projectId={project.id} />
+          <ActivityView projectId={project.id} members={project.members ?? []} />
         )}
 
         {activeTab === "members" && (
@@ -959,46 +959,142 @@ function CommentsView({ projectId }: { projectId: string }) {
 
 // ─── Activity View ─────────────────────────────────────────────────────────────
 
-function ActivityView({ projectId }: { projectId: string }) {
-  const [logs, setLogs] = useState<Array<{
-    id: string; action: string; entityType: string; fieldKey: string | null;
-    oldValue: string | null; newValue: string | null; createdAt: string;
-    user: { name: string | null };
-  }>>([]);
+type ActivityLog = {
+  id: string; action: string; entityType: string; fieldKey: string | null;
+  oldValue: string | null; newValue: string | null; createdAt: string;
+  metadata: Record<string, unknown> | null;
+  user: { id: string; name: string | null };
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  CREATED: "Created", UPDATED: "Updated", DELETED: "Deleted",
+  STATUS_CHANGED: "Changed status of", APPROVED: "Approved", REJECTED: "Rejected",
+  SUBMITTED: "Submitted", IMPORTED: "Imported", EXPORTED: "Exported",
+  COMMENTED: "Commented on", ASSIGNED: "Assigned", ARCHIVED: "Archived",
+  RESTORED: "Restored", DUPLICATED: "Duplicated",
+};
+
+const ENTITY_LABELS: Record<string, string> = {
+  WorkflowStage: "workflow stage", ProductRecord: "product", Project: "project",
+};
+
+function activityDescription(log: ActivityLog): string {
+  const action = ACTION_LABELS[log.action] ?? log.action;
+  const entity = ENTITY_LABELS[log.entityType] ?? log.entityType;
+  const meta = log.metadata as Record<string, unknown> | null;
+  const stageName = meta?.stageName as string | undefined;
+  const comment = meta?.comment as string | undefined;
+
+  if (log.action === "APPROVED" || log.action === "REJECTED") {
+    return `${action} ${stageName ? `"${stageName}"` : entity}${comment ? ` — "${comment}"` : ""}`;
+  }
+  if (log.action === "STATUS_CHANGED") {
+    const reset = meta?.reset as boolean | undefined;
+    return `${reset ? "Reset" : "Set"} ${stageName ? `"${stageName}"` : entity} status to ${log.newValue ?? ""}`;
+  }
+  if (log.action === "CREATED" && log.newValue) return `${action} ${entity} "${log.newValue}"`;
+  if (log.action === "DELETED" && log.oldValue) return `${action} ${entity} "${log.oldValue}"`;
+  return `${action} ${entity}${log.fieldKey ? ` (${log.fieldKey})` : ""}`;
+}
+
+const ACTION_ICON_COLOR: Record<string, string> = {
+  APPROVED: "text-green-500", REJECTED: "text-red-500", DELETED: "text-red-400",
+  STATUS_CHANGED: "text-blue-500", CREATED: "text-indigo-500",
+};
+
+function ActivityView({ projectId, members }: { projectId: string; members: Array<{ user: { id: string; name: string | null } }> }) {
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [filterEntityType, setFilterEntityType] = useState("");
+  const [filterAction, setFilterAction] = useState("");
+  const [filterUserId, setFilterUserId] = useState("");
 
   useEffect(() => {
-    fetch(`/api/projects/${projectId}/activity`)
+    setLoaded(false);
+    const params = new URLSearchParams();
+    if (filterEntityType) params.set("entityType", filterEntityType);
+    if (filterAction) params.set("action", filterAction);
+    if (filterUserId) params.set("userId", filterUserId);
+    fetch(`/api/projects/${projectId}/activity?${params}`)
       .then((r) => r.ok ? r.json() : Promise.reject(r.status))
       .then((data) => { if (Array.isArray(data.data)) setLogs(data.data); })
       .catch(() => {})
       .finally(() => setLoaded(true));
-  }, [projectId]);
+  }, [projectId, filterEntityType, filterAction, filterUserId]);
+
+  const hasFilters = filterEntityType || filterAction || filterUserId;
 
   return (
-    <div className="p-6 max-w-2xl">
-      <div className="space-y-2">
+    <div className="p-6 max-w-3xl">
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <select
+          value={filterEntityType}
+          onChange={(e) => setFilterEntityType(e.target.value)}
+          className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All types</option>
+          <option value="WorkflowStage">Workflow</option>
+          <option value="ProductRecord">Products</option>
+          <option value="Project">Project</option>
+        </select>
+        <select
+          value={filterAction}
+          onChange={(e) => setFilterAction(e.target.value)}
+          className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All actions</option>
+          <option value="APPROVED">Approved</option>
+          <option value="REJECTED">Rejected</option>
+          <option value="STATUS_CHANGED">Status changed</option>
+          <option value="CREATED">Created</option>
+          <option value="UPDATED">Updated</option>
+          <option value="DELETED">Deleted</option>
+          <option value="COMMENTED">Commented</option>
+          <option value="ASSIGNED">Assigned</option>
+        </select>
+        <select
+          value={filterUserId}
+          onChange={(e) => setFilterUserId(e.target.value)}
+          className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All users</option>
+          {members.map((m) => (
+            <option key={m.user.id} value={m.user.id}>{m.user.name}</option>
+          ))}
+        </select>
+        {hasFilters && (
+          <button
+            onClick={() => { setFilterEntityType(""); setFilterAction(""); setFilterUserId(""); }}
+            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+          >
+            <X className="h-3 w-3" /> Clear
+          </button>
+        )}
+      </div>
+
+      {/* Log list */}
+      <div className="space-y-0 divide-y divide-gray-100">
         {logs.map((log) => (
-          <div key={log.id} className="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
-            <Clock className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
-            <div>
+          <div key={log.id} className="flex items-start gap-3 py-3">
+            <Clock className={`h-4 w-4 mt-0.5 shrink-0 ${ACTION_ICON_COLOR[log.action] ?? "text-gray-400"}`} />
+            <div className="min-w-0 flex-1">
               <p className="text-sm text-gray-700">
                 <span className="font-medium">{log.user.name}</span>{" "}
-                {log.action.toLowerCase().replace("_", " ")}{" "}
-                <span className="font-medium">{log.entityType}</span>
-                {log.fieldKey && <span className="text-gray-500"> · {log.fieldKey}</span>}
+                {activityDescription(log)}
               </p>
-              {log.oldValue && log.newValue && (
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {log.oldValue} → {log.newValue}
-                </p>
+              {log.oldValue && log.newValue && log.action === "UPDATED" && (
+                <p className="text-xs text-gray-500 mt-0.5">{log.oldValue} → {log.newValue}</p>
               )}
-              <p className="text-xs text-gray-400">{formatDate(log.createdAt)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{formatDate(log.createdAt)}</p>
             </div>
           </div>
         ))}
         {loaded && logs.length === 0 && (
-          <p className="text-sm text-gray-400 text-center py-6">No activity yet.</p>
+          <p className="text-sm text-gray-400 text-center py-6">No activity found.</p>
+        )}
+        {!loaded && (
+          <p className="text-sm text-gray-400 text-center py-6">Loading...</p>
         )}
       </div>
     </div>
