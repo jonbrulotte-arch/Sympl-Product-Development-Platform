@@ -24,6 +24,7 @@ import type { SafeUser } from "@/types";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Projects", icon: FolderKanban },
+  { href: "/products", label: "Products", icon: Package },
   { href: "/import", label: "Import", icon: Upload },
 ];
 
