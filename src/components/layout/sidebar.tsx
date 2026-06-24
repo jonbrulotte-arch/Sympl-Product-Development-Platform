@@ -18,6 +18,7 @@ import {
   ListFilter,
   HelpCircle,
   ScrollText,
+  Bug,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { useState } from "react";
@@ -37,6 +38,7 @@ const adminItems = [
   { href: "/admin/attributes", label: "Attributes", icon: ListFilter },
   { href: "/admin/settings", label: "Settings", icon: Settings },
   { href: "/admin/salsify-log", label: "Salsify Log", icon: ScrollText },
+  { href: "/admin/salsify-debug", label: "Salsify Debug", icon: Bug },
 ];
 
 interface SidebarProps {
