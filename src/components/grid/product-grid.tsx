@@ -102,6 +102,30 @@ const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
     meta: { section: "Regulatory" },
   },
   {
+    accessorKey: "htsCodeCanada",
+    header: "HTS Code (CA)",
+    size: 120,
+    meta: { section: "Regulatory" },
+  },
+  {
+    accessorKey: "productComposition",
+    header: "Product Composition",
+    size: 180,
+    meta: { section: "Regulatory" },
+  },
+  {
+    accessorKey: "needsProp65",
+    header: "Needs Prop 65",
+    size: 120,
+    meta: { section: "Regulatory", fieldType: "boolean" },
+  },
+  {
+    accessorKey: "packagingType",
+    header: "Packaging Type",
+    size: 140,
+    meta: { section: "Product" },
+  },
+  {
     accessorKey: "packSize",
     header: "Pack Size",
     size: 100,
@@ -114,6 +138,12 @@ const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
     meta: { section: "Product" },
   },
   {
+    accessorKey: "individualOrSet",
+    header: "Individual/Set",
+    size: 120,
+    meta: { section: "Product" },
+  },
+  {
     accessorKey: "material",
     header: "Material",
     size: 140,
@@ -123,6 +153,24 @@ const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
     accessorKey: "size",
     header: "Size",
     size: 100,
+    meta: { section: "Product" },
+  },
+  {
+    accessorKey: "jspCategory",
+    header: "JSP Category",
+    size: 140,
+    meta: { section: "Product" },
+  },
+  {
+    accessorKey: "userManual",
+    header: "User Manual",
+    size: 160,
+    meta: { section: "Product" },
+  },
+  {
+    accessorKey: "cutSheets",
+    header: "Cut Sheets",
+    size: 160,
     meta: { section: "Product" },
   },
   {
@@ -148,6 +196,66 @@ const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
     header: "UPC Wt (lbs)",
     size: 110,
     meta: { section: "Selling Unit" },
+  },
+  {
+    accessorKey: "itemHeight",
+    header: "Item H (in)",
+    size: 100,
+    meta: { section: "Item (Unpackaged)" },
+  },
+  {
+    accessorKey: "itemWidth",
+    header: "Item W (in)",
+    size: 100,
+    meta: { section: "Item (Unpackaged)" },
+  },
+  {
+    accessorKey: "itemLength",
+    header: "Item L (in)",
+    size: 100,
+    meta: { section: "Item (Unpackaged)" },
+  },
+  {
+    accessorKey: "itemWeight",
+    header: "Item Wt (lbs)",
+    size: 110,
+    meta: { section: "Item (Unpackaged)" },
+  },
+  {
+    accessorKey: "innerCartonGtin",
+    header: "IC GTIN-14",
+    size: 130,
+    meta: { section: "Inner Carton" },
+  },
+  {
+    accessorKey: "innerCartonHeight",
+    header: "IC H (in)",
+    size: 90,
+    meta: { section: "Inner Carton" },
+  },
+  {
+    accessorKey: "innerCartonWidth",
+    header: "IC W (in)",
+    size: 90,
+    meta: { section: "Inner Carton" },
+  },
+  {
+    accessorKey: "innerCartonLength",
+    header: "IC L (in)",
+    size: 90,
+    meta: { section: "Inner Carton" },
+  },
+  {
+    accessorKey: "innerCartonWeight",
+    header: "IC Wt (lbs)",
+    size: 100,
+    meta: { section: "Inner Carton" },
+  },
+  {
+    accessorKey: "innerCartonQty",
+    header: "IC Qty",
+    size: 80,
+    meta: { section: "Inner Carton" },
   },
   {
     accessorKey: "masterCartonGtin",
@@ -189,6 +297,42 @@ const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
     accessorKey: "palletGtin",
     header: "Pallet GTIN",
     size: 120,
+    meta: { section: "Pallet" },
+  },
+  {
+    accessorKey: "palletHeight",
+    header: "Pallet H (in)",
+    size: 100,
+    meta: { section: "Pallet" },
+  },
+  {
+    accessorKey: "palletWidth",
+    header: "Pallet W (in)",
+    size: 100,
+    meta: { section: "Pallet" },
+  },
+  {
+    accessorKey: "palletLength",
+    header: "Pallet L (in)",
+    size: 100,
+    meta: { section: "Pallet" },
+  },
+  {
+    accessorKey: "palletWeight",
+    header: "Pallet Wt (lbs)",
+    size: 110,
+    meta: { section: "Pallet" },
+  },
+  {
+    accessorKey: "palletStackable",
+    header: "Pallet Stackable",
+    size: 120,
+    meta: { section: "Pallet", fieldType: "boolean" },
+  },
+  {
+    accessorKey: "layersPerPallet",
+    header: "Layers/Pallet",
+    size: 110,
     meta: { section: "Pallet" },
   },
   {
@@ -849,6 +993,9 @@ function GridRow({
         const isPinned = cell.column.getIsPinned() === "left";
         const pinnedStyle = getPinnedStyle(cell.column);
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const isBoolean = (cell.column.columnDef.meta as any)?.fieldType === "boolean";
+
         const commit = (raw: string, navigate?: 1 | -1) => {
           if (isEav) {
             onCellChange(colId, raw, attrDef);
@@ -879,9 +1026,21 @@ function GridRow({
               isPinned && "bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]",
               editing && "ring-2 ring-inset ring-blue-500 z-10"
             )}
-            onClick={() => canEdit && onCellEdit(colId)}
+            onClick={() => {
+              if (isBoolean && canEdit) {
+                onCellChange(colId, !value);
+              } else {
+                canEdit && onCellEdit(colId);
+              }
+            }}
           >
-            {editing ? (() => {
+            {isBoolean ? (
+              <div className="px-2 py-1 text-sm min-h-[32px] flex items-center">
+                <span className={cn("text-xs font-medium", value ? "text-green-600" : "text-gray-400")}>
+                  {value ? "Yes" : "No"}
+                </span>
+              </div>
+            ) : editing ? (() => {
               const isMulti = attrDef && attrDef.maxValues > 1;
               const editDefault = isMulti
                 ? ((row.original as ProductRow)._eavArrays?.[attrDef!.key] ?? []).join("\n")

@@ -7,12 +7,15 @@ import { canEditProject } from "@/lib/permissions";
 // Keys already rendered as typed columns in the grid — exclude from EAV query
 const CORE_COLUMN_KEYS = new Set([
   "partNumber", "modelNumber", "itemName", "brand", "upc",
-  "inventoryStatus", "warrantyInfo", "htsCode", "packSize",
-  "numberOfPieces", "material", "size",
+  "inventoryStatus", "warrantyInfo",
+  "htsCode", "htsCodeCanada", "productComposition", "needsProp65",
+  "packagingType", "packSize", "numberOfPieces", "individualOrSet", "material", "size",
+  "jspCategory", "userManual", "cutSheets",
   "upcHeight", "upcWidth", "upcLength", "upcWeight",
-  "masterCartonGtin", "masterCartonHeight", "masterCartonWidth",
-  "masterCartonLength", "masterCartonWeight", "masterCartonQty",
-  "palletGtin", "palletQty",
+  "itemHeight", "itemWidth", "itemLength", "itemWeight",
+  "innerCartonGtin", "innerCartonHeight", "innerCartonWidth", "innerCartonLength", "innerCartonWeight", "innerCartonQty",
+  "masterCartonGtin", "masterCartonHeight", "masterCartonWidth", "masterCartonLength", "masterCartonWeight", "masterCartonQty",
+  "palletGtin", "palletHeight", "palletWidth", "palletLength", "palletWeight", "palletStackable", "layersPerPallet", "palletQty",
 ]);
 
 export default async function ProjectDetailPage({
