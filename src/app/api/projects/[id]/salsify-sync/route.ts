@@ -100,7 +100,6 @@ export async function POST(_req: NextRequest, { params }: Params) {
     const productId = product.partNumber ?? product.id;
     const salsifyProduct: Record<string, unknown> = {
       "salsify:id": productId,
-      "salsify:name": product.itemName ?? productId,
     };
 
     // Map salsify-enabled attributes — core fields read from ProductRecord directly,
