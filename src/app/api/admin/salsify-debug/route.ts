@@ -97,56 +97,56 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Test 3: PUT upsert (update or create) ───────────────────────────────
+  // ── Test 3: PUT flat (no wrapper) — correct Salsify format ─────────────
   if ((action === "upsert" || action === "all") && productId) {
     const url = `${baseUrl}/${encodeURIComponent(productId)}`;
-    const body = { product: { "salsify:id": productId, ...properties } };
+    const body = { "salsify:id": productId, ...properties };
     try {
       const r = await callSalsify("PUT", url, authHeaders, body);
       results.push({
-        action: `PUT upsert product "${productId}"`,
+        action: `PUT flat (no wrapper) "${productId}"`,
         url, method: "PUT",
         requestBody: body,
         requestHeaders: { ...authHeaders, Authorization: "Bearer ***" },
         status: r.status, responseBody: r.body, durationMs: r.durationMs,
       });
     } catch (e) {
-      results.push({ action: "PUT upsert", url, method: "PUT", requestBody: body, requestHeaders: {}, status: null, responseBody: null, durationMs: 0, error: String(e) });
+      results.push({ action: "PUT flat", url, method: "PUT", requestBody: body, requestHeaders: {}, status: null, responseBody: null, durationMs: 0, error: String(e) });
     }
   }
 
-  // ── Test 4: POST create ──────────────────────────────────────────────────
+  // ── Test 4: PUT flat, no salsify:id in body ──────────────────────────────
+  if ((action === "upsert_no_id" || action === "all") && productId) {
+    const url = `${baseUrl}/${encodeURIComponent(productId)}`;
+    const body = { ...properties };
+    try {
+      const r = await callSalsify("PUT", url, authHeaders, body);
+      results.push({
+        action: `PUT flat (no salsify:id) "${productId}"`,
+        url, method: "PUT",
+        requestBody: body,
+        requestHeaders: { ...authHeaders, Authorization: "Bearer ***" },
+        status: r.status, responseBody: r.body, durationMs: r.durationMs,
+      });
+    } catch (e) {
+      results.push({ action: "PUT flat no id", url, method: "PUT", requestBody: body, requestHeaders: {}, status: null, responseBody: null, durationMs: 0, error: String(e) });
+    }
+  }
+
+  // ── Test 5: POST flat (no wrapper) ──────────────────────────────────────
   if ((action === "create" || action === "all") && productId) {
-    const body = { product: { "salsify:id": productId, ...properties } };
+    const body = { "salsify:id": productId, ...properties };
     try {
       const r = await callSalsify("POST", baseUrl, authHeaders, body);
       results.push({
-        action: `POST create product "${productId}"`,
+        action: `POST flat (no wrapper) "${productId}"`,
         url: baseUrl, method: "POST",
         requestBody: body,
         requestHeaders: { ...authHeaders, Authorization: "Bearer ***" },
         status: r.status, responseBody: r.body, durationMs: r.durationMs,
       });
     } catch (e) {
-      results.push({ action: "POST create", url: baseUrl, method: "POST", requestBody: body, requestHeaders: {}, status: null, responseBody: null, durationMs: 0, error: String(e) });
-    }
-  }
-
-  // ── Test 5: PUT without salsify:id in body ───────────────────────────────
-  if ((action === "upsert_no_id" || action === "all") && productId) {
-    const url = `${baseUrl}/${encodeURIComponent(productId)}`;
-    const body = { product: { ...properties } };
-    try {
-      const r = await callSalsify("PUT", url, authHeaders, body);
-      results.push({
-        action: `PUT (no salsify:id in body) "${productId}"`,
-        url, method: "PUT",
-        requestBody: body,
-        requestHeaders: { ...authHeaders, Authorization: "Bearer ***" },
-        status: r.status, responseBody: r.body, durationMs: r.durationMs,
-      });
-    } catch (e) {
-      results.push({ action: "PUT no id", url, method: "PUT", requestBody: body, requestHeaders: {}, status: null, responseBody: null, durationMs: 0, error: String(e) });
+      results.push({ action: "POST flat", url: baseUrl, method: "POST", requestBody: body, requestHeaders: {}, status: null, responseBody: null, durationMs: 0, error: String(e) });
     }
   }
 

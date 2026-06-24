@@ -94,12 +94,12 @@ export async function POST(_req: NextRequest, { params }: Params) {
   let synced = 0;
 
   for (const product of products) {
-    // Build the Salsify product payload.
-    // Note: salsify:id is intentionally omitted from the body — it is already in
-    // the PUT URL path. "Part Number" (product_id role) is sent as an explicit
-    // named property so Salsify's required-field validation is satisfied.
+    // Salsify PUT expects a flat JSON object (no { product: {} } wrapper).
+    // salsify:id is the record identifier; Part Number (product_id role) is sent
+    // as an explicit named property alongside it.
     const productId = product.partNumber ?? product.id;
     const salsifyProduct: Record<string, unknown> = {
+      "salsify:id": productId,
       "salsify:name": product.itemName ?? productId,
     };
 
@@ -133,13 +133,11 @@ export async function POST(_req: NextRequest, { params }: Params) {
         Authorization: `Bearer ${config.apiKey}`,
         "Content-Type": "application/json",
       };
-      const body = JSON.stringify({ product: salsifyProduct });
+      // Salsify PUT expects a flat JSON object — no { product: {} } wrapper
+      const body = JSON.stringify(salsifyProduct);
 
-      // Try PUT (update existing) first; fall back to POST (create) on 404
-      let res = await fetch(`${baseUrl}/${salsifyId}`, { method: "PUT", headers, body });
-      if (res.status === 404) {
-        res = await fetch(baseUrl, { method: "POST", headers, body });
-      }
+      // PUT to the product URL acts as upsert (create or update)
+      const res = await fetch(`${baseUrl}/${salsifyId}`, { method: "PUT", headers, body });
 
       if (!res.ok) {
         const text = await res.text();
