@@ -62,15 +62,19 @@ export async function POST(_req: NextRequest, { params }: Params) {
     // (handled via EAV attrs mapped to core fields in seed data)
 
     try {
-      const url = `https://app.salsify.com/api/v1/orgs/${config.organizationId}/products`;
-      const res = await fetch(url, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${config.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ product: salsifyProduct }),
-      });
+      const salsifyId = encodeURIComponent(salsifyProduct["salsify:id"] as string);
+      const baseUrl = `https://app.salsify.com/api/v1/orgs/${config.organizationId}/products`;
+      const headers = {
+        Authorization: `Bearer ${config.apiKey}`,
+        "Content-Type": "application/json",
+      };
+      const body = JSON.stringify({ product: salsifyProduct });
+
+      // Try PUT (update existing) first; fall back to POST (create) on 404
+      let res = await fetch(`${baseUrl}/${salsifyId}`, { method: "PUT", headers, body });
+      if (res.status === 404) {
+        res = await fetch(baseUrl, { method: "POST", headers, body });
+      }
 
       if (!res.ok) {
         const text = await res.text();
