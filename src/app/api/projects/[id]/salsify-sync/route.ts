@@ -133,11 +133,14 @@ export async function POST(_req: NextRequest, { params }: Params) {
         Authorization: `Bearer ${config.apiKey}`,
         "Content-Type": "application/json",
       };
-      // Salsify PUT expects a flat JSON object — no { product: {} } wrapper
+      // Salsify expects a flat JSON object — no { product: {} } wrapper
       const body = JSON.stringify(salsifyProduct);
 
-      // PUT to the product URL acts as upsert (create or update)
-      const res = await fetch(`${baseUrl}/${salsifyId}`, { method: "PUT", headers, body });
+      // PUT updates an existing product; POST creates a new one
+      let res = await fetch(`${baseUrl}/${salsifyId}`, { method: "PUT", headers, body });
+      if (res.status === 404) {
+        res = await fetch(baseUrl, { method: "POST", headers, body });
+      }
 
       if (!res.ok) {
         const text = await res.text();
