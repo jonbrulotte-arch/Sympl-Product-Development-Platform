@@ -62,7 +62,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
     // (handled via EAV attrs mapped to core fields in seed data)
 
     try {
-      const url = `https://app.salsify.com/api/orgs/${config.organizationId}/products`;
+      const url = `https://app.salsify.com/api/v1/orgs/${config.organizationId}/products`;
       const res = await fetch(url, {
         method: "PUT",
         headers: {
