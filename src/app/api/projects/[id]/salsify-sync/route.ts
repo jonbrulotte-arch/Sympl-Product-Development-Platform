@@ -108,21 +108,24 @@ export async function POST(_req: NextRequest, { params }: Params) {
       if (!attr.salsifyPropertyId) continue;
 
       const coreAccessor = CORE_FIELD_ACCESSOR[attr.key];
+      let rawValue: unknown;
+
       if (coreAccessor) {
-        // Core field — value lives on the ProductRecord model
-        const value = coreAccessor(product);
-        if (value !== null && value !== undefined && value !== "") {
-          salsifyProduct[attr.salsifyPropertyId] = value;
-        }
+        rawValue = coreAccessor(product);
+        if (rawValue === null || rawValue === undefined || rawValue === "") continue;
       } else {
-        // EAV field — value lives in attributeValues
         const avs = product.attributeValues
           .filter((v) => v.attributeDefinitionId === attr.id)
           .sort((a, b) => a.valueIndex - b.valueIndex);
         if (avs.length === 0) continue;
         const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
-        salsifyProduct[attr.salsifyPropertyId] = attr.maxValues > 1 ? values : values[0];
+        rawValue = attr.maxValues > 1 ? values : values[0];
       }
+
+      // Localizable properties must be wrapped: { "locale": value }
+      salsifyProduct[attr.salsifyPropertyId] = attr.salsifyLocale
+        ? { [attr.salsifyLocale]: rawValue }
+        : rawValue;
     }
 
     try {

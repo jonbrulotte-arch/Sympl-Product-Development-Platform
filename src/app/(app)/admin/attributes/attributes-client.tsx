@@ -698,6 +698,7 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
     sectionId: attr?.sectionId ?? "",
     salsifyEnabled: attr?.salsifyEnabled ?? false,
     salsifyPropertyId: attr?.salsifyPropertyId ?? "",
+    salsifyLocale: (attr as AttributeDef & { salsifyLocale?: string | null })?.salsifyLocale ?? "",
   });
 
   const [lovItems, setLovItems] = useState<LovItem[]>(attr?.lovItems ?? []);
@@ -716,6 +717,7 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
         categoryId: form.categoryId || null,
         sectionId: form.sectionId || null,
         salsifyPropertyId: form.salsifyPropertyId || null,
+        salsifyLocale: form.salsifyLocale || null,
       };
 
       const res = isNew
@@ -889,19 +891,32 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
               <span className="text-sm text-gray-700">Enabled for Salsify</span>
             </label>
             {form.salsifyEnabled && (
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Salsify Property ID</label>
-                <Input
-                  placeholder="e.g. product_description"
-                  value={form.salsifyPropertyId}
-                  onChange={(e) => setForm((f) => ({ ...f, salsifyPropertyId: e.target.value }))}
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  {isMultiValue
-                    ? "Values will be sent as a JSON array to this Salsify property"
-                    : "The Salsify property name where this attribute's value will be saved"}
-                </p>
-              </div>
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Salsify Property ID</label>
+                  <Input
+                    placeholder="e.g. product_description"
+                    value={form.salsifyPropertyId}
+                    onChange={(e) => setForm((f) => ({ ...f, salsifyPropertyId: e.target.value }))}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    {isMultiValue
+                      ? "Values will be sent as a JSON array to this Salsify property"
+                      : "The Salsify property name where this attribute's value will be saved"}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Locale <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <Input
+                    placeholder="e.g. en-US"
+                    value={form.salsifyLocale}
+                    onChange={(e) => setForm((f) => ({ ...f, salsifyLocale: e.target.value }))}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    If this Salsify property is localizable, enter the locale (e.g. <code className="bg-gray-100 px-1 rounded">en-US</code>). Leave blank for non-localizable properties.
+                  </p>
+                </div>
+              </>
             )}
           </div>
 

@@ -233,6 +233,7 @@ model AttributeDefinition {
   unit              String?
   salsifyEnabled    Boolean          @default(false)
   salsifyPropertyId String?
+  salsifyLocale     String?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
