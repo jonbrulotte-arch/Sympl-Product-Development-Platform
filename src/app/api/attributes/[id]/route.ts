@@ -13,10 +13,40 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await req.json();
 
+  // Whitelist known fields and use relation syntax for FK fields
+  const {
+    label, description, attributeType, requirement, maxValues, sortOrder,
+    categoryId, sectionId, isActive, isCore,
+    salsifyEnabled, salsifyPropertyId, salsifyLocale,
+    defaultValue, unit, validationRules,
+  } = body;
+
   const updated = await prisma.attributeDefinition.update({
     where: { id },
-    data: body,
-    include: { lovItems: { orderBy: { sortOrder: "asc" } } },
+    data: {
+      ...(label !== undefined && { label }),
+      ...(description !== undefined && { description }),
+      ...(attributeType !== undefined && { attributeType }),
+      ...(requirement !== undefined && { requirement }),
+      ...(maxValues !== undefined && { maxValues: Number(maxValues) }),
+      ...(sortOrder !== undefined && { sortOrder: Number(sortOrder) }),
+      ...(isActive !== undefined && { isActive }),
+      ...(isCore !== undefined && { isCore }),
+      ...(salsifyEnabled !== undefined && { salsifyEnabled }),
+      ...(salsifyPropertyId !== undefined && { salsifyPropertyId: salsifyPropertyId || null }),
+      ...(salsifyLocale !== undefined && { salsifyLocale: salsifyLocale || null }),
+      ...(defaultValue !== undefined && { defaultValue: defaultValue || null }),
+      ...(unit !== undefined && { unit: unit || null }),
+      ...(validationRules !== undefined && { validationRules }),
+      // Use relation connect/disconnect syntax for FK fields
+      ...(categoryId !== undefined && {
+        category: categoryId ? { connect: { id: categoryId } } : { disconnect: true },
+      }),
+      ...(sectionId !== undefined && {
+        section: sectionId ? { connect: { id: sectionId } } : { disconnect: true },
+      }),
+    },
+    include: { lovItems: { orderBy: { sortOrder: "asc" } }, section: true },
   });
 
   return NextResponse.json(updated);
