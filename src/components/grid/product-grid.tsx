@@ -1135,16 +1135,6 @@ function GridRow({
 
 // ─── Bulk Edit Dialog ─────────────────────────────────────────────────────────
 
-const BULK_CORE_FIELDS = [
-  { key: "brand", label: "Brand", type: "TEXT" },
-  { key: "inventoryStatus", label: "Inventory Status", type: "TEXT" },
-  { key: "warrantyInfo", label: "Warranty Info", type: "TEXT" },
-  { key: "htsCode", label: "HTS Code", type: "TEXT" },
-  { key: "packSize", label: "Pack Size", type: "TEXT" },
-  { key: "material", label: "Material", type: "TEXT" },
-  { key: "size", label: "Size", type: "TEXT" },
-];
-
 interface BulkEditDialogProps {
   selectedIds: string[];
   products: ProductRow[];
@@ -1162,11 +1152,33 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
-  const selectedAttr = allAttrs.find((a) => `eav_${a.key}` === field);
-  const selectedCore = BULK_CORE_FIELDS.find((f) => f.key === field);
-  const selectedCoreAttrDef = selectedCore ? coreAttrDefs.find((a) => a.key === selectedCore.key) : undefined;
+  // Build section-grouped field options from coreAttrDefs + allAttrs,
+  // preserving their server-sorted order and grouping by section name.
+  const fieldGroups = useMemo(() => {
+    const groups = new Map<string, { sectionOrder: number; fields: { value: string; label: string }[] }>();
+    for (const attr of coreAttrDefs) {
+      const sec = attr.section?.name ?? "Core Fields";
+      const ord = attr.section?.sortOrder ?? 0;
+      if (!groups.has(sec)) groups.set(sec, { sectionOrder: ord, fields: [] });
+      groups.get(sec)!.fields.push({ value: attr.key, label: attr.label });
+    }
+    for (const attr of allAttrs) {
+      const sec = attr.section?.name ?? "Attributes";
+      const ord = attr.section?.sortOrder ?? 999;
+      if (!groups.has(sec)) groups.set(sec, { sectionOrder: ord, fields: [] });
+      groups.get(sec)!.fields.push({ value: `eav_${attr.key}`, label: attr.label });
+    }
+    return [...groups.entries()]
+      .sort(([, a], [, b]) => a.sectionOrder - b.sectionOrder)
+      .map(([name, { fields }]) => ({ name, fields }));
+  }, [coreAttrDefs, allAttrs]);
+
+  // Which attr definition is currently selected?
+  const selectedEavAttr = allAttrs.find((a) => `eav_${a.key}` === field);
+  const selectedCoreAttr = coreAttrDefs.find((a) => a.key === field);
+  const selectedAnyAttr = selectedEavAttr ?? selectedCoreAttr;
   // Append only meaningful for multi-value EAV attributes
-  const supportsAppend = !!(selectedAttr && selectedAttr.maxValues > 1);
+  const supportsAppend = !!(selectedEavAttr && selectedEavAttr.maxValues > 1);
 
   const apply = async () => {
     if (!field || !writeMode) return;
@@ -1179,30 +1191,30 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
     await Promise.all(
       selectedIds.map(async (productId) => {
         let body: Record<string, unknown>;
-        if (selectedAttr) {
+        if (selectedEavAttr) {
           let vals: string[];
           if (writeMode === "append" && supportsAppend) {
-            const existing = products.find((p) => p.id === productId)?._eavArrays?.[selectedAttr.key] ?? [];
+            const existing = products.find((p) => p.id === productId)?._eavArrays?.[selectedEavAttr.key] ?? [];
             const incoming = value.split("\n").map((s) => s.trim()).filter(Boolean);
-            // Deduplicate while preserving order; respect maxValues cap
             const merged = [...existing];
             for (const v of incoming) {
               if (!merged.includes(v)) merged.push(v);
             }
-            vals = merged.slice(0, selectedAttr.maxValues);
+            vals = merged.slice(0, selectedEavAttr.maxValues);
           } else {
-            vals = selectedAttr.maxValues > 1
+            vals = selectedEavAttr.maxValues > 1
               ? value.split("\n").map((s) => s.trim()).filter(Boolean)
               : [value];
           }
           body = {
             attributeValues: vals.map((textValue, valueIndex) => ({
-              attributeDefinitionId: selectedAttr.id,
+              attributeDefinitionId: selectedEavAttr.id,
               valueIndex,
               textValue,
             })),
           };
         } else {
+          // Core field — field key maps directly to ProductRecord column
           body = { [field]: value };
         }
 
@@ -1235,18 +1247,13 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
             onChange={(e) => { setField(e.target.value); setValue(""); setWriteMode(""); }}
           >
             <option value="">— select a field —</option>
-            <optgroup label="Core Fields">
-              {BULK_CORE_FIELDS.map((f) => (
-                <option key={f.key} value={f.key}>{f.label}</option>
-              ))}
-            </optgroup>
-            {allAttrs.length > 0 && (
-              <optgroup label="Attributes">
-                {allAttrs.map((a) => (
-                  <option key={a.id} value={`eav_${a.key}`}>{a.label}</option>
+            {fieldGroups.map((group) => (
+              <optgroup key={group.name} label={group.name}>
+                {group.fields.map((f) => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
                 ))}
               </optgroup>
-            )}
+            ))}
           </select>
         </div>
 
@@ -1300,28 +1307,28 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
 
             <div className="space-y-2">
               <label className="text-xs font-medium text-gray-600">New value</label>
-              {(selectedAttr?.lovItems?.length || selectedCoreAttrDef?.lovItems?.length) ? (
+              {selectedAnyAttr?.lovItems?.length ? (
                 <select
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
                 >
                   <option value="">—</option>
-                  {(selectedAttr?.lovItems ?? selectedCoreAttrDef?.lovItems ?? []).map((l) => (
+                  {selectedAnyAttr.lovItems.map((l) => (
                     <option key={l.value} value={l.value}>{l.label}</option>
                   ))}
                 </select>
-              ) : selectedAttr && selectedAttr.maxValues > 1 ? (
+              ) : selectedEavAttr && selectedEavAttr.maxValues > 1 ? (
                 <textarea
                   rows={3}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
-                  placeholder={`One value per line (max ${selectedAttr.maxValues})`}
+                  placeholder={`One value per line (max ${selectedEavAttr.maxValues})`}
                 />
               ) : (
                 <input
-                  type={selectedCore?.type === "NUMBER" ? "number" : "text"}
+                  type={selectedAnyAttr?.attributeType === "NUMBER" || selectedAnyAttr?.attributeType === "DECIMAL" ? "number" : "text"}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
