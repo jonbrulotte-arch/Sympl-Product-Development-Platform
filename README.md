@@ -9,10 +9,12 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Projects** — Organize products into projects with statuses, team members, and workflow stages. Search, filter by status, and switch between card and list views.
 - **Product Grid** — Spreadsheet-style inline editing with custom EAV attributes, column tooltips, freezable columns, bulk edit, and Excel/CSV import & export.
 - **Product Record** — Full edit page per product with core fields, custom attributes by section, category inheritance from project, Salsify sync button (Admin/PM), and tabs for Compliance and Inspections.
-- **Workflows** — Configurable approval stages per project with per-stage approvers, voting, automatic status transitions, and reusable templates.
+- **Workflows** — Configurable approval stages per project with per-stage approvers, voting, automatic status transitions, and reusable templates. Stages can be reordered with up/down controls and can declare informational dependencies on other stages, compliance events, or PSIRs.
 - **Compliance** — Track regulatory events (Prop 65, REACH, CPSC, etc.) linked to products. Bulk-link products by pasting part numbers.
 - **Pre-Shipment Inspections (PSIR)** — Inspection reports with custom attributes, file attachments, pass/fail results, and bulk product linking.
-- **Salsify Integration** — Map attributes to Salsify property IDs; sync all products in a project or a single product from its edit page.
+- **Comments & Attachments** — Project comments with file attachments (images, PDFs, documents up to 20 MB). Comment authors and admins can delete comments; attached files are removed from disk on delete.
+- **Salsify Integration** — Map attributes to Salsify property IDs; sync all products in a project or a single product from its edit page. A confirmation dialog warns before overwriting Salsify data. Enable Salsify Debug mode in Settings to surface log and debug pages in the sidebar.
+- **Manual Status Override** — Admins and Product Managers can set a project's status directly from the project Settings tab at any time.
 - **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups written to local disk, with scheduling, retention policy, and one-click restore.
 - **Admin** — Users, categories, attributes (with EAV), workflow templates, compliance types, PSIR attributes, backup, and settings.
 
@@ -124,9 +126,12 @@ Backups are created via **Admin → Backup & Restore**. Each backup is a `pg_dum
 
 ## Salsify Integration
 
-1. Go to **Admin → Settings** and enter your Salsify API Key and Organization ID.
+1. Go to **Admin → Settings** and enter your Salsify API Key and Organization ID. Enable the **Enable Salsify Sync** toggle.
 2. In **Admin → Attributes**, enable Salsify on each attribute you want to sync and enter the Salsify Property ID.
 3. Sync a full project from the project page (**Sync to Salsify** button, requires `EXPORT_READY` status), or sync a single product from its edit page.
+4. A confirmation dialog appears before every sync — attribute values already in Salsify will be overwritten.
+
+Enable **Salsify Debug** in Admin → Settings to show **Salsify Log** and **Salsify Debug** pages in the admin sidebar (useful for troubleshooting payloads and sync errors).
 
 ---
 

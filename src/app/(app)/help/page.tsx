@@ -175,7 +175,16 @@ const sections: Section[] = [
         <UL>
           <LI>Use <strong>On Approval → set project status</strong> to automatically advance the project status when a stage is approved.</LI>
           <LI>Use workflow templates (admin) to apply a pre-built set of stages in one click.</LI>
+          <LI>Use the <strong>▲ / ▼</strong> buttons on each stage to reorder stages within the workflow.</LI>
+          <LI>Set a <strong>Dependency</strong> on a stage to indicate it relies on another workflow stage, a compliance event, or a PSIR being resolved first. Dependencies are informational — they show a lock icon but do not prevent voting or advancing the stage.</LI>
         </UL>
+
+        <H3>Manual status override</H3>
+        <P>Admins and Product Managers can override a project&apos;s status at any time from the project <strong>Settings</strong> tab. Select the desired status from the dropdown and click <strong>Save Status</strong>. This is useful for correcting status without waiting for a workflow stage to complete.</P>
+
+        <H3>Comments &amp; attachments</H3>
+        <P>The <strong>Comments</strong> tab on any project lets team members leave notes and attach files. Click the paperclip icon or drag a file onto the comment box to attach it. Supported file types: images, PDFs, spreadsheets, and most document formats (up to 20 MB per file).</P>
+        <P>Comment authors and Admins can delete their own comments using the trash icon that appears on hover. Deleting a comment also removes any attached files from the server.</P>
 
         <Callout type="tip">Column widths in the product grid are saved per project. Drag the resize handle on any column edge to adjust.</Callout>
       </>
@@ -681,11 +690,15 @@ const sections: Section[] = [
         <H3>Syncing products</H3>
         <P>From a project, click the <strong>Sync to Salsify</strong> button (available when Salsify is enabled and the project is in <strong>Export Ready</strong> status). This sends all products in the project with their mapped attribute values to Salsify.</P>
         <P>Admins and Product Managers can also sync a single product directly from its edit page (<Code>/products/[id]</Code>) using the <strong>Sync to Salsify</strong> button in the top-right. This is useful for pushing updates to a single product without re-syncing the whole project.</P>
+        <Callout>A confirmation dialog appears before every sync reminding you that attribute values in Salsify will be overwritten. This action cannot be undone.</Callout>
 
         <H3>Multi-value attributes</H3>
-        <P>Attributes with Max Values &gt; 1 are sent to Salsify as JSON arrays, making them compatible with multi-value Salsify properties.</P>
+        <P>Attributes with Max Values &gt; 1 are sent to Salsify as JSON arrays, making them compatible with multi-value Salsify properties. Only values that are actually stored are sent — if a product has a single value for a multi-value attribute, a scalar (not an array) is sent to Salsify.</P>
 
-        <Callout type="tip">Check the <strong>Salsify Sync Log</strong> in project settings to see the results of the last sync — how many products were sent and any errors.</Callout>
+        <H3>Debug mode</H3>
+        <P>Admins can enable <strong>Salsify Debug</strong> in <strong>Admin → Settings</strong>. When enabled, two additional pages appear in the Admin sidebar: <strong>Salsify Log</strong> (sync history and payloads) and <strong>Salsify Debug</strong> (live API inspection). Disable debug mode to hide these pages for non-technical users.</P>
+
+        <Callout type="tip">After a project sync, the sync result (how many products sent and any errors) appears next to the Sync button in the project header.</Callout>
       </>
     ),
   },
