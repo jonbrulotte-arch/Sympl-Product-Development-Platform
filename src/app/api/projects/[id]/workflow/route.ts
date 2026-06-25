@@ -16,12 +16,19 @@ const STAGE_INCLUDE = {
     },
   },
   dependsOnStage: { select: { id: true, name: true, status: true } },
+  complianceEvent: { select: { id: true, title: true, status: true, type: { select: { name: true, color: true } } } },
 } as const;
 
-// A stage is blocked when its dependency is not yet approved or skipped
+// A stage is blocked when its dependency stage is not yet approved/skipped
 function isDependencyBlocked(depStage: { status: string } | null) {
   if (!depStage) return false;
   return depStage.status !== "APPROVED" && depStage.status !== "SKIPPED";
+}
+
+// A stage is compliance-blocked when its linked compliance event is not RESOLVED, CLOSED, or WAIVED
+function isComplianceBlocked(event: { status: string } | null) {
+  if (!event) return false;
+  return !["RESOLVED", "CLOSED", "WAIVED"].includes(event.status);
 }
 
 async function maybeAutoUpdateProject(projectId: string, newStatus: string | null) {
@@ -93,7 +100,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json(stages, { status: 201 });
   }
 
-  const { name, description, sortOrder, onApproveSetStatus, onRejectSetStatus, dependsOnStageId } = body;
+  const { name, description, sortOrder, onApproveSetStatus, onRejectSetStatus, dependsOnStageId, complianceEventId } = body;
   if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
   const stage = await prisma.workflowStage.create({
@@ -105,6 +112,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       onApproveSetStatus: (onApproveSetStatus as ProjectStatus) || null,
       onRejectSetStatus: (onRejectSetStatus as ProjectStatus) || null,
       dependsOnStageId: dependsOnStageId || null,
+      complianceEventId: complianceEventId || null,
     },
     include: STAGE_INCLUDE,
   });
@@ -126,7 +134,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const body = await req.json();
-  const { stageId, status, name, description, onApproveSetStatus, onRejectSetStatus, dependsOnStageId, vote, voteComment, reset } = body;
+  const { stageId, status, name, description, onApproveSetStatus, onRejectSetStatus, dependsOnStageId, complianceEventId, vote, voteComment, reset } = body;
   if (!stageId) return NextResponse.json({ error: "stageId required" }, { status: 400 });
 
   // Reset vote — clears stage back to PENDING and resets all approvals to PENDING
@@ -150,14 +158,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "vote must be APPROVED or REJECTED" }, { status: 400 });
     }
 
-    // Enforce dependency gate before allowing votes
+    // Enforce dependency and compliance gates before allowing votes
     const stageForVote = await prisma.workflowStage.findUnique({
       where: { id: stageId },
-      select: { dependsOnStage: { select: { id: true, name: true, status: true } } },
+      select: {
+        dependsOnStage: { select: { id: true, name: true, status: true } },
+        complianceEvent: { select: { id: true, title: true, status: true } },
+      },
     });
     if (stageForVote && isDependencyBlocked(stageForVote.dependsOnStage)) {
       return NextResponse.json({
         error: `This stage depends on "${stageForVote.dependsOnStage!.name}" which has not been approved yet.`,
+      }, { status: 409 });
+    }
+    if (stageForVote && isComplianceBlocked(stageForVote.complianceEvent)) {
+      return NextResponse.json({
+        error: `This stage requires compliance event "${stageForVote.complianceEvent!.title}" to be resolved before voting.`,
       }, { status: 409 });
     }
 
@@ -213,15 +229,23 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 
-  // Enforce dependency gate when transitioning out of PENDING
+  // Enforce dependency and compliance gates when transitioning out of PENDING
   if (status && status !== "PENDING") {
     const stageForStatus = await prisma.workflowStage.findUnique({
       where: { id: stageId },
-      select: { dependsOnStage: { select: { id: true, name: true, status: true } } },
+      select: {
+        dependsOnStage: { select: { id: true, name: true, status: true } },
+        complianceEvent: { select: { id: true, title: true, status: true } },
+      },
     });
     if (stageForStatus && isDependencyBlocked(stageForStatus.dependsOnStage)) {
       return NextResponse.json({
         error: `This stage depends on "${stageForStatus.dependsOnStage!.name}" which has not been approved yet.`,
+      }, { status: 409 });
+    }
+    if (stageForStatus && isComplianceBlocked(stageForStatus.complianceEvent)) {
+      return NextResponse.json({
+        error: `This stage requires compliance event "${stageForStatus.complianceEvent!.title}" to be resolved before it can proceed.`,
       }, { status: 409 });
     }
   }
@@ -236,6 +260,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (onApproveSetStatus !== undefined) data.onApproveSetStatus = (onApproveSetStatus as ProjectStatus) || null;
   if (onRejectSetStatus !== undefined) data.onRejectSetStatus = (onRejectSetStatus as ProjectStatus) || null;
   if (dependsOnStageId !== undefined) data.dependsOnStageId = dependsOnStageId || null;
+  if (complianceEventId !== undefined) data.complianceEventId = complianceEventId || null;
 
   // projectId ownership already verified above; update only by id (projectId is not unique)
   const stage = Object.keys(data).length > 0

@@ -9,7 +9,7 @@ import { ProductGrid } from "@/components/grid/product-grid";
 import { formatDate } from "@/lib/utils";
 import {
   Package, Calendar, Download, ArrowLeft, Users,
-  MessageSquare, Clock, CheckCircle, RefreshCw, Plus, Trash2, Settings, Pencil, X, Lock
+  MessageSquare, Clock, CheckCircle, RefreshCw, Plus, Trash2, Settings, Pencil, X, Lock, ShieldCheck,
 } from "lucide-react";
 import type { ProjectWithRelations, ProductWithAttributes } from "@/types";
 import Link from "next/link";
@@ -240,7 +240,18 @@ type Stage = {
   onRejectSetStatus: string | null;
   dependsOnStageId: string | null;
   dependsOnStage: { id: string; name: string; status: string } | null;
+  complianceEventId: string | null;
+  complianceEvent: { id: string; title: string; status: string; type: { name: string; color: string } } | null;
   approvals: StageApproval[];
+};
+
+type ComplianceEventOption = {
+  id: string;
+  title: string;
+  status: string;
+  severity: string;
+  type: { name: string; color: string };
+  products: { product: { id: string; partNumber: string | null; itemName: string | null } }[];
 };
 
 type StatusOption = { code: string; label: string; color: string; isActive: boolean };
@@ -276,9 +287,14 @@ function WorkflowView({
   const [editDescValue, setEditDescValue] = useState("");
   const [projectStatuses, setProjectStatuses] = useState<StatusOption[]>([]);
   const [allUsers, setAllUsers] = useState<UserOption[]>([]);
+  const [complianceEvents, setComplianceEvents] = useState<ComplianceEventOption[]>([]);
   const [workflowError, setWorkflowError] = useState<string | null>(null);
 
   useEffect(() => {
+    fetch(`/api/projects/${project.id}/compliance-events`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => { if (Array.isArray(data)) setComplianceEvents(data); })
+      .catch(() => {});
     fetch("/api/admin/workflow-templates")
       .then((r) => r.ok ? r.json() : [])
       .then((data) => { if (Array.isArray(data)) setTemplates(data); })
@@ -508,7 +524,11 @@ function WorkflowView({
           const myApproval = stage.approvals.find((a) => a.approver.id === currentUserId);
           // Blocked when the dependency stage exists and is not yet approved/skipped
           const depStage = stage.dependsOnStage;
-          const isBlocked = !!depStage && depStage.status !== "APPROVED" && depStage.status !== "SKIPPED";
+          const isDepBlocked = !!depStage && depStage.status !== "APPROVED" && depStage.status !== "SKIPPED";
+          // Blocked when the linked compliance event is not yet resolved/closed/waived
+          const compEvent = stage.complianceEvent;
+          const isCompBlocked = !!compEvent && !["RESOLVED", "CLOSED", "WAIVED"].includes(compEvent.status);
+          const isBlocked = isDepBlocked || isCompBlocked;
           const canVote = myApproval?.status === "PENDING" && stage.status === "IN_REVIEW" && !isBlocked;
           const isVoting = votingFor === stage.id;
           const isAssigning = assigningFor === stage.id;
@@ -572,6 +592,21 @@ function WorkflowView({
                       </div>
                     )}
 
+                    {stage.complianceEvent && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <span
+                          className="inline-block h-2 w-2 rounded-full shrink-0"
+                          style={{ backgroundColor: stage.complianceEvent.type.color }}
+                        />
+                        <span className="text-xs text-indigo-600">
+                          Compliance: {stage.complianceEvent.title}
+                          {" "}
+                          <span className={`font-medium ${isCompBlocked ? "text-amber-600" : "text-green-600"}`}>
+                            ({stage.complianceEvent.status.replace("_", " ")})
+                          </span>
+                        </span>
+                      </div>
+                    )}
                     {stage.completedAt && (
                       <p className="text-xs text-gray-400 mt-1">Completed: {formatDate(stage.completedAt as string)}</p>
                     )}
@@ -615,12 +650,26 @@ function WorkflowView({
                 </div>
 
                 {/* Dependency blocked banner */}
-                {isBlocked && depStage && (
+                {isDepBlocked && depStage && (
                   <div className="border-t border-amber-200 px-4 py-2 bg-amber-50 flex items-center gap-2 text-xs text-amber-700">
                     <Lock className="h-3.5 w-3.5 shrink-0" />
                     <span>
                       Blocked — waiting on <span className="font-semibold">{depStage.name}</span> (
                       {depStage.status === "REJECTED" ? "rejected" : "not yet approved"})
+                    </span>
+                  </div>
+                )}
+
+                {/* Compliance blocked banner */}
+                {isCompBlocked && compEvent && (
+                  <div className="border-t border-indigo-200 px-4 py-2 bg-indigo-50 flex items-center gap-2 text-xs text-indigo-700">
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      Compliance dependency unresolved —{" "}
+                      <a href="/compliance" target="_blank" rel="noreferrer" className="font-semibold underline underline-offset-2">
+                        {compEvent.title}
+                      </a>{" "}
+                      is <span className="font-medium">{compEvent.status.replace("_", " ")}</span>
                     </span>
                   </div>
                 )}
@@ -666,6 +715,26 @@ function WorkflowView({
                           <option key={s.id} value={s.id}>{s.name}</option>
                         ))}
                       </select>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+                      <span className="text-xs text-gray-400 shrink-0">Compliance →</span>
+                      <select
+                        value={stage.complianceEventId ?? ""}
+                        onChange={(e) => patchStage(stage.id, { complianceEventId: e.target.value || null })}
+                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 text-gray-700 max-w-[220px]"
+                      >
+                        <option value="">No compliance requirement</option>
+                        {complianceEvents.map((ce) => (
+                          <option key={ce.id} value={ce.id}>
+                            {ce.title} ({ce.status.replace("_", " ")})
+                          </option>
+                        ))}
+                      </select>
+                      {complianceEvents.length === 0 && (
+                        <span className="text-xs text-gray-400 italic">No compliance events for this project&apos;s products</span>
+                      )}
                     </div>
                   </div>
                 )}
