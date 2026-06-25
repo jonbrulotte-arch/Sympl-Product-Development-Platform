@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     // pg_restore with --clean drops existing objects before restoring
     await execFileAsync(
       "pg_restore",
-      ["--no-password", "--clean", "--if-exists", "--format=custom", "--dbname", dbUrl, "-"],
+      ["--no-password", "--clean", "--if-exists", "--format=custom", "--dbname", dbUrl],
       {
         input: decrypted,
         maxBuffer: 512 * 1024 * 1024,
