@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   useReactTable,
@@ -967,6 +967,104 @@ export function ProductGrid({
 
 // ─── Individual row component ──────────────────────────────────────────────────
 
+// ─── Multi-Select Checkbox Dropdown ───────────────────────────────────────────
+
+interface MultiSelectDropdownProps {
+  lovItems: { value: string; label: string }[];
+  selected: string[];
+  onChange: (vals: string[]) => void;
+  onClose: () => void;
+  maxValues?: number;
+}
+
+function MultiSelectDropdown({ lovItems, selected, onChange, onClose, maxValues }: MultiSelectDropdownProps) {
+  const [checked, setChecked] = useState<Set<string>>(new Set(selected));
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  // Position the portal below the cell
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const parent = el.closest("td");
+    if (parent) {
+      const r = parent.getBoundingClientRect();
+      setPos({ top: r.bottom + window.scrollY, left: r.left + window.scrollX, width: Math.max(r.width, 180) });
+    }
+  }, []);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      // Keep open if clicking inside the dropdown portal
+      const portal = document.getElementById("ms-dropdown-portal");
+      if (portal && portal.contains(target)) return;
+      commit();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [checked]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const commit = () => {
+    onChange([...checked]);
+    onClose();
+  };
+
+  const toggle = (val: string) => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(val)) {
+        next.delete(val);
+      } else {
+        if (maxValues && next.size >= maxValues) return prev;
+        next.add(val);
+      }
+      return next;
+    });
+  };
+
+  const menu = (
+    <div
+      id="ms-dropdown-portal"
+      style={pos ? { position: "absolute", top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 9999 } : { display: "none" }}
+      className="bg-white border border-gray-200 rounded-md shadow-lg py-1 max-h-52 overflow-y-auto"
+    >
+      {lovItems.map((item) => (
+        <label
+          key={item.value}
+          className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-800"
+          onMouseDown={(e) => { e.preventDefault(); toggle(item.value); }}
+        >
+          <input
+            type="checkbox"
+            className="rounded"
+            checked={checked.has(item.value)}
+            readOnly
+          />
+          {item.label}
+        </label>
+      ))}
+      <div className="border-t border-gray-100 px-3 py-1.5 mt-1 flex justify-end">
+        <button
+          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+          onMouseDown={(e) => { e.preventDefault(); commit(); }}
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div ref={ref} className="w-full h-full min-h-[32px]">
+      {pos && createPortal(menu, document.body)}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 interface GridRowProps {
   row: Row<ProductRow>;
   selected: boolean;
@@ -1096,6 +1194,21 @@ function GridRow({
                 : (value != null ? String(value) : "");
 
               if (isMulti) {
+                if (attrDef!.lovItems?.length) {
+                  const currentVals = (row.original as ProductRow)._eavArrays?.[attrDef!.key] ?? [];
+                  return (
+                    <MultiSelectDropdown
+                      lovItems={attrDef!.lovItems}
+                      selected={currentVals}
+                      maxValues={attrDef!.maxValues > 1 ? attrDef!.maxValues : undefined}
+                      onChange={(vals) => {
+                        onCellChange(colId, vals.join("\n"), attrDef);
+                        onCellBlur();
+                      }}
+                      onClose={onCellBlur}
+                    />
+                  );
+                }
                 return (
                   <textarea
                     autoFocus
@@ -1149,6 +1262,12 @@ function GridRow({
                 {value != null && String(value) !== "" ? (() => {
                   if (attrDef?.maxValues && attrDef.maxValues > 1) {
                     const vals = (row.original as ProductRow)._eavArrays?.[attrDef.key] ?? [];
+                    if (attrDef.lovItems?.length) {
+                      return vals.map((v, i) => {
+                        const label = attrDef.lovItems.find((l) => l.value === v)?.label ?? v;
+                        return <span key={i} className="inline-block bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded">{label}</span>;
+                      });
+                    }
                     return vals.map((v, i) => (
                       <span key={i} className="inline-block bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded">{v}</span>
                     ));
@@ -1343,7 +1462,30 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
 
             <div className="space-y-2">
               <label className="text-xs font-medium text-gray-600">New value</label>
-              {selectedAnyAttr?.lovItems?.length ? (
+              {selectedAnyAttr?.lovItems?.length && selectedEavAttr && selectedEavAttr.maxValues > 1 ? (
+                <div className="border border-gray-300 rounded-md overflow-hidden max-h-44 overflow-y-auto">
+                  {selectedAnyAttr.lovItems.map((l) => {
+                    const currentVals = value ? value.split("\n").filter(Boolean) : [];
+                    const checked = currentVals.includes(l.value);
+                    return (
+                      <label key={l.value} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-800">
+                        <input
+                          type="checkbox"
+                          className="rounded"
+                          checked={checked}
+                          onChange={(e) => {
+                            const next = checked
+                              ? currentVals.filter((v) => v !== l.value)
+                              : [...currentVals, l.value];
+                            setValue(next.join("\n"));
+                          }}
+                        />
+                        {l.label}
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : selectedAnyAttr?.lovItems?.length ? (
                 <select
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
                   value={value}
