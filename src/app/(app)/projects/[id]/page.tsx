@@ -121,6 +121,7 @@ export default async function ProjectDetailPage({
       allCategories={serialized.allCategories}
       canEdit={canEdit}
       currentUserId={session.user.id}
+      userRole={session.user.role as string}
     />
   );
 }

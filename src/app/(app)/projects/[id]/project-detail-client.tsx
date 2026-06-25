@@ -40,9 +40,10 @@ interface Props {
   allCategories?: CategoryOption[];
   canEdit: boolean;
   currentUserId: string;
+  userRole?: string;
 }
 
-export function ProjectDetailClient({ project, initialProducts, globalAttrs = [], categoryAttrs = [], coreAttrDefs = [], allCategories = [], canEdit, currentUserId }: Props) {
+export function ProjectDetailClient({ project, initialProducts, globalAttrs = [], categoryAttrs = [], coreAttrDefs = [], allCategories = [], canEdit, currentUserId, userRole }: Props) {
   const [activeTab, setActiveTab] = useState("grid");
   const [salsifySyncing, setSalsifySyncing] = useState(false);
   const [salsifySyncResult, setSalsifySyncResult] = useState<string | null>(null);
@@ -220,7 +221,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
         )}
 
         {activeTab === "settings" && (
-          <SettingsView project={project} canEdit={canEdit} onSaved={() => router.refresh()} allCategories={allCategories} />
+          <SettingsView project={project} canEdit={canEdit} onSaved={() => router.refresh()} allCategories={allCategories} userRole={userRole} />
         )}
       </div>
     </div>
@@ -1275,9 +1276,9 @@ function ActivityView({ projectId, members }: { projectId: string; members: Arra
 // ─── Settings View ─────────────────────────────────────────────────────────────
 
 function SettingsView({
-  project, canEdit, onSaved, allCategories = [],
+  project, canEdit, onSaved, allCategories = [], userRole,
 }: {
-  project: ProjectWithRelations; canEdit: boolean; onSaved: () => void; allCategories?: CategoryOption[];
+  project: ProjectWithRelations; canEdit: boolean; onSaved: () => void; allCategories?: CategoryOption[]; userRole?: string;
 }) {
   const router = useRouter();
 
@@ -1302,6 +1303,31 @@ function SettingsView({
   const [userSearch, setUserSearch] = useState("");
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [addingMember, setAddingMember] = useState(false);
+
+  // Owner reassignment (admin only)
+  const [reassignOwnerId, setReassignOwnerId] = useState("");
+  const [reassigning, setReassigning] = useState(false);
+  const [reassignMsg, setReassignMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function reassignOwner() {
+    if (!reassignOwnerId) return;
+    setReassigning(true);
+    setReassignMsg(null);
+    const res = await fetch(`/api/projects/${project.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ownerId: reassignOwnerId }),
+    });
+    if (res.ok) {
+      setReassignMsg({ ok: true, text: "Owner updated. Reload to see changes." });
+      setReassignOwnerId("");
+      onSaved();
+    } else {
+      const d = await res.json();
+      setReassignMsg({ ok: false, text: d.error ?? "Failed to reassign owner" });
+    }
+    setReassigning(false);
+  }
 
   useEffect(() => {
     fetch("/api/users")
@@ -1489,6 +1515,35 @@ function SettingsView({
             </div>
             <Badge variant="default">Owner</Badge>
           </div>
+
+          {/* Reassign owner — admin only */}
+          {userRole === "ADMIN" && (
+            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 space-y-2">
+              <p className="text-xs font-medium text-gray-500">Reassign project owner</p>
+              <div className="flex items-center gap-2">
+                <select
+                  value={reassignOwnerId}
+                  onChange={(e) => setReassignOwnerId(e.target.value)}
+                  className="flex-1 text-sm border border-gray-200 rounded-md px-2.5 py-1.5 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select new owner…</option>
+                  {allUsers.filter((u) => u.id !== project.owner.id).map((u) => (
+                    <option key={u.id} value={u.id}>{u.name ?? u.email} ({u.role.replace("_", " ")})</option>
+                  ))}
+                </select>
+                <button
+                  onClick={reassignOwner}
+                  disabled={!reassignOwnerId || reassigning}
+                  className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {reassigning ? "Saving…" : "Reassign"}
+                </button>
+              </div>
+              {reassignMsg && (
+                <p className={`text-xs ${reassignMsg.ok ? "text-green-600" : "text-red-500"}`}>{reassignMsg.text}</p>
+              )}
+            </div>
+          )}
 
           {members.map((member) => (
             <div key={member.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 last:border-0">

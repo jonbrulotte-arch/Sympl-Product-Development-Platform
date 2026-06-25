@@ -21,6 +21,7 @@ export const projectSchema = z.object({
   channel: z.string().optional(),
   tags: z.array(z.string()).optional().default([]),
   status: z.enum(["DRAFT","IN_PROGRESS","NEEDS_REVIEW","CHANGES_REQUESTED","APPROVED","EXPORT_READY","ARCHIVED"]).optional(),
+  ownerId: z.string().optional(),
 });
 
 export const productSchema = z.object({

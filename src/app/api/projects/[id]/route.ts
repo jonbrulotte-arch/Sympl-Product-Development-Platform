@@ -86,12 +86,22 @@ export async function PATCH(
     return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { targetLaunchDate, ...rest } = parsed.data;
+  const { targetLaunchDate, ownerId, ...rest } = parsed.data;
+
+  // Only admins may reassign the project owner
+  if (ownerId && session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Only admins can reassign project ownership" }, { status: 403 });
+  }
+  if (ownerId) {
+    const newOwner = await prisma.user.findUnique({ where: { id: ownerId }, select: { id: true } });
+    if (!newOwner) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
 
   const updated = await prisma.project.update({
     where: { id },
     data: {
       ...rest,
+      ...(ownerId ? { ownerId } : {}),
       ...(targetLaunchDate !== undefined
         ? { targetLaunchDate: targetLaunchDate ? new Date(targetLaunchDate) : null }
         : {}),
