@@ -6,8 +6,9 @@ import { Providers } from "./providers";
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 
 export const metadata: Metadata = {
-  title: "Sympl — Product Development Platform",
+  title: "Sympl PM",
   description: "Manage, review, and export product development projects",
+  icons: { icon: "/favicon.svg" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
