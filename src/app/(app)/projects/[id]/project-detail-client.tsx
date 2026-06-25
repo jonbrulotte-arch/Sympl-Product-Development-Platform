@@ -704,14 +704,12 @@ function WorkflowView({
                     </span>
                     {canEdit && stage.status === "PENDING" && stage.approvals.length === 0 && (
                       <Button size="sm" variant="outline" className="text-blue-600 border-blue-200"
-                        disabled={isBlocked}
                         onClick={() => updateStatus(stage.id, "IN_REVIEW")}>
                         Start Review
                       </Button>
                     )}
                     {canEdit && stage.status === "PENDING" && stage.approvals.length > 0 && (
                       <Button size="sm" variant="outline" className="text-blue-600 border-blue-200"
-                        disabled={isBlocked}
                         onClick={() => updateStatus(stage.id, "IN_REVIEW")}>
                         Open for Voting
                       </Button>
