@@ -1194,7 +1194,7 @@ function GridRow({
                 </span>
               </div>
             ) : editing ? (() => {
-              const isMulti = attrDef && isMultiValueAttr(attrDef);
+              const isMulti = isEav && attrDef && isMultiValueAttr(attrDef);
               const editDefault = isMulti
                 ? ((row.original as ProductRow)._eavArrays?.[attrDef!.key] ?? []).join("\n")
                 : (value != null ? String(value) : "");
@@ -1266,7 +1266,7 @@ function GridRow({
             })() : (
               <div className={cn("px-2 py-1 text-sm truncate min-h-[32px] flex items-center gap-1 flex-wrap", isEav ? "text-amber-900" : "text-gray-700")}>
                 {value != null && String(value) !== "" ? (() => {
-                  if (attrDef && isMultiValueAttr(attrDef)) {
+                  if (isEav && attrDef && isMultiValueAttr(attrDef)) {
                     const vals = (row.original as ProductRow)._eavArrays?.[attrDef.key] ?? [];
                     if (attrDef.lovItems?.length) {
                       return vals.map((v, i) => {

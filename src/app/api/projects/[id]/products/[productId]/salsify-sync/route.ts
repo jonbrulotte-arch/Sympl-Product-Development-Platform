@@ -98,6 +98,9 @@ export async function POST(_req: NextRequest, { params }: Params) {
     if (coreAccessor) {
       rawValue = coreAccessor(product);
       if (rawValue === null || rawValue === undefined || rawValue === "") continue;
+      if (typeof rawValue === "string" && rawValue.includes("\n") && (attr.attributeType === "MULTI_SELECT" || attr.maxValues > 1)) {
+        rawValue = rawValue.split("\n").map((s) => s.trim()).filter(Boolean);
+      }
     } else {
       const avs = product.attributeValues
         .filter((v) => v.attributeDefinitionId === attr.id)
