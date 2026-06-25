@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle, User, Lock, Shield } from "lucide-react";
@@ -19,6 +20,7 @@ function fmtRole(r: string) {
 }
 
 export function ProfileClient({ user }: { user: ProfileUser }) {
+  const { update: updateSession } = useSession();
   const [name, setName] = useState(user.name ?? "");
   const [email, setEmail] = useState(user.email);
   const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -40,10 +42,12 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
       body: JSON.stringify({ name, email }),
     });
     const d = await res.json();
-    setProfileMsg(res.ok
-      ? { ok: true, text: "Profile updated successfully." }
-      : { ok: false, text: d.error ?? "Failed to update profile" }
-    );
+    if (res.ok) {
+      setProfileMsg({ ok: true, text: "Profile updated successfully." });
+      await updateSession({ name: d.name, email: d.email });
+    } else {
+      setProfileMsg({ ok: false, text: d.error ?? "Failed to update profile" });
+    }
     setSavingProfile(false);
   }
 
