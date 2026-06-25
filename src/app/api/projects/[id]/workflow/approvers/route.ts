@@ -19,9 +19,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { stageId, userId } = await req.json();
   if (!stageId || !userId) return NextResponse.json({ error: "stageId and userId required" }, { status: 400 });
 
-  // Use raw SQL to verify stage belongs to project — avoids issues with pending schema migrations
-  const stageRows = await prisma.$queryRaw<{ id: string }[]>`SELECT id FROM "WorkflowStage" WHERE id = ${stageId} AND "projectId" = ${projectId} LIMIT 1`;
-  if (!stageRows.length) return NextResponse.json({ error: "Stage not found" }, { status: 404 });
+  const stage = await prisma.workflowStage.findFirst({ where: { id: stageId, projectId }, select: { id: true } });
+  if (!stage) return NextResponse.json({ error: "Stage not found" }, { status: 404 });
 
   // Upsert so re-assigning a removed approver doesn't error
   const approval = await prisma.workflowApproval.upsert({

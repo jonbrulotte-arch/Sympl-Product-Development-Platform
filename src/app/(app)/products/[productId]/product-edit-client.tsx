@@ -308,14 +308,14 @@ function CompliancePanel({ productId }: { productId: string }) {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Event Type <span className="text-red-500">*</span></label>
               <select value={cfTypeId} onChange={(e) => setCfTypeId(e.target.value)}
-                className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 {eventTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Severity</label>
               <select value={cfSeverity} onChange={(e) => setCfSeverity(e.target.value)}
-                className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
@@ -327,13 +327,13 @@ function CompliancePanel({ productId }: { productId: string }) {
               <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
               <textarea value={cfDescription} onChange={(e) => setCfDescription(e.target.value)} rows={2}
                 placeholder="Additional context…"
-                className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
               <textarea value={cfNotes} onChange={(e) => setCfNotes(e.target.value)} rows={3}
                 placeholder="Internal notes, action items, remediation steps…"
-                className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
           </div>
           <div className="flex justify-end gap-2">

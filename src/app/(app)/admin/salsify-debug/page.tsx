@@ -320,7 +320,7 @@ export default function SalsifyDebugPage() {
               onChange={(e) => { setRawPayloadText(e.target.value); setRawPayloadError(null); }}
               rows={8}
               placeholder={`{\n  "Part Number": "78834-TEST",\n  "Item Name": { "en-US": "Test Product" }\n}`}
-              className="w-full font-mono text-xs border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+              className="w-full font-mono text-xs border border-gray-300 rounded-md px-3 py-2 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
             />
             {rawPayloadError && <p className="text-xs text-red-600 mt-1">{rawPayloadError}</p>}
           </div>

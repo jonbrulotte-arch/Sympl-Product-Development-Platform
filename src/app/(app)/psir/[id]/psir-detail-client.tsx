@@ -378,7 +378,7 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
                 <select
                   value={result}
                   onChange={(e) => { setResult(e.target.value); markDirty(); }}
-                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"
                 >
                   {RESULTS.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
@@ -387,7 +387,7 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
                 <select
                   value={status}
                   onChange={(e) => { setStatus(e.target.value); markDirty(); }}
-                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"
                 >
                   {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
@@ -399,7 +399,7 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
                     onChange={(e) => { setNotes(e.target.value); markDirty(); }}
                     rows={3}
                     placeholder="Inspection findings, defects noted, corrective actions required…"
-                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 resize-y focus:outline-none focus:ring-2 focus:ring-violet-500"
                   />
                 </Field>
               </div>
@@ -417,13 +417,13 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
                         value={attrValues[def.id] ?? ""}
                         onChange={(e) => { setAttrValues((p) => ({ ...p, [def.id]: e.target.value })); markDirty(); }}
                         rows={3}
-                        className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-violet-500"
+                        className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 resize-y focus:outline-none focus:ring-2 focus:ring-violet-500"
                       />
                     ) : def.attributeType === "SELECT" && def.options.length > 0 ? (
                       <select
                         value={attrValues[def.id] ?? ""}
                         onChange={(e) => { setAttrValues((p) => ({ ...p, [def.id]: e.target.value })); markDirty(); }}
-                        className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                        className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"
                       >
                         <option value="">—</option>
                         {def.options.map((o) => <option key={o} value={o}>{o}</option>)}

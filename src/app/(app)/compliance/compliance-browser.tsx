@@ -804,7 +804,7 @@ export function ComplianceBrowser() {
         <select
           value={filterTypeId}
           onChange={(e) => { setFilterTypeId(e.target.value); setPage(1); }}
-          className="border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-600 focus:outline-none"
+          className="border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none"
         >
           <option value="">All Types</option>
           {eventTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -813,7 +813,7 @@ export function ComplianceBrowser() {
         <select
           value={filterStatus}
           onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}
-          className="border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-600 focus:outline-none"
+          className="border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none"
         >
           <option value="">All Statuses</option>
           {STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}

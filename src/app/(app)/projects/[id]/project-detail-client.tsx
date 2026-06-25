@@ -728,7 +728,7 @@ function WorkflowView({
                       <select
                         value={stage.onApproveSetStatus ?? ""}
                         onChange={(e) => patchStage(stage.id, { onApproveSetStatus: e.target.value || null })}
-                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-gray-700"
+                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-gray-900"
                       >
                         <option value="">No status change</option>
                         {projectStatuses.map((ps) => (
@@ -741,7 +741,7 @@ function WorkflowView({
                       <select
                         value={stage.onRejectSetStatus ?? ""}
                         onChange={(e) => patchStage(stage.id, { onRejectSetStatus: e.target.value || null })}
-                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-red-400 text-gray-700"
+                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-red-400 text-gray-900"
                       >
                         <option value="">No status change</option>
                         {projectStatuses.map((ps) => (
@@ -754,7 +754,7 @@ function WorkflowView({
                       <select
                         value={stage.dependsOnStageId ?? ""}
                         onChange={(e) => patchStage(stage.id, { dependsOnStageId: e.target.value || null })}
-                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-purple-400 text-gray-700"
+                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-purple-400 text-gray-900"
                       >
                         <option value="">No dependency</option>
                         {stages.filter((s) => s.id !== stage.id).map((s) => (
@@ -769,7 +769,7 @@ function WorkflowView({
                       <select
                         value={stage.complianceEventId ?? ""}
                         onChange={(e) => patchStage(stage.id, { complianceEventId: e.target.value || null })}
-                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 text-gray-700 max-w-[220px]"
+                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 text-gray-900 max-w-[220px]"
                       >
                         <option value="">No compliance requirement</option>
                         {complianceEvents.map((ce) => (
@@ -789,7 +789,7 @@ function WorkflowView({
                       <select
                         value={stage.psirId ?? ""}
                         onChange={(e) => patchStage(stage.id, { psirId: e.target.value || null })}
-                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-violet-400 text-gray-700 max-w-[220px]"
+                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-violet-400 text-gray-900 max-w-[220px]"
                       >
                         <option value="">No inspection requirement</option>
                         {psirOptions.map((p) => (
@@ -1202,7 +1202,7 @@ function ActivityView({ projectId, members }: { projectId: string; members: Arra
         <select
           value={filterEntityType}
           onChange={(e) => setFilterEntityType(e.target.value)}
-          className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All types</option>
           <option value="WorkflowStage">Workflow</option>
@@ -1212,7 +1212,7 @@ function ActivityView({ projectId, members }: { projectId: string; members: Arra
         <select
           value={filterAction}
           onChange={(e) => setFilterAction(e.target.value)}
-          className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All actions</option>
           <option value="APPROVED">Approved</option>
@@ -1227,7 +1227,7 @@ function ActivityView({ projectId, members }: { projectId: string; members: Arra
         <select
           value={filterUserId}
           onChange={(e) => setFilterUserId(e.target.value)}
-          className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All users</option>
           {members.map((m) => (

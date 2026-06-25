@@ -229,12 +229,12 @@ export function PsirBrowser() {
           <Input className="pl-8 w-72 text-sm h-8" placeholder="Search reports, factory, inspector…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
         </div>
         <select value={filterResult} onChange={(e) => { setFilterResult(e.target.value); setPage(1); }}
-          className="border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-600 focus:outline-none">
+          className="border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none">
           <option value="">All Results</option>
           {RESULTS.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
         <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}
-          className="border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-600 focus:outline-none">
+          className="border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none">
           <option value="">All Statuses</option>
           {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>

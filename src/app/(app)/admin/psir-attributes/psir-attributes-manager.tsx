@@ -150,7 +150,7 @@ export function PsirAttributesManager() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
               <select value={nType} onChange={(e) => setNType(e.target.value)}
-                className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
+                className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500">
                 {ATTR_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
@@ -193,7 +193,7 @@ export function PsirAttributesManager() {
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
                   <select value={editing.attributeType} onChange={(e) => setEditing({ ...editing, attributeType: e.target.value })}
-                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
+                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500">
                     {ATTR_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
                 </div>
