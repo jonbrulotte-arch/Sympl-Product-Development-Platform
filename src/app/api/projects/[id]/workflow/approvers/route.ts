@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canEditProject } from "@/lib/permissions";
 import { sendMail, stageAssignedEmail } from "@/lib/email";
+import { createNotification } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -39,6 +40,14 @@ export async function POST(req: NextRequest, { params }: Params) {
     `You've been assigned as an approver on "${stageName?.name ?? "a workflow stage"}"`,
     stageAssignedEmail({ toName: approval.approver.name ?? approval.approver.email, projectName: project.name, stageName: stageName?.name ?? "a workflow stage", projectId })
   ).catch(() => {});
+  createNotification({
+    userId: userId,
+    title: `You've been assigned as an approver`,
+    message: `Stage "${stageName?.name ?? "a workflow stage"}" in project ${project.name}`,
+    type: "info",
+    link: `/projects/${projectId}`,
+    projectId,
+  });
 
   return NextResponse.json(approval, { status: 201 });
 }

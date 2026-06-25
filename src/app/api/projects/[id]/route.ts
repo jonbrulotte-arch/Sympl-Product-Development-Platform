@@ -5,6 +5,7 @@ import { projectSchema } from "@/lib/validation";
 import { canEditProject, canDeleteProject } from "@/lib/permissions";
 import { logActivity } from "@/lib/activity";
 import { sendMail, projectStatusEmail } from "@/lib/email";
+import { createNotificationForMany } from "@/lib/notifications";
 
 async function getProject(id: string) {
   return prisma.project.findUnique({
@@ -116,20 +117,28 @@ export async function PATCH(
     metadata: rest,
   });
 
-  // Email project members when status changes
+  // Notify project members when status changes
   if (rest.status && rest.status !== project.status) {
     const changedBy = session.user.name ?? session.user.email ?? "Someone";
-    const memberEmails = await prisma.projectMember.findMany({
+    const members = await prisma.projectMember.findMany({
       where: { projectId: id },
-      include: { user: { select: { email: true } } },
+      include: { user: { select: { id: true, email: true } } },
     });
-    for (const m of memberEmails) {
+    function fmtStatus(s: string) { return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
+    for (const m of members) {
       sendMail(
         m.user.email,
         `Project status updated: ${updated.name}`,
         projectStatusEmail({ projectName: updated.name, oldStatus: project.status, newStatus: rest.status, changedBy, projectId: id })
       ).catch(() => {});
     }
+    createNotificationForMany(members.map((m) => m.user.id), {
+      title: `${updated.name} status changed`,
+      message: `${changedBy} changed the status from ${fmtStatus(project.status)} to ${fmtStatus(rest.status)}`,
+      type: "info",
+      link: `/projects/${id}`,
+      projectId: id,
+    });
   }
 
   return NextResponse.json(updated);

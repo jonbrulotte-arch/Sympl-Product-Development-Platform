@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { canEditProject } from "@/lib/permissions";
 import { logActivity } from "@/lib/activity";
 import { sendMail, workflowVoteEmail, stageCompletedEmail, stageAssignedEmail } from "@/lib/email";
+import { createNotification, createNotificationForMany } from "@/lib/notifications";
 import type { ProjectStatus } from "@prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
@@ -237,7 +238,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       await maybeAutoUpdateProject(projectId, stage.onRejectSetStatus);
     }
 
-    // Email notifications — fire-and-forget
+    // Notifications — fire-and-forget (email + in-app)
     const voterName = session.user.name ?? session.user.email ?? "Someone";
     const otherApprovers = stage.approvals
       .map((a: { approver: { id: string; email: string; name: string | null } }) => a.approver)
@@ -250,21 +251,37 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         `${voterName} ${vote === "APPROVED" ? "approved" : "rejected"} "${stage.name}"`,
         workflowVoteEmail({ toName: approver.name ?? approver.email, projectName: project.name, stageName: stage.name, voterName, vote: vote as "APPROVED" | "REJECTED", comment: voteComment, projectId })
       ).catch(() => {});
+      createNotification({
+        userId: approver.id,
+        title: `${voterName} ${vote === "APPROVED" ? "approved" : "rejected"} "${stage.name}"`,
+        message: `In project ${project.name}${voteComment ? `: "${voteComment}"` : ""}`,
+        type: vote === "APPROVED" ? "success" : "error",
+        link: `/projects/${projectId}`,
+        projectId,
+      });
     }
 
     // If stage is now fully completed, notify all project members
     if (newStageStatus === "APPROVED" || newStageStatus === "REJECTED") {
-      const memberEmails = await prisma.projectMember.findMany({
+      const members = await prisma.projectMember.findMany({
         where: { projectId },
-        include: { user: { select: { email: true, name: true } } },
+        include: { user: { select: { id: true, email: true, name: true } } },
       });
-      for (const m of memberEmails) {
+      const memberUserIds = members.map((m) => m.user.id);
+      for (const m of members) {
         sendMail(
           m.user.email,
           `Workflow stage ${newStageStatus === "APPROVED" ? "approved" : "rejected"}: ${stage.name}`,
           stageCompletedEmail({ projectName: project.name, stageName: stage.name, result: newStageStatus as "APPROVED" | "REJECTED", projectId })
         ).catch(() => {});
       }
+      createNotificationForMany(memberUserIds, {
+        title: `Stage ${newStageStatus === "APPROVED" ? "approved" : "rejected"}: ${stage.name}`,
+        message: `All approvers have voted in project ${project.name}`,
+        type: newStageStatus === "APPROVED" ? "success" : "error",
+        link: `/projects/${projectId}`,
+        projectId,
+      });
     }
 
     return NextResponse.json(stage);

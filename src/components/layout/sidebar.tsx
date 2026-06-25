@@ -25,7 +25,7 @@ import {
   HardDrive,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { SafeUser } from "@/types";
 
 const navItems = [
@@ -58,6 +58,14 @@ interface SidebarProps {
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    fetch("/api/notifications?unread=true")
+      .then((r) => r.json())
+      .then((data) => setUnreadCount(Array.isArray(data) ? data.length : 0))
+      .catch(() => {});
+  }, [pathname]);
 
   return (
     <aside
@@ -135,8 +143,13 @@ export function Sidebar({ user }: SidebarProps) {
         </div>
         {!collapsed && (
           <div className="mt-3 flex items-center gap-2">
-            <Link href="/notifications" className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800" title="Notifications">
+            <Link href="/notifications" className="relative p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800" title="Notifications">
               <Bell className="h-4 w-4" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </Link>
             <Link href="/profile" className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800" title="My Profile">
               <Settings className="h-4 w-4" />
