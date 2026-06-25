@@ -17,26 +17,35 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search");
   const archived = searchParams.get("archived") === "true";
 
+  const searchOR = search
+    ? [
+        { name: { contains: search, mode: "insensitive" as const } },
+        { description: { contains: search, mode: "insensitive" as const } },
+        { brand: { contains: search, mode: "insensitive" as const } },
+        { retailer: { contains: search, mode: "insensitive" as const } },
+        { channel: { contains: search, mode: "insensitive" as const } },
+        { owner: { name: { contains: search, mode: "insensitive" as const } } },
+        { owner: { email: { contains: search, mode: "insensitive" as const } } },
+        { members: { some: { user: { name: { contains: search, mode: "insensitive" as const } } } } },
+        { products: { some: { isArchived: false, OR: [
+          { partNumber: { contains: search, mode: "insensitive" as const } },
+          { modelNumber: { contains: search, mode: "insensitive" as const } },
+          { itemName: { contains: search, mode: "insensitive" as const } },
+          { upc: { contains: search, mode: "insensitive" as const } },
+          { brand: { contains: search, mode: "insensitive" as const } },
+        ]}}},
+      ]
+    : null;
+
+  const accessOR = session.user.role !== "ADMIN"
+    ? [{ ownerId: session.user.id }, { members: { some: { userId: session.user.id } } }]
+    : null;
+
   const where = {
     isArchived: archived,
     ...(status ? { status: status as never } : {}),
-    ...(search
-      ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" as const } },
-            { description: { contains: search, mode: "insensitive" as const } },
-            { brand: { contains: search, mode: "insensitive" as const } },
-          ],
-        }
-      : {}),
-    ...(session.user.role !== "ADMIN"
-      ? {
-          OR: [
-            { ownerId: session.user.id },
-            { members: { some: { userId: session.user.id } } },
-          ],
-        }
-      : {}),
+    ...(searchOR ? { OR: searchOR } : {}),
+    ...(accessOR ? { AND: [{ OR: accessOR }] } : {}),
   };
 
   const [projects, total] = await Promise.all([

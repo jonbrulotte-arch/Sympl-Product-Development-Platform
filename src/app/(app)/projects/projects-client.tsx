@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { formatDate, getInitials } from "@/lib/utils";
-import { Package, Calendar, Search, LayoutGrid, List } from "lucide-react";
+import { Package, Calendar, Search, LayoutGrid, List, Loader2 } from "lucide-react";
 import type { ProjectStatus } from "@prisma/client";
 
 type ProjectItem = {
@@ -40,25 +40,35 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectIt
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [view, setView] = useState<"card" | "list">("card");
+  const [projects, setProjects] = useState<ProjectItem[]>(initialProjects);
+  const [loading, setLoading] = useState(false);
+  const [total, setTotal] = useState(initialProjects.length);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const filtered = initialProjects.filter((p) => {
-    const q = search.toLowerCase();
-    const matchesSearch =
-      !q ||
-      p.name.toLowerCase().includes(q) ||
-      (p.description?.toLowerCase().includes(q) ?? false) ||
-      (p.brand?.toLowerCase().includes(q) ?? false) ||
-      (p.retailer?.toLowerCase().includes(q) ?? false) ||
-      (p.channel?.toLowerCase().includes(q) ?? false) ||
-      (p.category?.name.toLowerCase().includes(q) ?? false) ||
-      (p.owner.name?.toLowerCase().includes(q) ?? false) ||
-      p.owner.email.toLowerCase().includes(q) ||
-      p.members.some((m) =>
-        m.user.name?.toLowerCase().includes(q) || m.user.email.toLowerCase().includes(q)
-      );
-    const matchesStatus = !statusFilter || p.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const fetchProjects = useCallback(async (q: string, status: string) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ pageSize: "200" });
+      if (q) params.set("search", q);
+      if (status) params.set("status", status);
+      const res = await fetch(`/api/projects?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setProjects(data.data);
+        setTotal(data.total);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchProjects(search, statusFilter);
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [search, statusFilter, fetchProjects]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -66,7 +76,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectIt
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
           <p className="text-gray-500 text-sm">
-            {filtered.length} of {initialProjects.length} project{initialProjects.length !== 1 ? "s" : ""}
+            {loading ? "Searching…" : `${projects.length}${total > projects.length ? ` of ${total}` : ""} project${total !== 1 ? "s" : ""}`}
           </p>
         </div>
         <CreateProjectDialog />
@@ -75,9 +85,13 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectIt
       {/* Search + filter bar */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+          {loading ? (
+            <Loader2 className="absolute left-3 top-2.5 h-4 w-4 text-gray-400 animate-spin" />
+          ) : (
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+          )}
           <Input
-            placeholder="Search projects…"
+            placeholder="Search projects, products, part numbers…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -110,20 +124,20 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectIt
         </div>
       </div>
 
-      {initialProjects.length === 0 ? (
+      {projects.length === 0 && !search && !statusFilter ? (
         <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
           <Package className="h-12 w-12 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-700 mb-1">No projects yet</h3>
           <p className="text-gray-400 text-sm mb-6">Create your first product development project to get started.</p>
           <CreateProjectDialog />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : projects.length === 0 ? (
         <div className="text-center py-12 text-gray-400 text-sm">
           No projects match your search.
         </div>
       ) : view === "card" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((project) => (
+          {projects.map((project) => (
             <Link key={project.id} href={`/projects/${project.id}`}>
               <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
                 <CardContent className="p-5">
@@ -193,7 +207,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectIt
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map((project) => (
+              {projects.map((project) => (
                 <tr key={project.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     <Link href={`/projects/${project.id}`} className="font-medium text-gray-900 hover:text-blue-600">
