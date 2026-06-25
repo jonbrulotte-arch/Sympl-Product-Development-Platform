@@ -824,3 +824,31 @@ model PsirAttributeValue {
   @@unique([psirId, attrDefId])
   @@index([psirId])
 }
+
+// ─── Backup ───────────────────────────────────────────────────────────────────
+
+model BackupConfig {
+  id              String   @id @default(cuid())
+  isEnabled       Boolean  @default(false)
+  backupPath      String   @default("/var/backups/sympl")
+  encryptionKey   String   @db.Text
+  scheduleType    String   @default("DAILY")
+  scheduleHour    Int      @default(2)
+  scheduleMinute  Int      @default(0)
+  retainCount     Int      @default(7)
+  lastRunAt       DateTime?
+  nextRunAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model BackupLog {
+  id          String   @id @default(cuid())
+  status      String
+  filePath    String?
+  fileSizeBytes BigInt?
+  durationMs  Int?
+  errorMessage String?  @db.Text
+  triggeredBy String   @default("SCHEDULE")
+  createdAt   DateTime @default(now())
+}
