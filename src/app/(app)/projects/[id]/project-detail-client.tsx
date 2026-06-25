@@ -51,6 +51,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
   const router = useRouter();
 
   const handleSalsifySync = async () => {
+    if (!window.confirm("Sync to Salsify?\n\nAll Salsify-enabled attributes for every product in this project will be sent to Salsify and will overwrite any existing data there. This cannot be undone.")) return;
     setSalsifySyncing(true);
     setSalsifySyncResult(null);
     try {

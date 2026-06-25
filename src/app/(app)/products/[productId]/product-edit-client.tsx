@@ -573,6 +573,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
   const canSync = userRole === "ADMIN" || userRole === "PRODUCT_MANAGER";
 
   async function syncToSalsify() {
+    if (!window.confirm("Sync to Salsify?\n\nSalsify-enabled attributes for this product will be sent to Salsify and will overwrite any existing data there. This cannot be undone.")) return;
     setSyncing(true);
     setSyncStatus("idle");
     setSyncError(null);
