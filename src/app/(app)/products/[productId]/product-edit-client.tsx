@@ -10,7 +10,8 @@ import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { formatDate } from "@/lib/utils";
 import {
   ArrowLeft, ExternalLink, Save, CheckCircle2, AlertCircle, RefreshCw,
-  Plus, X, Clock, Circle, Trash2, ChevronDown, ChevronUp, ShieldCheck,
+  Plus, X, Clock, Circle, Trash2, ChevronDown, ChevronUp, ShieldCheck, ClipboardCheck,
+  FileText, CheckCircle, XCircle, AlertTriangle,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -420,9 +421,97 @@ function CompliancePanel({ productId }: { productId: string }) {
   );
 }
 
+// ─── PSIR Panel ───────────────────────────────────────────────────────────────
+
+type PsirRow = {
+  id: string; title: string; referenceNumber: string | null;
+  inspectionDate: string | null; inspector: string | null;
+  inspectionCompany: string | null; result: string; status: string;
+  documents: { id: string }[];
+};
+
+const PSIR_RESULT_META: Record<string, { cls: string; icon: React.ReactNode }> = {
+  PASS: { cls: "bg-green-100 text-green-700", icon: <CheckCircle className="h-3.5 w-3.5" /> },
+  FAIL: { cls: "bg-red-100 text-red-700", icon: <XCircle className="h-3.5 w-3.5" /> },
+  CONDITIONAL: { cls: "bg-yellow-100 text-yellow-800", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
+  PENDING: { cls: "bg-gray-100 text-gray-600", icon: <Clock className="h-3 w-3" /> },
+};
+
+function PsirPanel({ productId }: { productId: string }) {
+  const [psirs, setPsirs] = useState<PsirRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/psir?productId=${productId}`)
+      .then((r) => r.json())
+      .then((d) => { setPsirs(d.psirs ?? []); setLoading(false); });
+  }, [productId]);
+
+  if (loading) return <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading…</div>;
+
+  return (
+    <div className="max-w-6xl mx-auto px-6 py-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-700">{psirs.length} inspection report{psirs.length !== 1 ? "s" : ""} linked</p>
+          <p className="text-xs text-gray-400 mt-0.5">Pre-shipment inspection reports associated with this product.</p>
+        </div>
+        <Link href="/psir" className="text-xs text-violet-600 hover:underline flex items-center gap-1">
+          <Plus className="h-3.5 w-3.5" /> Create in Inspections module
+        </Link>
+      </div>
+
+      {psirs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 bg-white border border-gray-200 rounded-xl text-center">
+          <ClipboardCheck className="h-10 w-10 text-gray-200 mb-2" />
+          <p className="text-sm text-gray-500 font-medium">No inspection reports linked</p>
+          <p className="text-xs text-gray-400 mt-1">
+            Go to <Link href="/psir" className="text-violet-600 hover:underline">Inspections</Link> to create a PSIR and link this product.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {psirs.map((psir) => {
+            const meta = PSIR_RESULT_META[psir.result] ?? PSIR_RESULT_META.PENDING;
+            return (
+              <Link
+                key={psir.id}
+                href={`/psir/${psir.id}`}
+                className="block bg-white border border-gray-200 rounded-xl px-4 py-3 hover:border-violet-300 hover:shadow-sm transition-all"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{psir.title}</p>
+                    <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
+                      {psir.referenceNumber && <span className="font-mono">{psir.referenceNumber}</span>}
+                      {psir.inspectionCompany && <span>{psir.inspectionCompany}</span>}
+                      {psir.inspectionDate && <span>{formatDate(psir.inspectionDate)}</span>}
+                      {psir.documents.length > 0 && (
+                        <span className="flex items-center gap-1">
+                          <FileText className="h-3 w-3" /> {psir.documents.length} file{psir.documents.length !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full font-medium ${meta.cls}`}>
+                      {meta.icon} {psir.result}
+                    </span>
+                    <span className="text-xs text-gray-400">{psir.status}</span>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Client ──────────────────────────────────────────────────────────────
 
-type Tab = "details" | "compliance";
+type Tab = "details" | "compliance" | "psir";
 
 export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs }: Props) {
   const router = useRouter();
@@ -576,21 +665,21 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
 
         {/* Tab bar */}
         <div className="flex items-center gap-0 mt-3 border-b border-gray-200">
-          {(["details", "compliance"] as Tab[]).map((tab) => (
+          {([
+            { key: "details", label: "Details", icon: null },
+            { key: "compliance", label: "Compliance", icon: <ShieldCheck className="h-3.5 w-3.5" /> },
+            { key: "psir", label: "Inspections", icon: <ClipboardCheck className="h-3.5 w-3.5" /> },
+          ] as { key: Tab; label: string; icon: React.ReactNode }[]).map((tab) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 text-sm font-medium capitalize border-b-2 transition-colors -mb-px ${
-                activeTab === tab
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px flex items-center gap-1.5 ${
+                activeTab === tab.key
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-gray-500 hover:text-gray-700"
               }`}
             >
-              {tab === "compliance" ? (
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="h-3.5 w-3.5" /> Compliance
-                </span>
-              ) : "Details"}
+              {tab.icon}{tab.label}
             </button>
           ))}
         </div>
@@ -663,6 +752,10 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
 
         {activeTab === "compliance" && (
           <CompliancePanel productId={product.id} />
+        )}
+
+        {activeTab === "psir" && (
+          <PsirPanel productId={product.id} />
         )}
       </div>
 

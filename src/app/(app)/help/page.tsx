@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   BookOpen, Package, FolderKanban, Upload, CheckCircle,
   ListFilter, Tag, ChevronDown, ChevronRight, Code2, Zap,
-  Info, Search, ExternalLink,
+  Info, Search, ExternalLink, ShieldCheck, ClipboardCheck,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -231,8 +231,102 @@ const sections: Section[] = [
           <LI><strong>Category</strong> — filter by product category.</LI>
         </UL>
 
-        <H3>Inline editing</H3>
-        <P>Click any row to open the edit drawer on the right. Core product fields are editable directly; custom attribute values are shown read-only. Use <ExternalLink className="inline h-3 w-3" /> to open the full project grid for that product.</P>
+        <H3>Full product edit page</H3>
+        <P>Click any row to open the full product edit page at <Code>/products/[id]</Code>. This page shows every core field and every EAV attribute organized by section, and includes tabs for <strong>Compliance</strong> events and <strong>Inspections</strong> (PSIRs) linked to that product.</P>
+      </>
+    ),
+  },
+  {
+    id: "compliance",
+    icon: ShieldCheck,
+    title: "Compliance",
+    color: "text-indigo-600 bg-indigo-50",
+    content: (
+      <>
+        <H3>What is a compliance event?</H3>
+        <P>
+          A compliance event captures a regulatory or legal issue that affects one or more products —
+          for example a Prop 65 test, a REACH assessment, or a CPSC recall. Each event is linked to
+          the products it covers and carries a status, severity, due date, and free-form notes.
+        </P>
+
+        <H3>Event types</H3>
+        <P>
+          Admins define event types at <strong>Admin → Compliance Types</strong>. Each type has a
+          name, color, and optional description. Examples: <em>CA Prop 65</em>, <em>REACH / RoHS</em>,
+          <em>CPSC</em>, <em>FDA</em>.
+        </P>
+
+        <H3>Creating an event</H3>
+        <UL>
+          <LI>Go to <strong>Compliance</strong> in the sidebar and click <strong>New Event</strong>.</LI>
+          <LI>Enter a title, select the event type and severity, and optionally set a due date.</LI>
+          <LI>Use <strong>Search</strong> to find individual products, or switch to <strong>Paste / Bulk</strong> to paste a list of part numbers (comma, semicolon, or newline separated) and resolve them all at once.</LI>
+        </UL>
+
+        <H3>Statuses</H3>
+        <UL>
+          <LI><strong>OPEN</strong> — issue identified, no action taken.</LI>
+          <LI><strong>IN_PROGRESS</strong> — remediation underway.</LI>
+          <LI><strong>RESOLVED</strong> — issue corrected.</LI>
+          <LI><strong>CLOSED</strong> — event closed (may not be fully resolved).</LI>
+          <LI><strong>WAIVED</strong> — event acknowledged and formally waived.</LI>
+        </UL>
+
+        <H3>Product tab on product edit page</H3>
+        <P>When viewing a product at <Code>/products/[id]</Code>, switch to the <strong>Compliance</strong> tab to see all events linked to that product and log new ones without leaving the product view.</P>
+
+        <Callout type="tip">Overdue events (due date passed while still OPEN) are highlighted in red on the compliance list.</Callout>
+      </>
+    ),
+  },
+  {
+    id: "psir",
+    icon: ClipboardCheck,
+    title: "Pre-Shipment Inspections (PSIR)",
+    color: "text-violet-600 bg-violet-50",
+    content: (
+      <>
+        <H3>What is a PSIR?</H3>
+        <P>
+          A Pre-Shipment Inspection Report documents the quality inspection performed at a factory
+          before goods ship. Each report captures the inspector, inspection company, factory, date,
+          result (PASS / FAIL / CONDITIONAL / PENDING), and any supporting documents.
+          A single PSIR can cover multiple products from one or more projects.
+        </P>
+
+        <H3>Creating a report</H3>
+        <UL>
+          <LI>Go to <strong>Inspections</strong> in the sidebar and click <strong>New Report</strong>.</LI>
+          <LI>Enter a title — you are taken to the full report detail page where you fill in all fields.</LI>
+          <LI>Link products by searching in the Products section of the report.</LI>
+          <LI>Upload the inspection document (PDF, Excel, images, or any format) by dragging a file onto the Documents area or clicking <strong>Upload File</strong>.</LI>
+        </UL>
+
+        <H3>Results</H3>
+        <UL>
+          <LI><strong>PASS</strong> — shipment cleared.</LI>
+          <LI><strong>FAIL</strong> — shipment blocked; rework or re-inspection required.</LI>
+          <LI><strong>CONDITIONAL</strong> — shipment allowed with noted deficiencies.</LI>
+          <LI><strong>PENDING</strong> — inspection not yet complete.</LI>
+        </UL>
+
+        <H3>Statuses</H3>
+        <UL>
+          <LI><strong>DRAFT</strong> — report in progress.</LI>
+          <LI><strong>SUBMITTED</strong> — report submitted for internal review.</LI>
+          <LI><strong>APPROVED</strong> — report accepted.</LI>
+          <LI><strong>REJECTED</strong> — report rejected; follow-up required.</LI>
+        </UL>
+
+        <H3>Custom attributes</H3>
+        <P>Admins can define additional fields to capture on every PSIR — for example AQL level, sample size, or inspection standard — at <strong>Admin → PSIR Attributes</strong>. Supported types: Text, Text Area, Number, Date, Select (dropdown), and Yes/No.</P>
+
+        <H3>File uploads</H3>
+        <P>Drag and drop files directly onto the Documents section or click Upload File. Files are stored on the server and can be downloaded at any time. Deleting a document removes it from disk immediately.</P>
+
+        <H3>Product tab on product edit page</H3>
+        <P>When viewing a product at <Code>/products/[id]</Code>, switch to the <strong>Inspections</strong> tab to see all PSIRs linked to that product.</P>
       </>
     ),
   },

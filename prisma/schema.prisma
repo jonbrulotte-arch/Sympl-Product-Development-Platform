@@ -117,6 +117,9 @@ model User {
   salsifySyncLogs   SalsifySyncLog[]
   createdCompliance ComplianceEvent[]  @relation("ComplianceCreator")
   updatedCompliance ComplianceEvent[]  @relation("ComplianceUpdater")
+  createdPsirs      Psir[]             @relation("PsirCreator")
+  updatedPsirs      Psir[]             @relation("PsirUpdater")
+  psirDocuments     PsirDocument[]
 }
 
 model Account {
@@ -438,6 +441,7 @@ model ProductRecord {
   components        ProductComponent[]      @relation("ParentProduct")
   componentOf       ProductComponent[]      @relation("ChildProduct")
   complianceEvents  ComplianceEventProduct[]
+  psirProducts      PsirProduct[]
 
   @@index([projectId])
   @@index([partNumber])
@@ -704,4 +708,94 @@ model ComplianceEventProduct {
   @@unique([eventId, productId])
   @@index([eventId])
   @@index([productId])
+}
+
+// ─── Pre-Shipment Inspection Reports (PSIR) ──────────────────────────────────
+
+model Psir {
+  id                String    @id @default(cuid())
+  title             String
+  referenceNumber   String?
+  inspectionDate    DateTime?
+  inspector         String?
+  inspectionCompany String?
+  factory           String?
+  countryOfOrigin   String?
+  result            String    @default("PENDING")
+  status            String    @default("DRAFT")
+  notes             String?   @db.Text
+  createdById       String
+  updatedById       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  createdBy       User                 @relation("PsirCreator", fields: [createdById], references: [id])
+  updatedBy       User?                @relation("PsirUpdater", fields: [updatedById], references: [id])
+  products        PsirProduct[]
+  documents       PsirDocument[]
+  attributeValues PsirAttributeValue[]
+
+  @@index([status])
+  @@index([result])
+  @@index([createdAt])
+}
+
+model PsirProduct {
+  id        String   @id @default(cuid())
+  psirId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  psir    Psir          @relation(fields: [psirId], references: [id], onDelete: Cascade)
+  product ProductRecord @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([psirId, productId])
+  @@index([psirId])
+  @@index([productId])
+}
+
+model PsirDocument {
+  id           String   @id @default(cuid())
+  psirId       String
+  fileName     String
+  originalName String
+  fileType     String?
+  fileSize     Int?
+  filePath     String
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  psir       Psir @relation(fields: [psirId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+
+  @@index([psirId])
+}
+
+model PsirAttributeDefinition {
+  id            String   @id @default(cuid())
+  key           String   @unique
+  label         String
+  description   String?
+  attributeType String   @default("TEXT")
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  options       String[] @default([])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  values PsirAttributeValue[]
+}
+
+model PsirAttributeValue {
+  id        String   @id @default(cuid())
+  psirId    String
+  attrDefId String
+  value     String?  @db.Text
+  updatedAt DateTime @updatedAt
+
+  psir    Psir                    @relation(fields: [psirId], references: [id], onDelete: Cascade)
+  attrDef PsirAttributeDefinition @relation(fields: [attrDefId], references: [id], onDelete: Cascade)
+
+  @@unique([psirId, attrDefId])
+  @@index([psirId])
 }

@@ -78,72 +78,170 @@ function ProductPicker({
 }) {
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<ProductRef[]>([]);
-  const [open, setOpen] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [pasteMode, setPasteMode] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [pasteStatus, setPasteStatus] = useState<{ found: number; notFound: string[] } | null>(null);
+  const [looking, setLooking] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
+  // Live search
   useEffect(() => {
-    if (!search.trim()) { setResults([]); return; }
+    if (!search.trim()) { setResults([]); setShowDropdown(false); return; }
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
-      const res = await fetch(`/api/products?search=${encodeURIComponent(search)}&pageSize=10`);
+      const res = await fetch(`/api/products?search=${encodeURIComponent(search.trim())}`);
       if (res.ok) {
         const data = await res.json();
-        setResults(data.products ?? []);
-        setOpen(true);
+        const products: ProductRef[] = data.products ?? [];
+        // filter out already-selected
+        setResults(products.filter((p) => !selected.find((s) => s.id === p.id)));
+        setShowDropdown(true);
       }
-    }, 300);
+    }, 250);
     return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [search]);
+  }, [search, selected]);
 
-  function toggle(p: ProductRef) {
-    const label = [p.partNumber, p.itemName].filter(Boolean).join(" — ");
-    if (selected.find((s) => s.id === p.id)) {
-      onChange(selected.filter((s) => s.id !== p.id));
-    } else {
-      onChange([...selected, { id: p.id, label }]);
+  // Close on outside click
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
     }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  function pick(p: ProductRef) {
+    const label = [p.partNumber, p.itemName].filter(Boolean).join(" — ");
+    onChange([...selected, { id: p.id, label }]);
+    setSearch("");
+    setResults([]);
+    setShowDropdown(false);
+  }
+
+  async function resolvePaste() {
+    const tokens = pasteText
+      .split(/[\n,;]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (!tokens.length) return;
+    setLooking(true);
+    setPasteStatus(null);
+
+    const notFound: string[] = [];
+    const toAdd: { id: string; label: string }[] = [];
+    const selectedIds = new Set(selected.map((s) => s.id));
+
+    await Promise.all(
+      tokens.map(async (token) => {
+        const res = await fetch(`/api/products?search=${encodeURIComponent(token)}`);
+        if (!res.ok) { notFound.push(token); return; }
+        const data = await res.json();
+        const products: ProductRef[] = data.products ?? [];
+        // exact part-number match preferred, otherwise first result
+        const match = products.find((p) => p.partNumber?.toLowerCase() === token.toLowerCase()) ?? products[0];
+        if (!match || selectedIds.has(match.id)) {
+          if (!match) notFound.push(token);
+          return;
+        }
+        selectedIds.add(match.id);
+        toAdd.push({ id: match.id, label: [match.partNumber, match.itemName].filter(Boolean).join(" — ") });
+      })
+    );
+
+    onChange([...selected, ...toAdd]);
+    setPasteStatus({ found: toAdd.length, notFound });
+    setLooking(false);
+    if (!notFound.length) { setPasteMode(false); setPasteText(""); }
   }
 
   return (
-    <div className="space-y-2">
-      <div className="relative">
-        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
-        <Input
-          className="pl-8 text-sm"
-          placeholder="Search products by part number or name..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onFocus={() => results.length && setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-        />
-        {open && results.length > 0 && (
-          <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
-            {results.map((p) => {
-              const isSelected = !!selected.find((s) => s.id === p.id);
-              return (
+    <div className="space-y-2" ref={containerRef}>
+      {/* Mode toggle */}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => { setPasteMode(false); setPasteText(""); setPasteStatus(null); }}
+          className={`text-xs font-medium pb-0.5 border-b-2 transition-colors ${!pasteMode ? "border-indigo-500 text-indigo-600" : "border-transparent text-gray-400 hover:text-gray-600"}`}
+        >
+          Search
+        </button>
+        <button
+          type="button"
+          onClick={() => { setPasteMode(true); setSearch(""); setResults([]); setShowDropdown(false); }}
+          className={`text-xs font-medium pb-0.5 border-b-2 transition-colors ${pasteMode ? "border-indigo-500 text-indigo-600" : "border-transparent text-gray-400 hover:text-gray-600"}`}
+        >
+          Paste / Bulk
+        </button>
+      </div>
+
+      {!pasteMode ? (
+        /* Search mode */
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+          <Input
+            className="pl-8 text-sm text-gray-900 placeholder:text-gray-400"
+            placeholder="Search by part number or product name…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onFocus={() => results.length > 0 && setShowDropdown(true)}
+            autoComplete="off"
+          />
+          {showDropdown && (
+            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+              {results.length === 0 ? (
+                <p className="px-3 py-2 text-sm text-gray-500">No products found for &ldquo;{search}&rdquo;</p>
+              ) : results.map((p) => (
                 <button
                   key={p.id}
                   type="button"
-                  onMouseDown={() => toggle(p)}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${isSelected ? "bg-indigo-50" : ""}`}
+                  onMouseDown={(e) => { e.preventDefault(); pick(p); }}
+                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-indigo-50 flex items-center justify-between gap-2"
                 >
-                  <span>
-                    <span className="font-mono text-xs text-gray-500">{p.partNumber ?? "—"}</span>
-                    {" "}{p.itemName ?? ""}
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono text-xs text-gray-500 shrink-0">{p.partNumber ?? "—"}</span>
+                    <span className="text-gray-900 truncate">{p.itemName ?? ""}</span>
                   </span>
-                  <span className="text-xs text-gray-400">{p.project.name}</span>
+                  <span className="text-xs text-gray-400 shrink-0">{p.project.name}</span>
                 </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Paste mode */
+        <div className="space-y-2">
+          <textarea
+            value={pasteText}
+            onChange={(e) => { setPasteText(e.target.value); setPasteStatus(null); }}
+            rows={4}
+            placeholder={"Paste part numbers — one per line, or comma/semicolon separated:\n78834-TEST\n90012-DEMO\n11234-WIDGET"}
+            className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          {pasteStatus && (
+            <div className={`text-xs rounded px-3 py-2 ${pasteStatus.notFound.length ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
+              {pasteStatus.found > 0 && <span>{pasteStatus.found} product{pasteStatus.found !== 1 ? "s" : ""} added. </span>}
+              {pasteStatus.notFound.length > 0 && (
+                <span>Could not find: <strong>{pasteStatus.notFound.join(", ")}</strong></span>
+              )}
+            </div>
+          )}
+          <Button type="button" size="sm" onClick={resolvePaste} disabled={looking || !pasteText.trim()}>
+            {looking ? "Looking up…" : "Add Products"}
+          </Button>
+        </div>
+      )}
+
+      {/* Selected chips */}
       {selected.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 pt-1">
           {selected.map((s) => (
-            <span key={s.id} className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2 py-0.5 rounded-full">
+            <span key={s.id} className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-medium">
               {s.label}
-              <button type="button" onClick={() => onChange(selected.filter((x) => x.id !== s.id))}>
+              <button type="button" onClick={() => onChange(selected.filter((x) => x.id !== s.id))} className="text-indigo-400 hover:text-indigo-700">
                 <X className="h-3 w-3" />
               </button>
             </span>
@@ -238,12 +336,12 @@ function EventModal({
         </div>
 
         <form onSubmit={submit} className="p-6 space-y-4">
-          {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
+          {error && <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-700 mb-1">Title <span className="text-red-500">*</span></label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Brief description of the compliance issue" required />
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Brief description of the compliance issue" className="text-gray-900 placeholder:text-gray-400" required />
             </div>
 
             <div>
@@ -252,7 +350,7 @@ function EventModal({
                 value={typeId}
                 onChange={(e) => setTypeId(e.target.value)}
                 disabled={isEdit}
-                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50"
+                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
               >
                 {eventTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
@@ -263,7 +361,7 @@ function EventModal({
               <select
                 value={severity}
                 onChange={(e) => setSeverity(e.target.value)}
-                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -275,7 +373,7 @@ function EventModal({
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
-                  className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   {STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
                 </select>
@@ -284,7 +382,7 @@ function EventModal({
 
             <div className={isEdit ? "" : "col-span-1"}>
               <label className="block text-xs font-medium text-gray-700 mb-1">Due Date</label>
-              <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="text-gray-900" />
             </div>
 
             <div className="col-span-2">
@@ -293,8 +391,8 @@ function EventModal({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={2}
-                placeholder="Additional context..."
-                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Additional context…"
+                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
 
@@ -304,8 +402,8 @@ function EventModal({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
-                placeholder="Internal notes, action items, remediation steps..."
-                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Internal notes, action items, remediation steps…"
+                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
 
