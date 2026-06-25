@@ -831,7 +831,6 @@ model BackupConfig {
   id              String   @id @default(cuid())
   isEnabled       Boolean  @default(false)
   backupPath      String   @default("/var/backups/sympl")
-  encryptionKey   String   @db.Text
   scheduleType    String   @default("DAILY")
   scheduleHour    Int      @default(2)
   scheduleMinute  Int      @default(0)

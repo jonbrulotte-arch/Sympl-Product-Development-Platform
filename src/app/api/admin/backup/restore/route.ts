@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { createDecipheriv } from "crypto";
+import { getBackupKey } from "@/lib/backup-key";
 import { readFileSync, readdirSync, statSync } from "fs";
 import path from "path";
 
@@ -44,7 +45,12 @@ export async function POST(req: NextRequest) {
   if (!filePath) return NextResponse.json({ error: "filePath required" }, { status: 400 });
 
   const config = await prisma.backupConfig.findFirst();
-  if (!config?.encryptionKey) return NextResponse.json({ error: "Backup not configured" }, { status: 400 });
+  if (!config) return NextResponse.json({ error: "Backup not configured" }, { status: 400 });
+
+  let keyBuf: Buffer;
+  try { keyBuf = getBackupKey(); } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
 
   // Safety: only allow files inside the configured backup directory
   const resolvedPath = path.resolve(filePath);
@@ -59,7 +65,6 @@ export async function POST(req: NextRequest) {
     const authTag = payload.subarray(16, 32);
     const ciphertext = payload.subarray(32);
 
-    const keyBuf = Buffer.from(config.encryptionKey.slice(0, 64).padEnd(64, "0"), "hex");
     const decipher = createDecipheriv("aes-256-gcm", keyBuf, iv);
     decipher.setAuthTag(authTag);
     const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);

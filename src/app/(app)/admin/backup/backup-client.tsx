@@ -12,7 +12,6 @@ type BackupConfig = {
   id: string;
   isEnabled: boolean;
   backupPath: string;
-  encryptionKey: string;
   scheduleType: string;
   scheduleHour: number;
   scheduleMinute: number;
@@ -77,7 +76,6 @@ export function BackupClient() {
   const [form, setForm] = useState({
     isEnabled: false,
     backupPath: "/var/backups/sympl",
-    encryptionKey: "",
     scheduleType: "DAILY",
     scheduleHour: 2,
     scheduleMinute: 0,
@@ -97,7 +95,6 @@ export function BackupClient() {
         setForm({
           isEnabled: data.config.isEnabled,
           backupPath: data.config.backupPath,
-          encryptionKey: data.config.encryptionKey,
           scheduleType: data.config.scheduleType,
           scheduleHour: data.config.scheduleHour,
           scheduleMinute: data.config.scheduleMinute,
@@ -237,17 +234,6 @@ export function BackupClient() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Backup Directory</label>
               <Input value={form.backupPath} onChange={(e) => setForm(f => ({ ...f, backupPath: e.target.value }))} placeholder="/var/backups/sympl" />
               <p className="text-xs text-gray-400 mt-1">Must be writable by the Node.js process.</p>
-            </div>
-
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Encryption Key (AES-256-GCM)</label>
-              <Input
-                value={form.encryptionKey}
-                onChange={(e) => setForm(f => ({ ...f, encryptionKey: e.target.value }))}
-                placeholder="64-character hex key — leave as ••• to keep existing"
-                className="font-mono text-xs"
-              />
-              <p className="text-xs text-gray-400 mt-1">Store this key securely — backups cannot be decrypted without it.</p>
             </div>
 
             <div>

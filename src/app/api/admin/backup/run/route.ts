@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { createCipheriv, randomBytes } from "crypto";
+import { getBackupKey } from "@/lib/backup-key";
 import { createWriteStream, mkdirSync, readdirSync, statSync, unlinkSync } from "fs";
 import path from "path";
 import { pipeline } from "stream/promises";
@@ -20,8 +21,13 @@ export async function POST(req: NextRequest) {
   const triggeredBy: string = body.triggeredBy ?? "MANUAL";
 
   const config = await prisma.backupConfig.findFirst();
-  if (!config || !config.encryptionKey) {
+  if (!config) {
     return NextResponse.json({ error: "Backup not configured" }, { status: 400 });
+  }
+
+  let keyBuf: Buffer;
+  try { keyBuf = getBackupKey(); } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 
   const start = Date.now();
@@ -41,7 +47,6 @@ export async function POST(req: NextRequest) {
     });
 
     // Encrypt with AES-256-GCM: [16 iv][16 authTag][ciphertext]
-    const keyBuf = Buffer.from(config.encryptionKey.slice(0, 64).padEnd(64, "0"), "hex");
     const iv = randomBytes(16);
     const cipher = createCipheriv("aes-256-gcm", keyBuf, iv);
     const encrypted = Buffer.concat([cipher.update(stdout), cipher.final()]);
