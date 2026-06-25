@@ -301,8 +301,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 
-  // Enforce dependency and compliance gates when transitioning out of PENDING
-  if (status && status !== "PENDING") {
+  // Dependency/compliance gates only apply when finalizing (APPROVED/REJECTED/SKIPPED),
+  // not when simply opening a stage for review (IN_REVIEW)
+  if (status && ["APPROVED", "REJECTED", "SKIPPED"].includes(status)) {
     const stageForStatus = await prisma.workflowStage.findUnique({
       where: { id: stageId },
       select: {
