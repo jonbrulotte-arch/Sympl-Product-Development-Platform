@@ -104,12 +104,17 @@ export async function POST(_req: NextRequest, { params }: Params) {
         .sort((a, b) => a.valueIndex - b.valueIndex);
       if (avs.length === 0) continue;
       const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
-      rawValue = attr.maxValues > 1 ? values : values[0];
+      const isMultiValue = attr.maxValues > 1 || attr.attributeType === "MULTI_SELECT" || values.length > 1;
+      rawValue = isMultiValue ? values : values[0];
     }
 
-    salsifyProduct[attr.salsifyPropertyId] = attr.salsifyLocale
-      ? { [attr.salsifyLocale]: rawValue }
-      : rawValue;
+    if (attr.salsifyLocale) {
+      salsifyProduct[attr.salsifyPropertyId] = Array.isArray(rawValue)
+        ? rawValue.map((v) => ({ [attr.salsifyLocale!]: v }))
+        : { [attr.salsifyLocale]: rawValue };
+    } else {
+      salsifyProduct[attr.salsifyPropertyId] = rawValue;
+    }
   }
 
   const encoded = encodeURIComponent(salsifyId);

@@ -119,13 +119,19 @@ export async function POST(_req: NextRequest, { params }: Params) {
           .sort((a, b) => a.valueIndex - b.valueIndex);
         if (avs.length === 0) continue;
         const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
-        rawValue = attr.maxValues > 1 ? values : values[0];
+        const isMultiValue = attr.maxValues > 1 || attr.attributeType === "MULTI_SELECT" || values.length > 1;
+        rawValue = isMultiValue ? values : values[0];
       }
 
-      // Localizable properties must be wrapped: { "locale": value }
-      salsifyProduct[attr.salsifyPropertyId] = attr.salsifyLocale
-        ? { [attr.salsifyLocale]: rawValue }
-        : rawValue;
+      // Localizable multi-value properties need each value wrapped: [{ locale: v1 }, { locale: v2 }]
+      // Single localizable values are wrapped as: { locale: value }
+      if (attr.salsifyLocale) {
+        salsifyProduct[attr.salsifyPropertyId] = Array.isArray(rawValue)
+          ? rawValue.map((v) => ({ [attr.salsifyLocale!]: v }))
+          : { [attr.salsifyLocale]: rawValue };
+      } else {
+        salsifyProduct[attr.salsifyPropertyId] = rawValue;
+      }
     }
 
     try {
