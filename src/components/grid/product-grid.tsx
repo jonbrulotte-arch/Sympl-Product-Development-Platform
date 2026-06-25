@@ -35,6 +35,12 @@ interface AttrDef {
   lovItems: { value: string; label: string }[];
 }
 
+// True when an attribute can hold multiple values — covers both explicit maxValues > 1
+// and MULTI_SELECT type (where maxValues may still be at the default of 1).
+function isMultiValueAttr(attr: AttrDef): boolean {
+  return attr.maxValues > 1 || attr.attributeType === "MULTI_SELECT";
+}
+
 // key → joined display string; raw arrays kept in _eavArrays
 type EavMap = Record<string, string | undefined>;
 type EavArrayMap = Record<string, string[]>;
@@ -460,7 +466,7 @@ export function ProductGrid({
           let body: Record<string, unknown>;
           if (attrDef) {
             const raw = value != null ? String(value) : "";
-            const vals = attrDef.maxValues > 1
+            const vals = isMultiValueAttr(attrDef)
               ? raw.split("\n").map((s) => s.trim()).filter(Boolean)
               : [raw];
             body = {
@@ -880,7 +886,7 @@ export function ProductGrid({
                       if (p.id !== row.original.id) return p;
                       if (attrDef) {
                         const raw = String(value);
-                        const vals = attrDef.maxValues > 1
+                        const vals = isMultiValueAttr(attrDef)
                           ? raw.split("\n").map((s) => s.trim()).filter(Boolean)
                           : [raw];
                         const displayStr = vals.join(" · ");
@@ -1188,7 +1194,7 @@ function GridRow({
                 </span>
               </div>
             ) : editing ? (() => {
-              const isMulti = attrDef && attrDef.maxValues > 1;
+              const isMulti = attrDef && isMultiValueAttr(attrDef);
               const editDefault = isMulti
                 ? ((row.original as ProductRow)._eavArrays?.[attrDef!.key] ?? []).join("\n")
                 : (value != null ? String(value) : "");
@@ -1260,7 +1266,7 @@ function GridRow({
             })() : (
               <div className={cn("px-2 py-1 text-sm truncate min-h-[32px] flex items-center gap-1 flex-wrap", isEav ? "text-amber-900" : "text-gray-700")}>
                 {value != null && String(value) !== "" ? (() => {
-                  if (attrDef?.maxValues && attrDef.maxValues > 1) {
+                  if (attrDef && isMultiValueAttr(attrDef)) {
                     const vals = (row.original as ProductRow)._eavArrays?.[attrDef.key] ?? [];
                     if (attrDef.lovItems?.length) {
                       return vals.map((v, i) => {
@@ -1333,7 +1339,7 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
   const selectedCoreAttr = coreAttrDefs.find((a) => a.key === field);
   const selectedAnyAttr = selectedEavAttr ?? selectedCoreAttr;
   // Append only meaningful for multi-value EAV attributes
-  const supportsAppend = !!(selectedEavAttr && selectedEavAttr.maxValues > 1);
+  const supportsAppend = !!(selectedEavAttr && isMultiValueAttr(selectedEavAttr));
 
   const apply = async () => {
     if (!field || !writeMode) return;
@@ -1355,9 +1361,10 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
             for (const v of incoming) {
               if (!merged.includes(v)) merged.push(v);
             }
-            vals = merged.slice(0, selectedEavAttr.maxValues);
+            const cap = selectedEavAttr.maxValues > 1 ? selectedEavAttr.maxValues : Infinity;
+            vals = merged.slice(0, cap);
           } else {
-            vals = selectedEavAttr.maxValues > 1
+            vals = isMultiValueAttr(selectedEavAttr)
               ? value.split("\n").map((s) => s.trim()).filter(Boolean)
               : [value];
           }
@@ -1462,7 +1469,7 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
 
             <div className="space-y-2">
               <label className="text-xs font-medium text-gray-600">New value</label>
-              {selectedAnyAttr?.lovItems?.length && selectedEavAttr && selectedEavAttr.maxValues > 1 ? (
+              {selectedAnyAttr?.lovItems?.length && selectedEavAttr && isMultiValueAttr(selectedEavAttr) ? (
                 <div className="border border-gray-300 rounded-md overflow-hidden max-h-44 overflow-y-auto">
                   {selectedAnyAttr.lovItems.map((l) => {
                     const currentVals = value ? value.split("\n").filter(Boolean) : [];
@@ -1496,7 +1503,7 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
                     <option key={l.value} value={l.value}>{l.label}</option>
                   ))}
                 </select>
-              ) : selectedEavAttr && selectedEavAttr.maxValues > 1 ? (
+              ) : selectedEavAttr && isMultiValueAttr(selectedEavAttr) ? (
                 <textarea
                   rows={3}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"

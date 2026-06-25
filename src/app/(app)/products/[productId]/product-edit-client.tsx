@@ -113,7 +113,7 @@ function FieldInput({
 }) {
   const isBoolean = attr.attributeType === "BOOLEAN";
   const isNumber = attr.attributeType === "NUMBER" || attr.attributeType === "DECIMAL";
-  const isMulti = attr.maxValues > 1;
+  const isMulti = attr.maxValues > 1 || attr.attributeType === "MULTI_SELECT";
 
   if (isBoolean) {
     return (
@@ -664,8 +664,10 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
     for (const attr of allEav) {
       const raw = eav[attr.id] ?? "";
       if (!raw.trim()) continue;
-      const vals = attr.maxValues > 1
-        ? raw.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, attr.maxValues)
+      const multiValue = attr.maxValues > 1 || attr.attributeType === "MULTI_SELECT";
+      const cap = attr.maxValues > 1 ? attr.maxValues : Infinity;
+      const vals = multiValue
+        ? raw.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, cap)
         : [raw.trim()];
       vals.forEach((textValue, valueIndex) => {
         attributeValues.push({ attributeDefinitionId: attr.id, valueIndex, textValue });

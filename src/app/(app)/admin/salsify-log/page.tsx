@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -95,9 +95,8 @@ export default function SalsifyLogPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {logs.map((log) => (
-                <>
+                <React.Fragment key={log.id}>
                   <tr
-                    key={log.id}
                     className={`hover:bg-gray-50 cursor-pointer ${expandedId === log.id ? "bg-gray-50" : ""}`}
                     onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
                   >
@@ -149,7 +148,7 @@ export default function SalsifyLogPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               ))}
             </tbody>
           </table>
