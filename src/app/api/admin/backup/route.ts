@@ -13,7 +13,10 @@ export async function GET() {
     prisma.backupLog.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
   ]);
 
-  return NextResponse.json({ config, logs });
+  return NextResponse.json({
+    config,
+    logs: logs.map((l) => ({ ...l, fileSizeBytes: l.fileSizeBytes != null ? l.fileSizeBytes.toString() : null })),
+  });
 }
 
 // POST — create or update config
