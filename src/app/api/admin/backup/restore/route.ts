@@ -5,8 +5,9 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { createDecipheriv } from "crypto";
 import { getBackupKey } from "@/lib/backup-key";
-import { readFileSync, readdirSync, statSync } from "fs";
+import { readFileSync, writeFileSync, unlinkSync, readdirSync, statSync } from "fs";
 import path from "path";
+import os from "os";
 
 const execFileAsync = promisify(execFile);
 
@@ -71,15 +72,18 @@ export async function POST(req: NextRequest) {
 
     const dbUrl = process.env.DATABASE_URL ?? "";
 
-    // pg_restore with --clean drops existing objects before restoring
-    await execFileAsync(
-      "pg_restore",
-      ["--no-password", "--clean", "--if-exists", "--format=custom", "--dbname", dbUrl],
-      {
-        input: decrypted,
-        maxBuffer: 512 * 1024 * 1024,
-      }
-    );
+    // Write decrypted dump to a temp file — pg_restore custom format requires random access (can't use stdin)
+    const tmpFile = path.join(os.tmpdir(), `sympl-restore-${Date.now()}.pgdump`);
+    writeFileSync(tmpFile, decrypted);
+    try {
+      await execFileAsync(
+        "pg_restore",
+        ["--no-password", "--clean", "--if-exists", "--format=custom", "--dbname", dbUrl, tmpFile],
+        { maxBuffer: 512 * 1024 * 1024 }
+      );
+    } finally {
+      unlinkSync(tmpFile);
+    }
 
     await prisma.backupLog.create({
       data: {
