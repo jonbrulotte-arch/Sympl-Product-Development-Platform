@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/utils";
 import {
   Package, Calendar, Download, ArrowLeft, Users,
   MessageSquare, Clock, CheckCircle, RefreshCw, Plus, Trash2, Settings, Pencil, X, Lock, ShieldCheck, ClipboardCheck,
+  ChevronUp, ChevronDown,
 } from "lucide-react";
 import type { ProjectWithRelations, ProductWithAttributes } from "@/types";
 import Link from "next/link";
@@ -401,6 +402,33 @@ function WorkflowView({
     if (res.ok) setStages((prev) => prev.filter((s) => s.id !== stageId));
   };
 
+  const moveStage = async (stageId: string, direction: -1 | 1) => {
+    const sorted = [...stages].sort((a, b) => a.sortOrder - b.sortOrder);
+    const idx = sorted.findIndex((s) => s.id === stageId);
+    const swapIdx = idx + direction;
+    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+
+    // Swap sortOrders
+    const reorder = [
+      { id: sorted[idx].id, sortOrder: sorted[swapIdx].sortOrder },
+      { id: sorted[swapIdx].id, sortOrder: sorted[idx].sortOrder },
+    ];
+
+    // Optimistic update
+    setStages((prev) =>
+      prev.map((s) => {
+        const r = reorder.find((x) => x.id === s.id);
+        return r ? { ...s, sortOrder: r.sortOrder } : s;
+      })
+    );
+
+    await fetch(`/api/projects/${project.id}/workflow`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reorder }),
+    });
+  };
+
   const applyTemplate = async (templateId: string) => {
     setSaving(true);
     const res = await fetch(`/api/projects/${project.id}/workflow`, {
@@ -537,7 +565,7 @@ function WorkflowView({
           </div>
         )}
 
-        {stages.map((stage, idx) => {
+        {[...stages].sort((a, b) => a.sortOrder - b.sortOrder).map((stage, idx) => {
           const myApproval = stage.approvals.find((a) => a.approver.id === currentUserId);
           // Blocked when the dependency stage exists and is not yet approved/skipped
           const depStage = stage.dependsOnStage;
@@ -554,16 +582,42 @@ function WorkflowView({
           const isAssigning = assigningFor === stage.id;
           const assignedIds = new Set(stage.approvals.map((a) => a.approver.id));
 
+          const sortedStages = [...stages].sort((a, b) => a.sortOrder - b.sortOrder);
+          const isFirst = sortedStages[0]?.id === stage.id;
+          const isLast = sortedStages[sortedStages.length - 1]?.id === stage.id;
+
           return (
             <div key={stage.id} className="flex items-start gap-4">
-              {/* Step number */}
-              <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                stage.status === "APPROVED" ? "bg-green-100 text-green-700" :
-                stage.status === "IN_REVIEW" ? "bg-blue-100 text-blue-700" :
-                stage.status === "REJECTED" ? "bg-red-100 text-red-700" :
-                "bg-gray-100 text-gray-500"
-              }`}>
-                {idx + 1}
+              {/* Step number + reorder buttons */}
+              <div className="flex flex-col items-center gap-0.5">
+                <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                  stage.status === "APPROVED" ? "bg-green-100 text-green-700" :
+                  stage.status === "IN_REVIEW" ? "bg-blue-100 text-blue-700" :
+                  stage.status === "REJECTED" ? "bg-red-100 text-red-700" :
+                  "bg-gray-100 text-gray-500"
+                }`}>
+                  {idx + 1}
+                </div>
+                {canEdit && (
+                  <div className="flex flex-col">
+                    <button
+                      onClick={() => moveStage(stage.id, -1)}
+                      disabled={isFirst}
+                      className="p-0.5 text-gray-300 hover:text-gray-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                      title="Move up"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => moveStage(stage.id, 1)}
+                      disabled={isLast}
+                      className="p-0.5 text-gray-300 hover:text-gray-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                      title="Move down"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="flex-1 bg-white border border-gray-200 rounded-lg overflow-hidden">

@@ -144,6 +144,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const body = await req.json();
+  // Bulk reorder — accepts { reorder: [{ id, sortOrder }, ...] }
+  if (body.reorder && Array.isArray(body.reorder)) {
+    await Promise.all(
+      (body.reorder as { id: string; sortOrder: number }[]).map(({ id, sortOrder }) =>
+        prisma.workflowStage.update({ where: { id }, data: { sortOrder } })
+      )
+    );
+    return NextResponse.json({ success: true });
+  }
+
   const { stageId, status, name, description, onApproveSetStatus, onRejectSetStatus, dependsOnStageId, complianceEventId, psirId, vote, voteComment, reset } = body;
   if (!stageId) return NextResponse.json({ error: "stageId required" }, { status: 400 });
 
