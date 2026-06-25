@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   BookOpen, Package, FolderKanban, Upload, CheckCircle,
   ListFilter, Tag, ChevronDown, ChevronRight, Code2, Zap,
-  Info, Search, ExternalLink, ShieldCheck, ClipboardCheck,
+  Info, Search, ShieldCheck, ClipboardCheck, HardDrive,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -130,9 +130,11 @@ const sections: Section[] = [
 
         <H3>Roles</H3>
         <UL>
-          <LI><strong>Admin</strong> — full access to all projects, users, attributes, and settings.</LI>
-          <LI><strong>Product Manager</strong> — can create and manage projects; access to admin attribute/category pages.</LI>
-          <LI><strong>Editor</strong> — can edit products in projects they belong to.</LI>
+          <LI><strong>Admin</strong> — full access to all projects, users, attributes, settings, and backup.</LI>
+          <LI><strong>Product Manager</strong> — can create and manage projects; access to admin attribute/category pages; can sync products to Salsify.</LI>
+          <LI><strong>Contributor</strong> — can edit products in projects they belong to.</LI>
+          <LI><strong>Reviewer</strong> — can view and comment on projects; cannot edit product data.</LI>
+          <LI><strong>Approver</strong> — can cast approval votes on workflow stages they are assigned to.</LI>
           <LI><strong>Viewer</strong> — read-only access to their projects.</LI>
         </UL>
 
@@ -150,13 +152,16 @@ const sections: Section[] = [
         <H3>Project statuses</H3>
         <UL>
           <LI><strong>Draft</strong> — work in progress, not yet submitted.</LI>
-          <LI><strong>In Review</strong> — submitted for approval; workflow stages are active.</LI>
+          <LI><strong>In Progress</strong> — actively being worked on.</LI>
+          <LI><strong>Needs Review</strong> — submitted for internal review.</LI>
+          <LI><strong>Changes Requested</strong> — reviewer has requested revisions.</LI>
           <LI><strong>Approved</strong> — all required workflow stages have been approved.</LI>
-          <LI><strong>Rejected</strong> — at least one required stage was rejected.</LI>
-          <LI><strong>On Hold</strong> — paused; no action pending.</LI>
-          <LI><strong>Cancelled</strong> — project will not proceed.</LI>
-          <LI><strong>Completed</strong> — project is finalized and archived.</LI>
+          <LI><strong>Export Ready</strong> — data is finalized and ready to push to downstream systems (e.g. Salsify).</LI>
+          <LI><strong>Archived</strong> — project is closed and no longer active.</LI>
         </UL>
+
+        <H3>Search & Filter</H3>
+        <P>The Projects page supports searching by project name and filtering by status. Use the search bar to find projects by name, and the status dropdown to narrow by current status. Toggle between <strong>Card</strong> and <strong>List</strong> view using the icons in the top-right — the list view shows all key columns in a compact table.</P>
 
         <H3>Members</H3>
         <P>Add members to a project from the Settings tab. Members inherit the permissions of their global role. The project owner always has editor-level access regardless of role.</P>
@@ -299,7 +304,7 @@ const sections: Section[] = [
         <UL>
           <LI>Go to <strong>Inspections</strong> in the sidebar and click <strong>New Report</strong>.</LI>
           <LI>Enter a title — you are taken to the full report detail page where you fill in all fields.</LI>
-          <LI>Link products by searching in the Products section of the report.</LI>
+          <LI>Link products by searching in the Products section of the report, or use <strong>Bulk Add</strong> to paste a list of part numbers and resolve them all at once.</LI>
           <LI>Upload the inspection document (PDF, Excel, images, or any format) by dragging a file onto the Documents area or clicking <strong>Upload File</strong>.</LI>
         </UL>
 
@@ -324,6 +329,9 @@ const sections: Section[] = [
 
         <H3>File uploads</H3>
         <P>Drag and drop files directly onto the Documents section or click Upload File. Files are stored on the server and can be downloaded at any time. Deleting a document removes it from disk immediately.</P>
+
+        <H3>Bulk Add products</H3>
+        <P>In the Products section of a PSIR, click <strong>Bulk Add</strong> to open a paste panel. Paste part numbers separated by commas, semicolons, or newlines, then click <strong>Look Up</strong>. Sympl resolves each part number and shows a green (found) or red (not found) preview. Click <strong>Add N Products</strong> to link all resolved products at once.</P>
 
         <H3>Product tab on product edit page</H3>
         <P>When viewing a product at <Code>/products/[id]</Code>, switch to the <strong>Inspections</strong> tab to see all PSIRs linked to that product.</P>
@@ -671,12 +679,68 @@ const sections: Section[] = [
         <P>In <strong>Admin → Attributes</strong>, open any attribute, enable the Salsify toggle, and enter the Salsify Property ID. This is the property name in Salsify that this attribute's value will be written to.</P>
 
         <H3>Syncing products</H3>
-        <P>From a project, click the <strong>Sync to Salsify</strong> button (available when Salsify is enabled). This sends all products in the project with their mapped attribute values to Salsify.</P>
+        <P>From a project, click the <strong>Sync to Salsify</strong> button (available when Salsify is enabled and the project is in <strong>Export Ready</strong> status). This sends all products in the project with their mapped attribute values to Salsify.</P>
+        <P>Admins and Product Managers can also sync a single product directly from its edit page (<Code>/products/[id]</Code>) using the <strong>Sync to Salsify</strong> button in the top-right. This is useful for pushing updates to a single product without re-syncing the whole project.</P>
 
         <H3>Multi-value attributes</H3>
         <P>Attributes with Max Values &gt; 1 are sent to Salsify as JSON arrays, making them compatible with multi-value Salsify properties.</P>
 
         <Callout type="tip">Check the <strong>Salsify Sync Log</strong> in project settings to see the results of the last sync — how many products were sent and any errors.</Callout>
+      </>
+    ),
+  },
+  {
+    id: "backup",
+    icon: HardDrive,
+    title: "Backup & Restore",
+    color: "text-slate-600 bg-slate-100",
+    content: (
+      <>
+        <H3>Overview</H3>
+        <P>
+          Admins can create encrypted backups of the PostgreSQL database and restore from any saved snapshot.
+          Backups are stored as <Code>.pgenc</Code> files on the local server. Each file is encrypted with
+          AES-256-GCM before being written to disk.
+        </P>
+
+        <H3>Encryption key</H3>
+        <P>
+          The encryption key is derived automatically from the <Code>BACKUP_ENCRYPTION_KEY</Code> environment
+          variable (64-character hex string). If that variable is not set, the key is derived from
+          <Code>NEXTAUTH_SECRET</Code> using HMAC-SHA256. You do not configure the key in the UI —
+          it is controlled entirely through environment variables.
+        </P>
+        <Callout type="tip">
+          If you need to restore a backup on a different server, ensure the same <Code>BACKUP_ENCRYPTION_KEY</Code> (or <Code>NEXTAUTH_SECRET</Code>) is set on that server — otherwise decryption will fail.
+        </Callout>
+
+        <H3>Configuration</H3>
+        <UL>
+          <LI><strong>Backup Directory</strong> — the server path where <Code>.pgenc</Code> files are written. The Node.js process must have write permission to this path.</LI>
+          <LI><strong>Schedule</strong> — Hourly, Daily, or Weekly. Requires an external cron job to call <Code>POST /api/admin/backup/run</Code>.</LI>
+          <LI><strong>Time</strong> — for Daily/Weekly schedules, the hour and minute (24h) at which the backup should run.</LI>
+          <LI><strong>Retain last N backups</strong> — older files beyond this count are automatically deleted after each successful backup.</LI>
+        </UL>
+
+        <H3>Running a backup manually</H3>
+        <P>Click <strong>Run Now</strong> at the top of the Backup & Restore page. The backup runs immediately and the result (file size, duration) appears as a banner. All runs are recorded in the <strong>Activity Log</strong> tab.</P>
+
+        <H3>Restoring from a backup</H3>
+        <P>Go to the <strong>Restore</strong> tab. Available <Code>.pgenc</Code> files in the backup directory are listed newest-first. Click <strong>Restore</strong> next to the snapshot you want to restore from.</P>
+        <Callout type="tip">
+          Restore uses <Code>pg_restore --clean --if-exists</Code>, which drops and recreates all objects before restoring. <strong>All current data will be overwritten.</strong> Reload the application after a successful restore.
+        </Callout>
+
+        <H3>Scheduled backups</H3>
+        <P>
+          Sympl does not run a built-in scheduler. To automate backups, add a cron entry on your server
+          that calls the backup endpoint with an authenticated admin session token:
+        </P>
+        <pre className="text-xs font-mono bg-gray-900 text-gray-100 rounded-lg p-3 overflow-x-auto mb-3">{`# Example: daily at 2:00 AM
+0 2 * * * curl -s -X POST https://your-server/api/admin/backup/run \\
+  -H "Cookie: next-auth.session-token=<token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"triggeredBy":"SCHEDULE"}'`}</pre>
       </>
     ),
   },
