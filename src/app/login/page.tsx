@@ -34,11 +34,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Sympl</h1>
-          <p className="text-gray-500 mt-1 text-sm">Product Development Platform</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight">
+            Sympl <span className="text-blue-400">PM</span>
+          </h1>
+          <p className="text-gray-400 mt-1 text-sm">Product Development Platform</p>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
@@ -84,7 +86,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
+        <p className="text-center text-xs text-gray-500 mt-6">
           Contact your administrator to get access.
         </p>
       </div>
