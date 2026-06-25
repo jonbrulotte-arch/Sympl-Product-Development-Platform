@@ -254,8 +254,8 @@ function Field({
 
 function Card({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-      <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+    <div className="bg-white border border-gray-200 rounded-xl">
+      <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between rounded-t-xl">
         <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{title}</h3>
         {action}
       </div>
@@ -563,7 +563,7 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
           <Card
             title={`Products (${psir.products.length})`}
             action={
-              <div className="w-96">
+              <div className="w-96 overflow-visible">
                 <ProductPicker linkedIds={linkedIds} onAdd={addProduct} onBulkAdd={bulkAddProducts} />
               </div>
             }
