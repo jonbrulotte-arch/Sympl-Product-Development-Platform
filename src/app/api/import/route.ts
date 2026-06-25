@@ -108,32 +108,62 @@ export async function POST(req: NextRequest) {
       continue; // skip if no meaningful data
     }
 
+    // Separate core fields from custom attribute values (attr:KEY prefix)
+    const coreData: Record<string, unknown> = {};
+    const attrValues: { key: string; value: string }[] = [];
+    for (const [field, value] of Object.entries(productData)) {
+      if (field.startsWith("attr:")) {
+        attrValues.push({ key: field.slice(5), value: value as string });
+      } else {
+        coreData[field] = value;
+      }
+    }
+
     try {
-      await prisma.productRecord.create({
+      const product = await prisma.productRecord.create({
         data: {
           projectId,
           createdById: session.user.id,
           updatedById: session.user.id,
           rowIndex: nextRowIndex++,
-          partNumber: productData.partNumber as string | undefined,
-          modelNumber: productData.modelNumber as string | undefined,
-          itemName: productData.itemName as string | undefined,
-          brand: productData.brand as string | undefined,
-          upc: productData.upc as string | undefined,
-          inventoryStatus: productData.inventoryStatus as string | undefined,
-          warrantyInfo: productData.warrantyInfo as string | undefined,
-          htsCode: productData.htsCode as string | undefined,
-          htsCodeCanada: productData.htsCodeCanada as string | undefined,
-          productComposition: productData.productComposition as string | undefined,
-          packagingType: productData.packagingType as string | undefined,
-          packSize: productData.packSize as string | undefined,
-          material: productData.material as string | undefined,
-          size: productData.size as string | undefined,
-          jspCategory: productData.jspCategory as string | undefined,
-          masterCartonGtin: productData.masterCartonGtin as string | undefined,
-          palletGtin: productData.palletGtin as string | undefined,
+          partNumber: coreData.partNumber as string | undefined,
+          modelNumber: coreData.modelNumber as string | undefined,
+          itemName: coreData.itemName as string | undefined,
+          brand: coreData.brand as string | undefined,
+          upc: coreData.upc as string | undefined,
+          inventoryStatus: coreData.inventoryStatus as string | undefined,
+          warrantyInfo: coreData.warrantyInfo as string | undefined,
+          htsCode: coreData.htsCode as string | undefined,
+          htsCodeCanada: coreData.htsCodeCanada as string | undefined,
+          productComposition: coreData.productComposition as string | undefined,
+          packagingType: coreData.packagingType as string | undefined,
+          packSize: coreData.packSize as string | undefined,
+          material: coreData.material as string | undefined,
+          size: coreData.size as string | undefined,
+          jspCategory: coreData.jspCategory as string | undefined,
+          masterCartonGtin: coreData.masterCartonGtin as string | undefined,
+          palletGtin: coreData.palletGtin as string | undefined,
         },
       });
+
+      if (attrValues.length > 0) {
+        const attrDefs = await prisma.attributeDefinition.findMany({
+          where: { key: { in: attrValues.map((a) => a.key) }, isActive: true },
+          select: { id: true, key: true },
+        });
+        const defByKey = Object.fromEntries(attrDefs.map((d) => [d.key, d.id]));
+        await prisma.productAttributeValue.createMany({
+          data: attrValues
+            .filter((a) => defByKey[a.key] && a.value)
+            .map((a) => ({
+              productId: product.id,
+              attributeDefinitionId: defByKey[a.key],
+              textValue: a.value,
+            })),
+          skipDuplicates: true,
+        });
+      }
+
       importedRows++;
     } catch {
       errorRows++;

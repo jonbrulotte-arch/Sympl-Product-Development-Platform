@@ -49,16 +49,32 @@ const SYMPL_FIELDS = [
   { key: "palletQty", label: "Pallet Qty" },
 ];
 
+type AttrOption = { key: string; label: string };
+
 // Auto-detect mappings from Excel column headers
-function autoDetect(headers: string[]): Record<string, string> {
+// Prefers exact match, then falls back to substring — checks longer (more specific) labels first
+function autoDetect(headers: string[], extraFields: AttrOption[]): Record<string, string> {
   const mapping: Record<string, string> = {};
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
+  const allFields = [...SYMPL_FIELDS, ...extraFields].sort(
+    (a, b) => normalize(b.label).length - normalize(a.label).length
+  );
+
   for (const header of headers) {
     const norm = normalize(header);
-    for (const field of SYMPL_FIELDS) {
+    // Exact match pass
+    for (const field of allFields) {
+      if (norm === normalize(field.label)) {
+        mapping[header] = field.key;
+        break;
+      }
+    }
+    if (mapping[header]) continue;
+    // Partial match pass (longer fields checked first thanks to sort above)
+    for (const field of allFields) {
       const fieldNorm = normalize(field.label);
-      if (norm === fieldNorm || norm.includes(fieldNorm) || fieldNorm.includes(norm)) {
+      if (norm.includes(fieldNorm) || fieldNorm.includes(norm)) {
         mapping[header] = field.key;
         break;
       }
@@ -101,6 +117,7 @@ function ImportWizardContent() {
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
+  const [attrFields, setAttrFields] = useState<AttrOption[]>([]);
 
   const projectId = selectedProjectId || initialProjectId;
 
@@ -113,6 +130,17 @@ function ImportWizardContent() {
       .catch(() => {})
       .finally(() => setProjectsLoading(false));
   }, [initialProjectId]);
+
+  useEffect(() => {
+    fetch("/api/attributes")
+      .then((r) => r.json())
+      .then((data: { key: string; label: string }[]) => {
+        if (Array.isArray(data)) {
+          setAttrFields(data.map((a) => ({ key: `attr:${a.key}`, label: a.label })));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
@@ -151,7 +179,7 @@ function ImportWizardContent() {
       if (!res.ok) throw new Error("Failed to parse file");
       const data = await res.json();
       setPreview(data);
-      setMapping(autoDetect(data.headers));
+      setMapping(autoDetect(data.headers, attrFields));
       setStep("preview");
     } catch {
       setError("Failed to parse the file. Please ensure it is a valid Excel (.xlsx) file.");
@@ -338,14 +366,23 @@ function ImportWizardContent() {
                     <div className="flex-1 text-sm text-gray-700 font-medium truncate">{header}</div>
                     <div className="text-gray-400 text-xs">→</div>
                     <select
-                      className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       value={mapping[header] ?? ""}
                       onChange={(e) => setMapping((prev) => ({ ...prev, [header]: e.target.value }))}
                     >
                       <option value="">— Skip —</option>
-                      {SYMPL_FIELDS.map((f) => (
-                        <option key={f.key} value={f.key}>{f.label}</option>
-                      ))}
+                      <optgroup label="Core Fields">
+                        {SYMPL_FIELDS.map((f) => (
+                          <option key={f.key} value={f.key}>{f.label}</option>
+                        ))}
+                      </optgroup>
+                      {attrFields.length > 0 && (
+                        <optgroup label="Custom Attributes">
+                          {attrFields.map((f) => (
+                            <option key={f.key} value={f.key}>{f.label}</option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                   </div>
                 ))}
