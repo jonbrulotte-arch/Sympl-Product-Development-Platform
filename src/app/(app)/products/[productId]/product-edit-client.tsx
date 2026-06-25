@@ -46,7 +46,7 @@ interface Product {
   palletHeight: number | null; palletWidth: number | null; palletLength: number | null;
   palletWeight: number | null; palletStackable: boolean; layersPerPallet: number | null; palletQty: number | null;
   updatedAt: string; createdAt: string;
-  project: { id: string; name: string; status: string; brand: string | null };
+  project: { id: string; name: string; status: string; brand: string | null; categoryId: string | null; category: { id: string; name: string } | null };
   category: { id: string; name: string } | null;
   createdBy: { name: string | null; email: string };
   updatedBy: { name: string | null; email: string } | null;
@@ -58,6 +58,8 @@ interface Props {
   globalAttrs: AttrDef[];
   categoryAttrs: AttrDef[];
   coreAttrDefs: AttrDef[];
+  effectiveCategoryId: string | null;
+  projectCategory: { id: string; name: string } | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -513,7 +515,7 @@ function PsirPanel({ productId }: { productId: string }) {
 
 type Tab = "details" | "compliance" | "psir";
 
-export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs }: Props) {
+export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<Tab>("details");
@@ -648,7 +650,12 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
               {product.partNumber && (
                 <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{product.partNumber}</span>
               )}
-              {product.category && <Badge variant="secondary">{product.category.name}</Badge>}
+              {product.category
+                ? <Badge variant="secondary">{product.category.name}</Badge>
+                : projectCategory
+                  ? <Badge variant="secondary" className="opacity-60" title="Inherited from project">{projectCategory.name} (inherited)</Badge>
+                  : null
+              }
               <ProjectStatusBadge status={product.project.status as never} />
             </div>
           </div>

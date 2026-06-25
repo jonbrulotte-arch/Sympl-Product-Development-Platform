@@ -36,7 +36,7 @@ export default async function ProductEditPage({
   const product = await prisma.productRecord.findUnique({
     where: { id: productId },
     include: {
-      project: { select: { id: true, name: true, status: true, brand: true } },
+      project: { select: { id: true, name: true, status: true, brand: true, categoryId: true, category: true } },
       category: true,
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
@@ -49,15 +49,18 @@ export default async function ProductEditPage({
 
   if (!product) notFound();
 
+  // Effective category: product's own override, else inherit from project
+  const effectiveCategoryId = product.categoryId ?? product.project.categoryId ?? null;
+
   const [globalAttrs, categoryAttrs, coreAttrDefs] = await Promise.all([
     prisma.attributeDefinition.findMany({
       where: { categoryId: null, isActive: true, key: { notIn: Array.from(CORE_COLUMN_KEYS) } },
       ...attrInclude,
       orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
     }),
-    product.categoryId
+    effectiveCategoryId
       ? prisma.attributeDefinition.findMany({
-          where: { categoryId: product.categoryId, isActive: true },
+          where: { categoryId: effectiveCategoryId, isActive: true },
           ...attrInclude,
           orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
         })
@@ -79,6 +82,8 @@ export default async function ProductEditPage({
       globalAttrs={serialized.globalAttrs}
       categoryAttrs={serialized.categoryAttrs}
       coreAttrDefs={serialized.coreAttrDefs}
+      effectiveCategoryId={effectiveCategoryId}
+      projectCategory={serialized.product.project.category ?? null}
     />
   );
 }

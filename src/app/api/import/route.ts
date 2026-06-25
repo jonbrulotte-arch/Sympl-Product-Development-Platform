@@ -66,6 +66,12 @@ export async function POST(req: NextRequest) {
   const headers = raw[headerRowIndex] as string[];
   const dataRows = raw.slice(headerRowIndex + 2);
 
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { categoryId: true },
+  });
+  const projectCategoryId = project?.categoryId ?? null;
+
   let importRecord = await prisma.importHistory.create({
     data: {
       projectId,
@@ -123,6 +129,7 @@ export async function POST(req: NextRequest) {
       const product = await prisma.productRecord.create({
         data: {
           projectId,
+          categoryId: projectCategoryId,
           createdById: session.user.id,
           updatedById: session.user.id,
           rowIndex: nextRowIndex++,

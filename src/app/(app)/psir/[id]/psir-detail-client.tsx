@@ -83,13 +83,19 @@ function formatBytes(bytes: number): string {
 function ProductPicker({
   linkedIds,
   onAdd,
+  onBulkAdd,
 }: {
   linkedIds: Set<string>;
   onAdd: (p: ProductRef) => void;
+  onBulkAdd: (ids: string[]) => void;
 }) {
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<ProductRef[]>([]);
   const [open, setOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState("");
+  const [bulkResolving, setBulkResolving] = useState(false);
+  const [bulkResolved, setBulkResolved] = useState<{ found: ProductRef[]; notFound: string[] } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -106,37 +112,126 @@ function ProductPicker({
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [search, linkedIds]);
 
+  async function resolveBulk() {
+    const parts = bulkText
+      .split(/[\n,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!parts.length) return;
+    setBulkResolving(true);
+    setBulkResolved(null);
+    const found: ProductRef[] = [];
+    const notFound: string[] = [];
+    await Promise.all(
+      parts.map(async (pn) => {
+        const res = await fetch(`/api/products?search=${encodeURIComponent(pn)}&pageSize=5`);
+        if (res.ok) {
+          const data = await res.json();
+          const match = (data.data ?? []).find(
+            (p: ProductRef) => p.partNumber?.toLowerCase() === pn.toLowerCase()
+          );
+          if (match && !linkedIds.has(match.id)) found.push(match);
+          else if (!match) notFound.push(pn);
+        }
+      })
+    );
+    setBulkResolved({ found, notFound });
+    setBulkResolving(false);
+  }
+
+  async function confirmBulk() {
+    if (!bulkResolved?.found.length) return;
+    onBulkAdd(bulkResolved.found.map((p) => p.id));
+    setBulkOpen(false);
+    setBulkText("");
+    setBulkResolved(null);
+  }
+
   return (
-    <div className="relative">
-      <div className="relative">
-        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
-        <Input
-          className="pl-8 text-sm h-8"
-          placeholder="Search products to link…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onFocus={() => results.length && setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-        />
-      </div>
-      {open && results.length > 0 && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-          {results.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onMouseDown={() => { onAdd(p); setSearch(""); setOpen(false); }}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
-            >
-              <span>
-                <span className="font-mono text-xs text-gray-400">{p.partNumber ?? "—"}</span>
-                {" "}<span className="text-gray-700">{p.itemName ?? ""}</span>
-              </span>
-              <span className="text-xs text-gray-400 shrink-0">{p.project.name}</span>
-            </button>
-          ))}
+    <div className="flex items-center gap-2">
+      <div className="relative flex-1">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+          <Input
+            className="pl-8 text-sm h-8"
+            placeholder="Search products to link…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onFocus={() => results.length && setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 150)}
+          />
         </div>
-      )}
+        {open && results.length > 0 && (
+          <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            {results.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onMouseDown={() => { onAdd(p); setSearch(""); setOpen(false); }}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
+              >
+                <span>
+                  <span className="font-mono text-xs text-gray-400">{p.partNumber ?? "—"}</span>
+                  {" "}<span className="text-gray-700">{p.itemName ?? ""}</span>
+                </span>
+                <span className="text-xs text-gray-400 shrink-0">{p.project.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Bulk Add */}
+      <div className="relative">
+        <Button size="sm" variant="outline" className="h-8 text-xs whitespace-nowrap" onClick={() => { setBulkOpen((v) => !v); setBulkResolved(null); }}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Bulk Add
+        </Button>
+        {bulkOpen && (
+          <div className="absolute z-50 right-0 top-full mt-1 w-80 bg-white border border-gray-200 rounded-xl shadow-xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-700">Bulk Add by Part Number</p>
+            <p className="text-xs text-gray-500">Paste part numbers separated by commas or newlines.</p>
+            <textarea
+              className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-violet-500"
+              rows={4}
+              placeholder={"78834-TEST\n78835-TEST\n78836-TEST"}
+              value={bulkText}
+              onChange={(e) => { setBulkText(e.target.value); setBulkResolved(null); }}
+            />
+            {bulkResolved && (
+              <div className="space-y-1.5 text-xs">
+                {bulkResolved.found.length > 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-2 space-y-1">
+                    <p className="font-medium text-green-700">{bulkResolved.found.length} found:</p>
+                    {bulkResolved.found.map((p) => (
+                      <p key={p.id} className="text-green-600 font-mono">{p.partNumber} — {p.itemName ?? ""}</p>
+                    ))}
+                  </div>
+                )}
+                {bulkResolved.notFound.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-2 space-y-1">
+                    <p className="font-medium text-red-700">{bulkResolved.notFound.length} not found:</p>
+                    {bulkResolved.notFound.map((pn) => (
+                      <p key={pn} className="text-red-500 font-mono">{pn}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setBulkOpen(false); setBulkText(""); setBulkResolved(null); }}>Cancel</Button>
+              {bulkResolved?.found.length ? (
+                <Button size="sm" className="h-7 text-xs bg-violet-600 hover:bg-violet-700" onClick={confirmBulk}>
+                  Add {bulkResolved.found.length} Products
+                </Button>
+              ) : (
+                <Button size="sm" className="h-7 text-xs" onClick={resolveBulk} disabled={bulkResolving || !bulkText.trim()}>
+                  {bulkResolving ? "Looking up…" : "Look Up"}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -270,6 +365,18 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ addProductIds: [p.id] }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setPsir(updated);
+    }
+  }
+
+  async function bulkAddProducts(ids: string[]) {
+    const res = await fetch(`/api/psir/${psir.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ addProductIds: ids }),
     });
     if (res.ok) {
       const updated = await res.json();
@@ -456,8 +563,8 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
           <Card
             title={`Products (${psir.products.length})`}
             action={
-              <div className="w-72">
-                <ProductPicker linkedIds={linkedIds} onAdd={addProduct} />
+              <div className="w-96">
+                <ProductPicker linkedIds={linkedIds} onAdd={addProduct} onBulkAdd={bulkAddProducts} />
               </div>
             }
           >

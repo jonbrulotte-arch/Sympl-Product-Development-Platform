@@ -46,15 +46,17 @@ export async function POST(
     return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const maxRow = await prisma.productRecord.aggregate({
-    where: { projectId },
-    _max: { rowIndex: true },
-  });
+  const [maxRow, project] = await Promise.all([
+    prisma.productRecord.aggregate({ where: { projectId }, _max: { rowIndex: true } }),
+    prisma.project.findUnique({ where: { id: projectId }, select: { categoryId: true } }),
+  ]);
 
   const product = await prisma.productRecord.create({
     data: {
       ...parsed.data,
       projectId,
+      // Inherit project category if not explicitly overridden
+      categoryId: parsed.data.categoryId ?? project?.categoryId ?? undefined,
       createdById: session.user.id,
       updatedById: session.user.id,
       rowIndex: (maxRow._max.rowIndex ?? -1) + 1,
