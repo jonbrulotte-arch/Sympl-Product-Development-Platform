@@ -1461,6 +1461,30 @@ function SettingsView({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // Manual status override (Admin / Product Manager)
+  const [statusOverride, setStatusOverride] = useState(project.status);
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const saveStatus = async () => {
+    if (statusOverride === project.status) return;
+    setSavingStatus(true);
+    setStatusMsg(null);
+    const res = await fetch(`/api/projects/${project.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: statusOverride }),
+    });
+    if (res.ok) {
+      setStatusMsg({ ok: true, text: "Status updated." });
+      onSaved();
+    } else {
+      const d = await res.json();
+      setStatusMsg({ ok: false, text: d.error ?? "Failed to update status" });
+    }
+    setSavingStatus(false);
+  };
+
   const deleteProject = async () => {
     if (deleteConfirmText !== project.name) return;
     setDeleting(true);
@@ -1720,6 +1744,43 @@ function SettingsView({
           )}
         </div>
       </section>
+
+      {/* Status Override */}
+      {(userRole === "ADMIN" || userRole === "PRODUCT_MANAGER") && (
+        <section className="space-y-4">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Project Status</h2>
+          <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-3">
+            <p className="text-xs text-gray-500">Manually set the project status at any time. This overrides any workflow-driven status changes.</p>
+            <div className="flex items-center gap-3">
+              <select
+                value={statusOverride}
+                onChange={(e) => { setStatusOverride(e.target.value); setStatusMsg(null); }}
+                className="border border-gray-300 rounded-md px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="DRAFT">Draft</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="NEEDS_REVIEW">Needs Review</option>
+                <option value="CHANGES_REQUESTED">Changes Requested</option>
+                <option value="APPROVED">Approved</option>
+                <option value="EXPORT_READY">Export Ready</option>
+                <option value="ARCHIVED">Archived</option>
+              </select>
+              <Button
+                size="sm"
+                onClick={saveStatus}
+                disabled={savingStatus || statusOverride === project.status}
+              >
+                {savingStatus ? "Saving…" : "Save Status"}
+              </Button>
+              {statusMsg && (
+                <span className={`text-xs ${statusMsg.ok ? "text-green-600" : "text-red-600"}`}>
+                  {statusMsg.text}
+                </span>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Danger Zone */}
       {canEdit && (
