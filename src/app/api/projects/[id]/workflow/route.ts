@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canEditProject } from "@/lib/permissions";
 import { logActivity } from "@/lib/activity";
+import { sendMail, workflowVoteEmail, stageCompletedEmail, stageAssignedEmail } from "@/lib/email";
 import type { ProjectStatus } from "@prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
@@ -234,6 +235,36 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       await maybeAutoUpdateProject(projectId, stage.onApproveSetStatus);
     } else if (newStageStatus === "REJECTED") {
       await maybeAutoUpdateProject(projectId, stage.onRejectSetStatus);
+    }
+
+    // Email notifications — fire-and-forget
+    const voterName = session.user.name ?? session.user.email ?? "Someone";
+    const otherApprovers = stage.approvals
+      .map((a: { approver: { id: string; email: string; name: string | null } }) => a.approver)
+      .filter((a: { id: string }) => a.id !== session.user.id);
+
+    // Notify other approvers of this vote
+    for (const approver of otherApprovers) {
+      sendMail(
+        approver.email,
+        `${voterName} ${vote === "APPROVED" ? "approved" : "rejected"} "${stage.name}"`,
+        workflowVoteEmail({ toName: approver.name ?? approver.email, projectName: project.name, stageName: stage.name, voterName, vote: vote as "APPROVED" | "REJECTED", comment: voteComment, projectId })
+      ).catch(() => {});
+    }
+
+    // If stage is now fully completed, notify all project members
+    if (newStageStatus === "APPROVED" || newStageStatus === "REJECTED") {
+      const memberEmails = await prisma.projectMember.findMany({
+        where: { projectId },
+        include: { user: { select: { email: true, name: true } } },
+      });
+      for (const m of memberEmails) {
+        sendMail(
+          m.user.email,
+          `Workflow stage ${newStageStatus === "APPROVED" ? "approved" : "rejected"}: ${stage.name}`,
+          stageCompletedEmail({ projectName: project.name, stageName: stage.name, result: newStageStatus as "APPROVED" | "REJECTED", projectId })
+        ).catch(() => {});
+      }
     }
 
     return NextResponse.json(stage);

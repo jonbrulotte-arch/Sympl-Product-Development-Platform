@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { projectSchema } from "@/lib/validation";
 import { canEditProject, canDeleteProject } from "@/lib/permissions";
 import { logActivity } from "@/lib/activity";
+import { sendMail, projectStatusEmail } from "@/lib/email";
 
 async function getProject(id: string) {
   return prisma.project.findUnique({
@@ -114,6 +115,22 @@ export async function PATCH(
     projectId: id,
     metadata: rest,
   });
+
+  // Email project members when status changes
+  if (rest.status && rest.status !== project.status) {
+    const changedBy = session.user.name ?? session.user.email ?? "Someone";
+    const memberEmails = await prisma.projectMember.findMany({
+      where: { projectId: id },
+      include: { user: { select: { email: true } } },
+    });
+    for (const m of memberEmails) {
+      sendMail(
+        m.user.email,
+        `Project status updated: ${updated.name}`,
+        projectStatusEmail({ projectName: updated.name, oldStatus: project.status, newStatus: rest.status, changedBy, projectId: id })
+      ).catch(() => {});
+    }
+  }
 
   return NextResponse.json(updated);
 }

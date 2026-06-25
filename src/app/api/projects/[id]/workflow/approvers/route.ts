@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canEditProject } from "@/lib/permissions";
+import { sendMail, stageAssignedEmail } from "@/lib/email";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -22,6 +23,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   const stage = await prisma.workflowStage.findFirst({ where: { id: stageId, projectId }, select: { id: true } });
   if (!stage) return NextResponse.json({ error: "Stage not found" }, { status: 404 });
 
+  const stageName = await prisma.workflowStage.findUnique({ where: { id: stageId }, select: { name: true } });
+
   // Upsert so re-assigning a removed approver doesn't error
   const approval = await prisma.workflowApproval.upsert({
     where: { stageId_approverId: { stageId, approverId: userId } },
@@ -29,6 +32,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     update: { status: "PENDING", comments: null, reviewedAt: null },
     include: { approver: { select: { id: true, name: true, email: true, image: true, role: true } } },
   });
+
+  // Notify the newly assigned approver
+  sendMail(
+    approval.approver.email,
+    `You've been assigned as an approver on "${stageName?.name ?? "a workflow stage"}"`,
+    stageAssignedEmail({ toName: approval.approver.name ?? approval.approver.email, projectName: project.name, stageName: stageName?.name ?? "a workflow stage", projectId })
+  ).catch(() => {});
 
   return NextResponse.json(approval, { status: 201 });
 }
