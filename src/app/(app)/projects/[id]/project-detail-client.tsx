@@ -1405,6 +1405,24 @@ function SettingsView({
     if (res.ok) router.push("/projects");
   };
 
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const deleteProject = async () => {
+    if (deleteConfirmText !== project.name) return;
+    setDeleting(true);
+    setDeleteError(null);
+    const res = await fetch(`/api/projects/${project.id}?hard=true`, { method: "DELETE" });
+    if (res.ok) {
+      router.push("/projects");
+    } else {
+      const d = await res.json();
+      setDeleteError(d.error ?? "Delete failed");
+      setDeleting(false);
+    }
+  };
+
   const memberIds = new Set([project.owner.id, ...members.map((m) => m.user.id)]);
   const filteredUsers = allUsers.filter(
     (u) => !memberIds.has(u.id) &&
@@ -1655,8 +1673,8 @@ function SettingsView({
       {canEdit && (
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wide">Danger Zone</h2>
-          <div className="bg-white border border-red-200 rounded-lg p-5">
-            <div className="flex items-center justify-between">
+          <div className="bg-white border border-red-200 rounded-lg divide-y divide-red-100">
+            <div className="flex items-center justify-between p-5">
               <div>
                 <p className="text-sm font-medium text-gray-900">Archive Project</p>
                 <p className="text-xs text-gray-500 mt-0.5">Hide this project from the projects list. Can be restored by an admin.</p>
@@ -1665,6 +1683,33 @@ function SettingsView({
                 Archive
               </Button>
             </div>
+
+            {userRole === "ADMIN" && (
+              <div className="p-5 space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Delete Project</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Permanently delete this project and all its products, attributes, and history. <span className="font-semibold text-red-600">This cannot be undone.</span></p>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-600">Type <span className="font-mono font-semibold text-gray-800">{project.name}</span> to confirm:</p>
+                  <Input
+                    value={deleteConfirmText}
+                    onChange={(e) => { setDeleteConfirmText(e.target.value); setDeleteError(null); }}
+                    placeholder={project.name}
+                    className="text-sm max-w-sm"
+                  />
+                  {deleteError && <p className="text-xs text-red-600">{deleteError}</p>}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={deleteConfirmText !== project.name || deleting}
+                    onClick={deleteProject}
+                  >
+                    {deleting ? "Deleting…" : "Permanently Delete"}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </section>
       )}

@@ -155,7 +155,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -167,6 +167,24 @@ export async function DELETE(
 
   if (!canDeleteProject(session.user.role as never, session.user.id, project.ownerId)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const hard = new URL(req.url).searchParams.get("hard") === "true";
+
+  if (hard) {
+    // Hard delete — admins only, permanently removes the project and all related data
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Only admins can permanently delete projects" }, { status: 403 });
+    }
+    await prisma.project.delete({ where: { id } });
+    await logActivity({
+      userId: session.user.id,
+      action: "DELETED",
+      entityType: "Project",
+      entityId: id,
+      newValue: project.name,
+    });
+    return NextResponse.json({ success: true });
   }
 
   await prisma.project.update({ where: { id }, data: { isArchived: true } });
