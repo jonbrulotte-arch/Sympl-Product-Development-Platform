@@ -115,11 +115,12 @@ model User {
   createdProducts   ProductRecord[]    @relation("ProductCreator")
   updatedProducts   ProductRecord[]    @relation("ProductUpdater")
   salsifySyncLogs   SalsifySyncLog[]
-  createdCompliance ComplianceEvent[]  @relation("ComplianceCreator")
-  updatedCompliance ComplianceEvent[]  @relation("ComplianceUpdater")
-  createdPsirs      Psir[]             @relation("PsirCreator")
-  updatedPsirs      Psir[]             @relation("PsirUpdater")
-  psirDocuments     PsirDocument[]
+  createdCompliance      ComplianceEvent[]    @relation("ComplianceCreator")
+  updatedCompliance      ComplianceEvent[]    @relation("ComplianceUpdater")
+  complianceDocuments    ComplianceDocument[]
+  createdPsirs           Psir[]               @relation("PsirCreator")
+  updatedPsirs           Psir[]               @relation("PsirUpdater")
+  psirDocuments          PsirDocument[]
 }
 
 model Account {
@@ -690,6 +691,7 @@ model ComplianceEvent {
   createdBy User                     @relation("ComplianceCreator", fields: [createdById], references: [id])
   updatedBy User?                    @relation("ComplianceUpdater", fields: [updatedById], references: [id])
   products  ComplianceEventProduct[]
+  documents ComplianceDocument[]
 
   @@index([typeId])
   @@index([status])
@@ -708,6 +710,23 @@ model ComplianceEventProduct {
   @@unique([eventId, productId])
   @@index([eventId])
   @@index([productId])
+}
+
+model ComplianceDocument {
+  id           String   @id @default(cuid())
+  eventId      String
+  fileName     String
+  originalName String
+  fileType     String?
+  fileSize     Int?
+  filePath     String
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  event      ComplianceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  uploadedBy User            @relation(fields: [uploadedById], references: [id])
+
+  @@index([eventId])
 }
 
 // ─── Pre-Shipment Inspection Reports (PSIR) ──────────────────────────────────

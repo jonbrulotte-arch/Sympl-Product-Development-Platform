@@ -1,22 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-
-const EVENT_INCLUDE = {
-  type: true,
-  createdBy: { select: { id: true, name: true, email: true } },
-  updatedBy: { select: { id: true, name: true, email: true } },
-  products: {
-    include: {
-      product: {
-        select: {
-          id: true, partNumber: true, itemName: true, brand: true,
-          project: { select: { id: true, name: true } },
-        },
-      },
-    },
-  },
-} as const;
+import { EVENT_INCLUDE } from "../route";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -69,6 +54,14 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
+
+  const docs = await prisma.complianceDocument.findMany({ where: { eventId: id } });
+  const { unlink } = await import("fs/promises");
+  const path = await import("path");
+  await Promise.allSettled(
+    docs.map((d: { filePath: string }) => unlink(path.join(process.cwd(), "public", d.filePath)))
+  );
+
   await prisma.complianceEvent.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

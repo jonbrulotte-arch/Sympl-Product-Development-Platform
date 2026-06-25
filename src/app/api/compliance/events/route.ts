@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-const EVENT_INCLUDE = {
+export const EVENT_INCLUDE = {
   type: true,
   createdBy: { select: { id: true, name: true, email: true } },
   updatedBy: { select: { id: true, name: true, email: true } },
@@ -15,6 +15,10 @@ const EVENT_INCLUDE = {
         },
       },
     },
+  },
+  documents: {
+    orderBy: { createdAt: "desc" as const },
+    include: { uploadedBy: { select: { id: true, name: true, email: true } } },
   },
 } as const;
 

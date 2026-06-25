@@ -8,7 +8,7 @@ import { formatDate } from "@/lib/utils";
 import {
   ShieldCheck, Plus, X, Search, ChevronLeft, ChevronRight,
   AlertTriangle, CheckCircle2, Clock, Circle, ExternalLink,
-  Trash2, Pencil, ChevronDown, ChevronUp,
+  Trash2, Pencil, ChevronDown, ChevronUp, Paperclip, FileText, Upload,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -20,6 +20,16 @@ type EventType = {
 type ProductRef = {
   id: string; partNumber: string | null; itemName: string | null; brand: string | null;
   project: { id: string; name: string };
+};
+
+type ComplianceDocument = {
+  id: string;
+  originalName: string;
+  fileType: string | null;
+  fileSize: number | null;
+  filePath: string;
+  createdAt: string;
+  uploadedBy: { id: string; name: string | null; email: string };
 };
 
 type ComplianceEvent = {
@@ -37,6 +47,7 @@ type ComplianceEvent = {
   type: EventType;
   createdBy: { id: string; name: string | null; email: string };
   products: { product: ProductRef }[];
+  documents: ComplianceDocument[];
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -252,6 +263,93 @@ function ProductPicker({
   );
 }
 
+// ─── Attachment Section ───────────────────────────────────────────────────────
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function AttachmentSection({
+  eventId,
+  docs,
+  onDocsChange,
+  pendingFiles,
+  onPendingChange,
+}: {
+  eventId: string | null;
+  docs: ComplianceDocument[];
+  onDocsChange: (docs: ComplianceDocument[]) => void;
+  pendingFiles: File[];
+  onPendingChange: (files: File[]) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function addPending(files: FileList | null) {
+    if (!files) return;
+    onPendingChange([...pendingFiles, ...Array.from(files)]);
+  }
+
+  async function deleteDoc(docId: string) {
+    if (!eventId) return;
+    await fetch(`/api/compliance/events/${eventId}/documents`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ docId }),
+    });
+    onDocsChange(docs.filter((d) => d.id !== docId));
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* Upload zone */}
+      <div
+        className="border-2 border-dashed border-gray-200 rounded-lg px-4 py-3 text-center cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/40 transition-colors"
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); addPending(e.dataTransfer.files); }}
+      >
+        <Upload className="h-4 w-4 text-gray-400 mx-auto mb-1" />
+        <p className="text-xs text-gray-500">
+          Drop files here or <span className="text-indigo-600 font-medium">browse</span>
+        </p>
+        <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => addPending(e.target.files)} />
+      </div>
+
+      {/* Pending files (not yet uploaded) */}
+      {pendingFiles.map((f, i) => (
+        <div key={i} className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded px-2.5 py-1.5">
+          <FileText className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+          <span className="text-xs text-indigo-700 truncate flex-1">{f.name}</span>
+          <span className="text-xs text-indigo-400">{formatBytes(f.size)}</span>
+          <button type="button" onClick={() => onPendingChange(pendingFiles.filter((_, j) => j !== i))} className="text-indigo-300 hover:text-indigo-600">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ))}
+      {/* Already-saved documents */}
+      {docs.map((d) => (
+        <div key={d.id} className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded px-2.5 py-1.5">
+          <FileText className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+          <a
+            href={`/${d.filePath}`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-indigo-600 hover:underline truncate flex-1"
+          >
+            {d.originalName}
+          </a>
+          {d.fileSize && <span className="text-xs text-gray-400">{formatBytes(d.fileSize)}</span>}
+          <button type="button" onClick={() => deleteDoc(d.id)} className="text-gray-300 hover:text-red-500">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Create / Edit Modal ──────────────────────────────────────────────────────
 
 function EventModal({
@@ -281,6 +379,8 @@ function EventModal({
       label: [ep.product.partNumber, ep.product.itemName].filter(Boolean).join(" — "),
     })) ?? []
   );
+  const [savedDocs, setSavedDocs] = useState<ComplianceDocument[]>(event?.documents ?? []);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -293,6 +393,14 @@ function EventModal({
     setSaving(true);
     setError("");
 
+    async function uploadFiles(eid: string) {
+      for (const file of pendingFiles) {
+        const fd = new FormData();
+        fd.append("file", file);
+        await fetch(`/api/compliance/events/${eid}/documents`, { method: "POST", body: fd });
+      }
+    }
+
     try {
       if (isEdit) {
         const currentIds = event.products.map((ep) => ep.product.id);
@@ -300,6 +408,7 @@ function EventModal({
         const addProductIds = newIds.filter((id) => !currentIds.includes(id));
         const removeProductIds = currentIds.filter((id) => !newIds.includes(id));
 
+        await uploadFiles(event.id);
         const res = await fetch(`/api/compliance/events/${event.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -314,7 +423,11 @@ function EventModal({
           body: JSON.stringify({ typeId, title, description, notes, severity, dueDate: dueDate || null, productIds: selectedProducts.map((p) => p.id) }),
         });
         if (!res.ok) throw new Error(await res.text());
-        onSaved(await res.json());
+        const created = await res.json();
+        await uploadFiles(created.id);
+        // re-fetch to get documents included
+        const fresh = await fetch(`/api/compliance/events/${created.id}`);
+        onSaved(fresh.ok ? await fresh.json() : created);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
@@ -411,6 +524,19 @@ function EventModal({
               <label className="block text-xs font-medium text-gray-700 mb-1">Products <span className="text-red-500">*</span></label>
               <ProductPicker selected={selectedProducts} onChange={setSelectedProducts} />
             </div>
+
+            <div className="col-span-2">
+              <div className="flex items-center gap-1 text-xs font-medium text-gray-700 mb-1">
+                <Paperclip className="h-3.5 w-3.5" /> Attachments
+              </div>
+              <AttachmentSection
+                eventId={event?.id ?? null}
+                docs={savedDocs}
+                onDocsChange={setSavedDocs}
+                pendingFiles={pendingFiles}
+                onPendingChange={setPendingFiles}
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
@@ -468,6 +594,9 @@ function EventRow({
 
           <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
             <span>{event.products.length} product{event.products.length !== 1 ? "s" : ""}</span>
+            {event.documents.length > 0 && (
+              <span className="flex items-center gap-1"><Paperclip className="h-3 w-3" />{event.documents.length}</span>
+            )}
             {event.dueDate && (
               <span className={isOverdue ? "text-red-500 font-medium" : ""}>
                 Due {formatDate(event.dueDate)}
@@ -528,6 +657,28 @@ function EventRow({
               ))}
             </div>
           </div>
+
+          {event.documents.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2">Attachments</p>
+              <div className="space-y-1">
+                {event.documents.map((d) => (
+                  <a
+                    key={d.id}
+                    href={`/${d.filePath}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 text-xs bg-white border border-gray-100 rounded px-2 py-1.5 hover:bg-indigo-50 group"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                    <span className="text-indigo-600 group-hover:underline truncate flex-1">{d.originalName}</span>
+                    {d.fileSize && <span className="text-gray-400 shrink-0">{formatBytes(d.fileSize)}</span>}
+                    <ExternalLink className="h-3 w-3 text-gray-300 shrink-0" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500">Change status:</span>
