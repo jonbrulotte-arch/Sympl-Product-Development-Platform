@@ -129,6 +129,44 @@ function FieldInput({
     );
   }
 
+  if (attr.lovItems.length > 0 && isMulti) {
+    const selected = (value as string) ? (value as string).split("\n").filter(Boolean) : [];
+    const toggle = (val: string) => {
+      const next = selected.includes(val) ? selected.filter((v) => v !== val) : [...selected, val];
+      onChange(next.join("\n"));
+    };
+    return (
+      <div className="space-y-1">
+        <div className="border border-gray-200 rounded-md overflow-hidden divide-y divide-gray-100 max-h-44 overflow-y-auto">
+          {attr.lovItems.map((l) => (
+            <label key={l.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-800">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded accent-blue-600"
+                checked={selected.includes(l.value)}
+                onChange={() => toggle(l.value)}
+              />
+              {l.label}
+            </label>
+          ))}
+        </div>
+        {selected.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {selected.map((v) => {
+              const label = attr.lovItems.find((l) => l.value === v)?.label ?? v;
+              return (
+                <span key={v} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full">
+                  {label}
+                  <button type="button" onClick={() => toggle(v)} className="hover:text-blue-900">×</button>
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (attr.lovItems.length > 0) {
     return (
       <select
