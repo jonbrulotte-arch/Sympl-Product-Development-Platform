@@ -47,6 +47,9 @@ const adminItems = [
   { href: "/admin/psir-attributes", label: "PSIR Attributes", icon: ClipboardCheck },
   { href: "/admin/backup", label: "Backup & Restore", icon: HardDrive },
   { href: "/admin/settings", label: "Settings", icon: Settings },
+];
+
+const salsifyDebugItems = [
   { href: "/admin/salsify-log", label: "Salsify Log", icon: ScrollText },
   { href: "/admin/salsify-debug", label: "Salsify Debug", icon: Bug },
 ];
@@ -59,6 +62,7 @@ export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [salsifyDebugEnabled, setSalsifyDebugEnabled] = useState(false);
 
   useEffect(() => {
     fetch("/api/notifications?unread=true")
@@ -66,6 +70,13 @@ export function Sidebar({ user }: SidebarProps) {
       .then((data) => setUnreadCount(Array.isArray(data) ? data.length : 0))
       .catch(() => {});
   }, [pathname]);
+
+  useEffect(() => {
+    fetch("/api/config")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setSalsifyDebugEnabled(data.salsifyDebugEnabled ?? false); })
+      .catch(() => {});
+  }, []);
 
   return (
     <aside
@@ -109,7 +120,7 @@ export function Sidebar({ user }: SidebarProps) {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Admin</p>
               )}
             </div>
-            {adminItems.map(({ href, label, icon: Icon }) => (
+            {[...adminItems, ...(salsifyDebugEnabled ? salsifyDebugItems : [])].map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}

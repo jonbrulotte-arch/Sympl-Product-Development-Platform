@@ -10,6 +10,7 @@ interface SalsifyConfig {
   organizationId: string;
   channelId: string;
   isEnabled: boolean;
+  salsifyDebugEnabled: boolean;
 }
 
 export function SalsifySettingsClient() {
@@ -18,6 +19,7 @@ export function SalsifySettingsClient() {
     organizationId: "",
     channelId: "",
     isEnabled: false,
+    salsifyDebugEnabled: false,
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -65,7 +67,7 @@ export function SalsifySettingsClient() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+        <div className="space-y-2 p-3 bg-gray-50 rounded-lg">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -74,10 +76,20 @@ export function SalsifySettingsClient() {
               className="h-4 w-4 rounded"
             />
             <span className="text-sm font-medium text-gray-700">Enable Salsify Sync</span>
+            {config.isEnabled && (
+              <span className="text-xs text-green-600 font-medium">● Active</span>
+            )}
           </label>
-          {config.isEnabled && (
-            <span className="text-xs text-green-600 font-medium">● Active</span>
-          )}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.salsifyDebugEnabled}
+              onChange={(e) => setConfig((c) => ({ ...c, salsifyDebugEnabled: e.target.checked }))}
+              className="h-4 w-4 rounded"
+            />
+            <span className="text-sm font-medium text-gray-700">Enable Salsify Debug</span>
+            <span className="text-xs text-gray-400">— shows Salsify Log &amp; Debug in the sidebar</span>
+          </label>
         </div>
 
         <div className="space-y-3">
