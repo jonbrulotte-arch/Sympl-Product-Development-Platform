@@ -94,7 +94,7 @@ function ProductPicker({
       const res = await fetch(`/api/products?search=${encodeURIComponent(search.trim())}`);
       if (res.ok) {
         const data = await res.json();
-        const products: ProductRef[] = data.products ?? [];
+        const products: ProductRef[] = data.data ?? [];
         // filter out already-selected
         setResults(products.filter((p) => !selected.find((s) => s.id === p.id)));
         setShowDropdown(true);
@@ -140,7 +140,7 @@ function ProductPicker({
         const res = await fetch(`/api/products?search=${encodeURIComponent(token)}`);
         if (!res.ok) { notFound.push(token); return; }
         const data = await res.json();
-        const products: ProductRef[] = data.products ?? [];
+        const products: ProductRef[] = data.data ?? [];
         // exact part-number match preferred, otherwise first result
         const match = products.find((p) => p.partNumber?.toLowerCase() === token.toLowerCase()) ?? products[0];
         if (!match || selectedIds.has(match.id)) {

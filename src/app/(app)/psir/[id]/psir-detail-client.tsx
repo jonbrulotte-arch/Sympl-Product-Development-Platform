@@ -99,7 +99,7 @@ function ProductPicker({
       const res = await fetch(`/api/products?search=${encodeURIComponent(search)}&pageSize=10`);
       if (res.ok) {
         const data = await res.json();
-        setResults((data.products ?? []).filter((p: ProductRef) => !linkedIds.has(p.id)));
+        setResults((data.data ?? []).filter((p: ProductRef) => !linkedIds.has(p.id)));
         setOpen(true);
       }
     }, 300);
