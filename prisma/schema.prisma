@@ -530,6 +530,7 @@ model WorkflowStage {
   onRejectSetStatus    ProjectStatus?
   dependsOnStageId     String?
   complianceEventId    String?
+  psirId               String?
   completedAt          DateTime?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
@@ -539,6 +540,7 @@ model WorkflowStage {
   dependsOnStage   WorkflowStage?     @relation("StageDependency", fields: [dependsOnStageId], references: [id], onDelete: SetNull)
   dependentStages  WorkflowStage[]    @relation("StageDependency")
   complianceEvent  ComplianceEvent?   @relation(fields: [complianceEventId], references: [id], onDelete: SetNull)
+  psir             Psir?              @relation(fields: [psirId], references: [id], onDelete: SetNull)
 }
 
 model ProjectStatusConfig {
@@ -756,6 +758,7 @@ model Psir {
   products        PsirProduct[]
   documents       PsirDocument[]
   attributeValues PsirAttributeValue[]
+  workflowStages  WorkflowStage[]
 
   @@index([status])
   @@index([result])

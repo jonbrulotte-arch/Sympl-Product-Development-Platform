@@ -9,7 +9,7 @@ import { ProductGrid } from "@/components/grid/product-grid";
 import { formatDate } from "@/lib/utils";
 import {
   Package, Calendar, Download, ArrowLeft, Users,
-  MessageSquare, Clock, CheckCircle, RefreshCw, Plus, Trash2, Settings, Pencil, X, Lock, ShieldCheck,
+  MessageSquare, Clock, CheckCircle, RefreshCw, Plus, Trash2, Settings, Pencil, X, Lock, ShieldCheck, ClipboardCheck,
 } from "lucide-react";
 import type { ProjectWithRelations, ProductWithAttributes } from "@/types";
 import Link from "next/link";
@@ -242,6 +242,8 @@ type Stage = {
   dependsOnStage: { id: string; name: string; status: string } | null;
   complianceEventId: string | null;
   complianceEvent: { id: string; title: string; status: string; type: { name: string; color: string } } | null;
+  psirId: string | null;
+  psir: { id: string; title: string; result: string; referenceNumber: string | null } | null;
   approvals: StageApproval[];
 };
 
@@ -251,6 +253,15 @@ type ComplianceEventOption = {
   status: string;
   severity: string;
   type: { name: string; color: string };
+  products: { product: { id: string; partNumber: string | null; itemName: string | null } }[];
+};
+
+type PsirOption = {
+  id: string;
+  title: string;
+  referenceNumber: string | null;
+  result: string;
+  status: string;
   products: { product: { id: string; partNumber: string | null; itemName: string | null } }[];
 };
 
@@ -288,9 +299,14 @@ function WorkflowView({
   const [projectStatuses, setProjectStatuses] = useState<StatusOption[]>([]);
   const [allUsers, setAllUsers] = useState<UserOption[]>([]);
   const [complianceEvents, setComplianceEvents] = useState<ComplianceEventOption[]>([]);
+  const [psirOptions, setPsirOptions] = useState<PsirOption[]>([]);
   const [workflowError, setWorkflowError] = useState<string | null>(null);
 
   useEffect(() => {
+    fetch(`/api/projects/${project.id}/psir`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => { if (Array.isArray(data)) setPsirOptions(data); })
+      .catch(() => {});
     fetch(`/api/projects/${project.id}/compliance-events`)
       .then((r) => r.ok ? r.json() : [])
       .then((data) => { if (Array.isArray(data)) setComplianceEvents(data); })
@@ -528,7 +544,10 @@ function WorkflowView({
           // Blocked when the linked compliance event is not yet resolved/closed/waived
           const compEvent = stage.complianceEvent;
           const isCompBlocked = !!compEvent && !["RESOLVED", "CLOSED", "WAIVED"].includes(compEvent.status);
-          const isBlocked = isDepBlocked || isCompBlocked;
+          // Blocked when the linked PSIR result is not PASS or CONDITIONAL
+          const psirDep = stage.psir;
+          const isPsirBlocked = !!psirDep && !["PASS", "CONDITIONAL"].includes(psirDep.result);
+          const isBlocked = isDepBlocked || isCompBlocked || isPsirBlocked;
           const canVote = myApproval?.status === "PENDING" && stage.status === "IN_REVIEW" && !isBlocked;
           const isVoting = votingFor === stage.id;
           const isAssigning = assigningFor === stage.id;
@@ -607,6 +626,19 @@ function WorkflowView({
                         </span>
                       </div>
                     )}
+                    {stage.psir && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <ClipboardCheck className="h-3 w-3 text-violet-400 shrink-0" />
+                        <span className="text-xs text-violet-600">
+                          Inspection: {stage.psir.title}
+                          {stage.psir.referenceNumber && <span className="text-violet-400"> #{stage.psir.referenceNumber}</span>}
+                          {" "}
+                          <span className={`font-medium ${isPsirBlocked ? "text-amber-600" : "text-green-600"}`}>
+                            ({stage.psir.result})
+                          </span>
+                        </span>
+                      </div>
+                    )}
                     {stage.completedAt && (
                       <p className="text-xs text-gray-400 mt-1">Completed: {formatDate(stage.completedAt as string)}</p>
                     )}
@@ -656,6 +688,20 @@ function WorkflowView({
                     <span>
                       Blocked — waiting on <span className="font-semibold">{depStage.name}</span> (
                       {depStage.status === "REJECTED" ? "rejected" : "not yet approved"})
+                    </span>
+                  </div>
+                )}
+
+                {/* PSIR blocked banner */}
+                {isPsirBlocked && psirDep && (
+                  <div className="border-t border-violet-200 px-4 py-2 bg-violet-50 flex items-center gap-2 text-xs text-violet-700">
+                    <ClipboardCheck className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      Inspection dependency unresolved —{" "}
+                      <a href={`/psir/${psirDep.id}`} target="_blank" rel="noreferrer" className="font-semibold underline underline-offset-2">
+                        {psirDep.title}
+                      </a>{" "}
+                      result is <span className="font-medium">{psirDep.result}</span>
                     </span>
                   </div>
                 )}
@@ -734,6 +780,26 @@ function WorkflowView({
                       </select>
                       {complianceEvents.length === 0 && (
                         <span className="text-xs text-gray-400 italic">No compliance events for this project&apos;s products</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <ClipboardCheck className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                      <span className="text-xs text-gray-400 shrink-0">Inspection →</span>
+                      <select
+                        value={stage.psirId ?? ""}
+                        onChange={(e) => patchStage(stage.id, { psirId: e.target.value || null })}
+                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-violet-400 text-gray-700 max-w-[220px]"
+                      >
+                        <option value="">No inspection requirement</option>
+                        {psirOptions.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.title} ({p.result})
+                          </option>
+                        ))}
+                      </select>
+                      {psirOptions.length === 0 && (
+                        <span className="text-xs text-gray-400 italic">No inspections for this project&apos;s products</span>
                       )}
                     </div>
                   </div>

@@ -17,6 +17,7 @@ const STAGE_INCLUDE = {
   },
   dependsOnStage: { select: { id: true, name: true, status: true } },
   complianceEvent: { select: { id: true, title: true, status: true, type: { select: { name: true, color: true } } } },
+  psir: { select: { id: true, title: true, result: true, referenceNumber: true } },
 } as const;
 
 // A stage is blocked when its dependency stage is not yet approved/skipped
@@ -29,6 +30,12 @@ function isDependencyBlocked(depStage: { status: string } | null) {
 function isComplianceBlocked(event: { status: string } | null) {
   if (!event) return false;
   return !["RESOLVED", "CLOSED", "WAIVED"].includes(event.status);
+}
+
+// A stage is PSIR-blocked when the linked inspection result is not PASS or CONDITIONAL
+function isPsirBlocked(psir: { result: string } | null) {
+  if (!psir) return false;
+  return !["PASS", "CONDITIONAL"].includes(psir.result);
 }
 
 async function maybeAutoUpdateProject(projectId: string, newStatus: string | null) {
@@ -100,7 +107,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json(stages, { status: 201 });
   }
 
-  const { name, description, sortOrder, onApproveSetStatus, onRejectSetStatus, dependsOnStageId, complianceEventId } = body;
+  const { name, description, sortOrder, onApproveSetStatus, onRejectSetStatus, dependsOnStageId, complianceEventId, psirId } = body;
   if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
   const stage = await prisma.workflowStage.create({
@@ -113,6 +120,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       onRejectSetStatus: (onRejectSetStatus as ProjectStatus) || null,
       dependsOnStageId: dependsOnStageId || null,
       complianceEventId: complianceEventId || null,
+      psirId: psirId || null,
     },
     include: STAGE_INCLUDE,
   });
@@ -134,7 +142,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const body = await req.json();
-  const { stageId, status, name, description, onApproveSetStatus, onRejectSetStatus, dependsOnStageId, complianceEventId, vote, voteComment, reset } = body;
+  const { stageId, status, name, description, onApproveSetStatus, onRejectSetStatus, dependsOnStageId, complianceEventId, psirId, vote, voteComment, reset } = body;
   if (!stageId) return NextResponse.json({ error: "stageId required" }, { status: 400 });
 
   // Reset vote — clears stage back to PENDING and resets all approvals to PENDING
@@ -164,6 +172,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       select: {
         dependsOnStage: { select: { id: true, name: true, status: true } },
         complianceEvent: { select: { id: true, title: true, status: true } },
+        psir: { select: { id: true, title: true, result: true } },
       },
     });
     if (stageForVote && isDependencyBlocked(stageForVote.dependsOnStage)) {
@@ -174,6 +183,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (stageForVote && isComplianceBlocked(stageForVote.complianceEvent)) {
       return NextResponse.json({
         error: `This stage requires compliance event "${stageForVote.complianceEvent!.title}" to be resolved before voting.`,
+      }, { status: 409 });
+    }
+    if (stageForVote && isPsirBlocked(stageForVote.psir)) {
+      return NextResponse.json({
+        error: `This stage requires inspection "${stageForVote.psir!.title}" to have a passing result before voting.`,
       }, { status: 409 });
     }
 
@@ -236,6 +250,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       select: {
         dependsOnStage: { select: { id: true, name: true, status: true } },
         complianceEvent: { select: { id: true, title: true, status: true } },
+        psir: { select: { id: true, title: true, result: true } },
       },
     });
     if (stageForStatus && isDependencyBlocked(stageForStatus.dependsOnStage)) {
@@ -246,6 +261,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (stageForStatus && isComplianceBlocked(stageForStatus.complianceEvent)) {
       return NextResponse.json({
         error: `This stage requires compliance event "${stageForStatus.complianceEvent!.title}" to be resolved before it can proceed.`,
+      }, { status: 409 });
+    }
+    if (stageForStatus && isPsirBlocked(stageForStatus.psir)) {
+      return NextResponse.json({
+        error: `This stage requires inspection "${stageForStatus.psir!.title}" to have a passing result before it can proceed.`,
       }, { status: 409 });
     }
   }
@@ -261,6 +281,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (onRejectSetStatus !== undefined) data.onRejectSetStatus = (onRejectSetStatus as ProjectStatus) || null;
   if (dependsOnStageId !== undefined) data.dependsOnStageId = dependsOnStageId || null;
   if (complianceEventId !== undefined) data.complianceEventId = complianceEventId || null;
+  if (psirId !== undefined) data.psirId = psirId || null;
 
   // projectId ownership already verified above; update only by id (projectId is not unique)
   const stage = Object.keys(data).length > 0
