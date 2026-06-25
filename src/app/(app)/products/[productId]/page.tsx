@@ -84,6 +84,7 @@ export default async function ProductEditPage({
       coreAttrDefs={serialized.coreAttrDefs}
       effectiveCategoryId={effectiveCategoryId}
       projectCategory={serialized.product.project.category ?? null}
+      userRole={session.user.role}
     />
   );
 }

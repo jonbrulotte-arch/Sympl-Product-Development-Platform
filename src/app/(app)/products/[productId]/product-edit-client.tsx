@@ -60,6 +60,7 @@ interface Props {
   coreAttrDefs: AttrDef[];
   effectiveCategoryId: string | null;
   projectCategory: { id: string; name: string } | null;
+  userRole: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -515,7 +516,7 @@ function PsirPanel({ productId }: { productId: string }) {
 
 type Tab = "details" | "compliance" | "psir";
 
-export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory }: Props) {
+export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory, userRole }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<Tab>("details");
@@ -526,6 +527,31 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "synced" | "error">("idle");
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const canSync = userRole === "ADMIN" || userRole === "PRODUCT_MANAGER";
+
+  async function syncToSalsify() {
+    setSyncing(true);
+    setSyncStatus("idle");
+    setSyncError(null);
+    const res = await fetch(
+      `/api/projects/${product.projectId}/products/${product.id}/salsify-sync`,
+      { method: "POST" }
+    );
+    if (res.ok) {
+      setSyncStatus("synced");
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setSyncError(data.error ?? "Sync failed");
+      setSyncStatus("error");
+    }
+    setSyncing(false);
+  }
 
   const setField = useCallback((key: string, val: string | boolean) => {
     setCore((prev) => ({ ...prev, [key]: val }));
@@ -657,6 +683,21 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {canSync && (
+              <div className="flex flex-col items-end gap-0.5">
+                <button
+                  onClick={syncToSalsify}
+                  disabled={syncing}
+                  className="flex items-center gap-1.5 text-xs text-emerald-700 hover:text-emerald-900 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-60"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+                  {syncing ? "Syncing…" : syncStatus === "synced" ? "Synced!" : "Sync to Salsify"}
+                </button>
+                {syncStatus === "error" && syncError && (
+                  <p className="text-xs text-red-600 max-w-xs text-right">{syncError}</p>
+                )}
+              </div>
+            )}
             <Link
               href={`/projects/${product.project.id}`}
               className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-colors"
