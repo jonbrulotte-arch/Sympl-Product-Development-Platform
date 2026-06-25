@@ -650,12 +650,9 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
               {product.partNumber && (
                 <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{product.partNumber}</span>
               )}
-              {product.category
-                ? <Badge variant="secondary">{product.category.name}</Badge>
-                : projectCategory
-                  ? <Badge variant="secondary" className="opacity-60" title="Inherited from project">{projectCategory.name} (inherited)</Badge>
-                  : null
-              }
+              {(product.category ?? projectCategory) && (
+                <Badge variant="secondary">{(product.category ?? projectCategory)!.name}</Badge>
+              )}
               <ProjectStatusBadge status={product.project.status as never} />
             </div>
           </div>
