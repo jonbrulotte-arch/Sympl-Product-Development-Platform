@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, createPortal } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -43,6 +43,48 @@ type ProductRow = ProductRecord & {
   _eavValues?: EavMap;
   _eavArrays?: EavArrayMap;
 };
+
+// Portal tooltip that escapes overflow-auto scroll containers
+function GridTooltip({ label, description }: { label: string; description: string }) {
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  function show() {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({ top: r.bottom + 6, left: r.left + r.width / 2 });
+  }
+
+  const tooltip = pos
+    ? createPortal(
+        <div
+          className="fixed z-[9999] w-56 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl pointer-events-none leading-relaxed -translate-x-1/2"
+          style={{ top: pos.top, left: pos.left }}
+        >
+          <span className="font-medium block mb-0.5">{label}</span>
+          {description}
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900" />
+        </div>,
+        document.body
+      )
+    : null;
+
+  return (
+    <>
+      <div
+        ref={triggerRef}
+        className="shrink-0 cursor-default"
+        onMouseEnter={show}
+        onMouseLeave={() => setPos(null)}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <HelpCircle className="h-3 w-3 text-gray-400 opacity-0 group-hover/hdr:opacity-100 transition-opacity" />
+      </div>
+      {tooltip}
+    </>
+  );
+}
 
 const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
   {
@@ -778,14 +820,7 @@ export function ProductGrid({
                         {header.column.getIsSorted() === "asc" && <ChevronUp className="h-3 w-3 shrink-0" />}
                         {header.column.getIsSorted() === "desc" && <ChevronDown className="h-3 w-3 shrink-0" />}
                         {isLeaf && meta?.attrDef?.description && (
-                          <div className="relative group/tip shrink-0" onClick={(e) => e.stopPropagation()}>
-                            <HelpCircle className="h-3 w-3 text-gray-400 opacity-0 group-hover/hdr:opacity-100 transition-opacity cursor-default" />
-                            <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[100] w-56 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl hidden group-hover/tip:block leading-relaxed">
-                              <span className="font-medium block mb-0.5">{meta.attrDef.label}</span>
-                              {meta.attrDef.description}
-                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-                            </div>
-                          </div>
+                          <GridTooltip label={meta.attrDef.label} description={meta.attrDef.description} />
                         )}
                         {isLeaf && (
                           <button
