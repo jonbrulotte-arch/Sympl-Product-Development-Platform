@@ -123,8 +123,8 @@ export async function POST(_req: NextRequest, { params }: Params) {
           .sort((a, b) => a.valueIndex - b.valueIndex);
         if (avs.length === 0) continue;
         const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
-        const isMultiValue = attr.maxValues > 1 || attr.attributeType === "MULTI_SELECT" || values.length > 1;
-        rawValue = isMultiValue ? values : values[0];
+        // Only send as array when there are multiple values; single values go as scalars
+        rawValue = values.length > 1 ? values : values[0];
       }
 
       // Localizable multi-value properties need each value wrapped: [{ locale: v1 }, { locale: v2 }]

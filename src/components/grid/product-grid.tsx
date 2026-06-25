@@ -1194,21 +1194,32 @@ function GridRow({
                 </span>
               </div>
             ) : editing ? (() => {
-              const isMulti = isEav && attrDef && isMultiValueAttr(attrDef);
+              const isMulti = attrDef && isMultiValueAttr(attrDef);
+              // For core fields, current value is a \n-joined string; for EAV fields use _eavArrays
+              const multiVals: string[] = isMulti
+                ? (isEav
+                    ? ((row.original as ProductRow)._eavArrays?.[attrDef!.key] ?? [])
+                    : (value != null ? String(value).split("\n").filter(Boolean) : []))
+                : [];
               const editDefault = isMulti
-                ? ((row.original as ProductRow)._eavArrays?.[attrDef!.key] ?? []).join("\n")
+                ? multiVals.join("\n")
                 : (value != null ? String(value) : "");
 
               if (isMulti) {
                 if (attrDef!.lovItems?.length) {
-                  const currentVals = (row.original as ProductRow)._eavArrays?.[attrDef!.key] ?? [];
                   return (
                     <MultiSelectDropdown
                       lovItems={attrDef!.lovItems}
-                      selected={currentVals}
+                      selected={multiVals}
                       maxValues={attrDef!.maxValues > 1 ? attrDef!.maxValues : undefined}
                       onChange={(vals) => {
-                        onCellChange(colId, vals.join("\n"), attrDef);
+                        // Core fields: no attrDef → saves to ProductRecord column directly
+                        // EAV fields: pass attrDef → saves to ProductAttributeValue rows
+                        if (isEav) {
+                          onCellChange(colId, vals.join("\n"), attrDef);
+                        } else {
+                          onCellChange(colId, vals.join("\n"));
+                        }
                         onCellBlur();
                       }}
                       onClose={onCellBlur}
@@ -1266,16 +1277,21 @@ function GridRow({
             })() : (
               <div className={cn("px-2 py-1 text-sm truncate min-h-[32px] flex items-center gap-1 flex-wrap", isEav ? "text-amber-900" : "text-gray-700")}>
                 {value != null && String(value) !== "" ? (() => {
-                  if (isEav && attrDef && isMultiValueAttr(attrDef)) {
-                    const vals = (row.original as ProductRow)._eavArrays?.[attrDef.key] ?? [];
+                  if (attrDef && isMultiValueAttr(attrDef)) {
+                    const vals = isEav
+                      ? ((row.original as ProductRow)._eavArrays?.[attrDef.key] ?? [])
+                      : String(value).split("\n").filter(Boolean);
+                    const chipClass = isEav
+                      ? "inline-block bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded"
+                      : "inline-block bg-gray-100 text-gray-700 text-xs px-1.5 py-0.5 rounded";
                     if (attrDef.lovItems?.length) {
                       return vals.map((v, i) => {
                         const label = attrDef.lovItems.find((l) => l.value === v)?.label ?? v;
-                        return <span key={i} className="inline-block bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded">{label}</span>;
+                        return <span key={i} className={chipClass}>{label}</span>;
                       });
                     }
                     return vals.map((v, i) => (
-                      <span key={i} className="inline-block bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded">{v}</span>
+                      <span key={i} className={chipClass}>{v}</span>
                     ));
                   }
                   if (attrDef?.lovItems?.length) {

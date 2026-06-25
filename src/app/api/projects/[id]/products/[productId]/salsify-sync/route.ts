@@ -107,8 +107,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
         .sort((a, b) => a.valueIndex - b.valueIndex);
       if (avs.length === 0) continue;
       const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
-      const isMultiValue = attr.maxValues > 1 || attr.attributeType === "MULTI_SELECT" || values.length > 1;
-      rawValue = isMultiValue ? values : values[0];
+      rawValue = values.length > 1 ? values : values[0];
     }
 
     if (attr.salsifyLocale) {
