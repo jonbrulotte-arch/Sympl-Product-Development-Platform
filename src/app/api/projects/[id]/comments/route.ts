@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { unlink } from "fs/promises";
+import path from "path";
 
 export async function GET(
   _req: NextRequest,
@@ -59,4 +61,42 @@ export async function POST(
   });
 
   return NextResponse.json(comment, { status: 201 });
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  await params; // ensure params are resolved
+  const { commentId } = await req.json();
+  if (!commentId) return NextResponse.json({ error: "commentId required" }, { status: 400 });
+
+  const comment = await prisma.comment.findUnique({ where: { id: commentId } });
+  if (!comment) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Only the author or an admin may delete
+  const isAdmin = session.user.role === "ADMIN";
+  if (comment.authorId !== session.user.id && !isAdmin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Delete any attached files stored on disk
+  const attachMatch = comment.content.match(/<!--attachments:(\[.*?\])-->/s);
+  if (attachMatch) {
+    try {
+      const attachments: { url: string }[] = JSON.parse(attachMatch[1]);
+      for (const a of attachments) {
+        if (a.url?.startsWith("/uploads/")) {
+          const filePath = path.join(process.cwd(), "public", a.url);
+          await unlink(filePath).catch(() => {});
+        }
+      }
+    } catch { /* ignore parse errors */ }
+  }
+
+  await prisma.comment.delete({ where: { id: commentId } });
+  return NextResponse.json({ success: true });
 }

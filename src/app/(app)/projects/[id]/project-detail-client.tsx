@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -210,7 +210,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
         )}
 
         {activeTab === "comments" && (
-          <CommentsView projectId={project.id} />
+          <CommentsView projectId={project.id} currentUserId={currentUserId} userRole={userRole} />
         )}
 
         {activeTab === "activity" && (
@@ -1096,14 +1096,18 @@ function fileIcon(type: string) {
 
 // ─── Comments View ─────────────────────────────────────────────────────────────
 
-function CommentsView({ projectId }: { projectId: string }) {
+function CommentsView({ projectId, currentUserId, userRole }: { projectId: string; currentUserId: string; userRole?: string }) {
   const [comments, setComments] = useState<Array<{
     id: string; content: string; createdAt: string;
-    author: { name: string | null; email: string };
-    replies: Array<{ id: string; content: string; createdAt: string; author: { name: string | null; email: string } }>;
+    author: { id: string; name: string | null; email: string };
+    replies: Array<{ id: string; content: string; createdAt: string; author: { id: string; name: string | null; email: string } }>;
   }>>([]);
   const [newComment, setNewComment] = useState("");
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [posting, setPosting] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch(`/api/projects/${projectId}/comments`)
@@ -1113,32 +1117,98 @@ function CommentsView({ projectId }: { projectId: string }) {
       .finally(() => setLoaded(true));
   }, [projectId]);
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    setUploading(true);
+    for (const file of files) {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      if (res.ok) {
+        const data = await res.json();
+        setPendingAttachments((prev) => [...prev, data]);
+      }
+    }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const postComment = async () => {
-    if (!newComment.trim()) return;
+    if (!newComment.trim() && pendingAttachments.length === 0) return;
+    setPosting(true);
+    let content = newComment;
+    if (pendingAttachments.length > 0) {
+      content += `<!--attachments:${JSON.stringify(pendingAttachments)}-->`;
+    }
     const res = await fetch(`/api/projects/${projectId}/comments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: newComment }),
+      body: JSON.stringify({ content }),
     });
     if (res.ok) {
       const comment = await res.json();
       setComments((prev) => [comment, ...prev]);
       setNewComment("");
+      setPendingAttachments([]);
     }
+    setPosting(false);
   };
+
+  const deleteComment = async (commentId: string) => {
+    if (!confirm("Delete this comment?")) return;
+    const res = await fetch(`/api/projects/${projectId}/comments`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commentId }),
+    });
+    if (res.ok) setComments((prev) => prev.filter((c) => c.id !== commentId));
+  };
+
+  const canDelete = (authorId: string) => authorId === currentUserId || userRole === "ADMIN";
 
   return (
     <div className="p-6 max-w-2xl space-y-4">
-      <div className="flex gap-3">
+      {/* Compose box */}
+      <div className="border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 bg-white">
         <textarea
-          className="flex-1 border border-gray-300 rounded-lg p-3 text-sm text-gray-900 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full p-3 text-sm text-gray-900 resize-none focus:outline-none"
           rows={3}
           placeholder="Add a comment..."
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) postComment(); }}
         />
-        <Button onClick={postComment} disabled={!newComment.trim()}>Post</Button>
+        {pendingAttachments.length > 0 && (
+          <div className="px-3 pb-2 flex flex-wrap gap-1.5">
+            {pendingAttachments.map((a, i) => (
+              <div key={i} className="flex items-center gap-1 bg-gray-100 rounded px-2 py-1 text-xs text-gray-700">
+                <span>{fileIcon(a.type)}</span>
+                <span className="truncate max-w-[120px]">{a.name}</span>
+                <button onClick={() => setPendingAttachments((prev) => prev.filter((_, j) => j !== i))} className="ml-1 text-gray-400 hover:text-red-500">
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center justify-between px-3 py-2 border-t border-gray-100 bg-gray-50">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="text-gray-400 hover:text-blue-500 transition-colors"
+            title="Attach file"
+          >
+            {uploading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          </button>
+          <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
+          <Button size="sm" onClick={postComment} disabled={posting || uploading || (!newComment.trim() && pendingAttachments.length === 0)}>
+            {posting ? "Posting…" : "Post"}
+          </Button>
+        </div>
       </div>
+
+      {!loaded && <p className="text-sm text-gray-400">Loading…</p>}
 
       <div className="space-y-4">
         {comments.map((comment) => {
@@ -1151,6 +1221,15 @@ function CommentsView({ projectId }: { projectId: string }) {
                 </div>
                 <span className="text-sm font-medium">{comment.author.name ?? comment.author.email}</span>
                 <span className="text-xs text-gray-400">{formatDate(comment.createdAt)}</span>
+                {canDelete(comment.author.id) && (
+                  <button
+                    onClick={() => deleteComment(comment.id)}
+                    className="ml-auto text-gray-300 hover:text-red-400 transition-colors"
+                    title="Delete comment"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
               {text && <p className="text-sm text-gray-700 whitespace-pre-wrap">{text}</p>}
               {attachments.length > 0 && (
