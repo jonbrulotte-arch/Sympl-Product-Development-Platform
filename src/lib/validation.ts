@@ -38,7 +38,6 @@ export const productSchema = z.object({
   categoryId: z.string().nullish(),
   inventoryStatus: z.string().nullish(),
   warrantyInfo: z.string().nullish(),
-  countryOfOrigin: z.string().nullish(),
   htsCode: z.string().nullish(),
   htsCodeCanada: z.string().nullish(),
   productComposition: z.string().nullish(),

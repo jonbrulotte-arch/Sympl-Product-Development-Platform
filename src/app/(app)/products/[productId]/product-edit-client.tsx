@@ -33,7 +33,7 @@ interface Product {
   productComposition: string | null; needsProp65: boolean; packagingType: string | null;
   packSize: string | null; numberOfPieces: number | null; individualOrSet: string | null;
   material: string | null; size: string | null; jspCategory: string | null;
-  userManual: string | null; cutSheets: string | null; countryOfOrigin: string | null;
+  userManual: string | null; cutSheets: string | null;
   upcHeight: number | null; upcWidth: number | null; upcLength: number | null; upcWeight: number | null;
   itemHeight: number | null; itemWidth: number | null; itemLength: number | null; itemWeight: number | null;
   innerCartonGtin: string | null;
@@ -71,7 +71,7 @@ function productToCore(p: Product): Record<string, string | boolean> {
   const fields = [
     "partNumber","modelNumber","itemName","brand","upc","inventoryStatus","warrantyInfo",
     "htsCode","htsCodeCanada","productComposition","needsProp65","packagingType","packSize",
-    "numberOfPieces","individualOrSet","material","size","jspCategory","countryOfOrigin",
+    "numberOfPieces","individualOrSet","material","size","jspCategory",
     "upcHeight","upcWidth","upcLength","upcWeight",
     "itemHeight","itemWidth","itemLength","itemWeight",
     "innerCartonGtin","innerCartonHeight","innerCartonWidth","innerCartonLength","innerCartonWeight","innerCartonQty",
