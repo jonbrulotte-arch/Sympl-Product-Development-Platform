@@ -16,6 +16,8 @@ type ProjectItem = {
   description: string | null;
   status: ProjectStatus;
   brand: string | null;
+  retailer: string | null;
+  channel: string | null;
   targetLaunchDate: Date | null;
   owner: { id: string; name: string | null; email: string };
   category: { id: string; name: string } | null;
@@ -46,7 +48,14 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectIt
       p.name.toLowerCase().includes(q) ||
       (p.description?.toLowerCase().includes(q) ?? false) ||
       (p.brand?.toLowerCase().includes(q) ?? false) ||
-      (p.category?.name.toLowerCase().includes(q) ?? false);
+      (p.retailer?.toLowerCase().includes(q) ?? false) ||
+      (p.channel?.toLowerCase().includes(q) ?? false) ||
+      (p.category?.name.toLowerCase().includes(q) ?? false) ||
+      (p.owner.name?.toLowerCase().includes(q) ?? false) ||
+      p.owner.email.toLowerCase().includes(q) ||
+      p.members.some((m) =>
+        m.user.name?.toLowerCase().includes(q) || m.user.email.toLowerCase().includes(q)
+      );
     const matchesStatus = !statusFilter || p.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
