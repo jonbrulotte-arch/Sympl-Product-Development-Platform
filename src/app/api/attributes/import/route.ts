@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
         attrId = existing.id;
         updated++;
       } else {
-        const created2 = await prisma.attributeDefinition.create({ data: { key, ...data } });
+        const created2 = await prisma.attributeDefinition.create({ data: { key, ...data, isCore: false } });
         attrId = created2.id;
         created++;
       }

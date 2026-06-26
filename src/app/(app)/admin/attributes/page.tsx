@@ -83,6 +83,7 @@ async function seedCoreAttributes() {
   }
 
   // Upsert each core attribute definition
+  const coreKeys = CORE_ATTR_SEEDS.map((s) => s.key);
   for (const seed of CORE_ATTR_SEEDS) {
     const sectionId = sectionMap.get(seed.section) ?? null;
     await prisma.attributeDefinition.upsert({
@@ -100,12 +101,19 @@ async function seedCoreAttributes() {
         maxValues: 1,
       },
       update: {
-        // Only fill in section/label if the record has no section set yet
-        // (avoid overwriting admin customizations)
+        isCore: true,
+        // Only fill in section if the record has no section set yet
         ...(sectionId ? {} : { sectionId }),
       },
     });
   }
+
+  // Fix any non-core attributes that were incorrectly flagged as core
+  // (caused by the old schema default of isCore=true)
+  await prisma.attributeDefinition.updateMany({
+    where: { key: { notIn: coreKeys }, isCore: true },
+    data: { isCore: false },
+  });
 }
 
 export default async function AttributesPage() {
