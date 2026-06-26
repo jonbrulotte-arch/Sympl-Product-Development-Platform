@@ -226,7 +226,7 @@ export function PsirBrowser() {
       <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center gap-3 shrink-0">
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
-          <Input className="pl-8 w-72 text-sm h-8" placeholder="Search reports, factory, inspector…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+          <Input className="pl-8 w-72 text-sm h-8" placeholder="Search reports, factory, inspector, part number…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
         </div>
         <select value={filterResult} onChange={(e) => { setFilterResult(e.target.value); setPage(1); }}
           className="border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none">

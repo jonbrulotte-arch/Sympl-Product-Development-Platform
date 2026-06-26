@@ -31,6 +31,7 @@ export async function GET(req: Request) {
   const projectId = searchParams.get("projectId");
   const status = searchParams.get("status");
   const typeId = searchParams.get("typeId");
+  const search = searchParams.get("search")?.trim() ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const pageSize = 20;
 
@@ -39,6 +40,14 @@ export async function GET(req: Request) {
     ...(projectId && { products: { some: { product: { projectId } } } }),
     ...(status && { status }),
     ...(typeId && { typeId }),
+    ...(search && {
+      OR: [
+        { title: { contains: search, mode: "insensitive" as const } },
+        { description: { contains: search, mode: "insensitive" as const } },
+        { products: { some: { product: { partNumber: { contains: search, mode: "insensitive" as const } } } } },
+        { products: { some: { product: { itemName: { contains: search, mode: "insensitive" as const } } } } },
+      ],
+    }),
   };
 
   const [events, total] = await Promise.all([

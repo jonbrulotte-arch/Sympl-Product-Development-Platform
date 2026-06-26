@@ -50,6 +50,8 @@ export async function GET(req: Request) {
         { inspector: { contains: search, mode: "insensitive" as const } },
         { inspectionCompany: { contains: search, mode: "insensitive" as const } },
         { factory: { contains: search, mode: "insensitive" as const } },
+        { products: { some: { product: { partNumber: { contains: search, mode: "insensitive" as const } } } } },
+        { products: { some: { product: { itemName: { contains: search, mode: "insensitive" as const } } } } },
       ],
     }),
   };

@@ -710,14 +710,23 @@ export function ComplianceBrowser() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterTypeId, setFilterTypeId] = useState("");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editEvent, setEditEvent] = useState<ComplianceEvent | null>(null);
+
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [search]);
 
   const load = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page) });
     if (filterStatus) params.set("status", filterStatus);
     if (filterTypeId) params.set("typeId", filterTypeId);
+    if (debouncedSearch) params.set("search", debouncedSearch);
 
     const res = await fetch(`/api/compliance/events?${params}`);
     if (res.ok) {
@@ -726,7 +735,7 @@ export function ComplianceBrowser() {
       setTotal(data.total);
     }
     setLoading(false);
-  }, [page, filterStatus, filterTypeId]);
+  }, [page, filterStatus, filterTypeId, debouncedSearch]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -795,7 +804,7 @@ export function ComplianceBrowser() {
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
           <Input
             className="pl-8 w-64 text-sm h-8"
-            placeholder="Search events..."
+            placeholder="Search events, part number, product name…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -819,9 +828,9 @@ export function ComplianceBrowser() {
           {STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
         </select>
 
-        {(filterTypeId || filterStatus) && (
+        {(filterTypeId || filterStatus || search) && (
           <button
-            onClick={() => { setFilterTypeId(""); setFilterStatus(""); setPage(1); }}
+            onClick={() => { setFilterTypeId(""); setFilterStatus(""); setSearch(""); setPage(1); }}
             className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
           >
             <X className="h-3.5 w-3.5" /> Clear filters
@@ -845,7 +854,6 @@ export function ComplianceBrowser() {
           </div>
         )}
         {!loading && events
-          .filter((e) => !search || e.title.toLowerCase().includes(search.toLowerCase()) || e.type.name.toLowerCase().includes(search.toLowerCase()))
           .map((event) => (
             <EventRow
               key={event.id}
