@@ -117,6 +117,18 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
     return names;
   }, [sections, grouped]);
 
+  const deleteAttribute = async (attr: AttributeDef) => {
+    if (attr.isCore) { alert("Core attributes cannot be deleted."); return; }
+    if (!confirm(`Delete attribute "${attr.label}"? This cannot be undone.`)) return;
+    const res = await fetch(`/api/attributes/${attr.id}`, { method: "DELETE" });
+    if (res.ok) {
+      setAttributes((prev) => prev.filter((a) => a.id !== attr.id));
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error ?? "Delete failed");
+    }
+  };
+
   const toggleSection = (name: string) => {
     setExpandedSections((prev) => {
       const next = new Set(prev);
@@ -459,8 +471,17 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
                           <button
                             onClick={() => setEditTarget(attr)}
                             className="ml-1 p-1.5 rounded text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="Edit"
                           >
                             <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => deleteAttribute(attr)}
+                            disabled={attr.isCore}
+                            className="p-1.5 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title={attr.isCore ? "Core attributes cannot be deleted" : "Delete attribute"}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </div>
