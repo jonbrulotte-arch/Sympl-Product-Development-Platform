@@ -363,6 +363,16 @@ function WorkflowView({
     setSaving(false);
   };
 
+  const applyStageUpdate = (updated: Stage) => {
+    setStages((prev) => prev.map((s) => {
+      if (s.id === updated.id) return updated;
+      if (s.dependsOnStage?.id === updated.id) {
+        return { ...s, dependsOnStage: { ...s.dependsOnStage, status: updated.status } };
+      }
+      return s;
+    }));
+  };
+
   const patchStage = async (stageId: string, patch: Record<string, unknown>) => {
     setWorkflowError(null);
     const res = await fetch(`/api/projects/${project.id}/workflow`, {
@@ -372,7 +382,7 @@ function WorkflowView({
     });
     if (res.ok) {
       const updated = await res.json();
-      setStages((prev) => prev.map((s) => s.id === stageId ? updated : s));
+      applyStageUpdate(updated);
     } else {
       const err = await res.json().catch(() => ({}));
       setWorkflowError(err.error ?? `Save failed (${res.status})`);
@@ -399,7 +409,7 @@ function WorkflowView({
     });
     if (res.ok) {
       const updated = await res.json();
-      setStages((prev) => prev.map((s) => s.id === stageId ? updated : s));
+      applyStageUpdate(updated);
     }
     setSaving(false);
   };
@@ -501,7 +511,7 @@ function WorkflowView({
     });
     if (res.ok) {
       const updated = await res.json();
-      setStages((prev) => prev.map((s) => s.id === stageId ? updated : s));
+      applyStageUpdate(updated);
       setVotingFor(null);
       setVoteComment("");
       // Refresh server data in case project status changed due to onApproveSetStatus/onRejectSetStatus
