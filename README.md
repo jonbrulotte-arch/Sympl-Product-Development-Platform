@@ -10,12 +10,12 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Product Grid** — Spreadsheet-style inline editing with custom EAV attributes, column tooltips, freezable columns, bulk edit, and Excel/CSV import & export.
 - **Product Record** — Full edit page per product with core fields, custom attributes by section, category inheritance from project, Salsify sync button (Admin/PM), and tabs for Compliance and Inspections.
 - **Workflows** — Configurable approval stages per project with per-stage approvers, voting, automatic status transitions, and reusable templates. Stages can be reordered with up/down controls and can declare informational dependencies on other stages, compliance events, or PSIRs.
-- **Compliance** — Track regulatory events (Prop 65, REACH, CPSC, etc.) linked to products. Bulk-link products by pasting part numbers.
-- **Pre-Shipment Inspections (PSIR)** — Inspection reports with custom attributes, file attachments, pass/fail results, and bulk product linking.
+- **Compliance** — Track regulatory events (Prop 65, REACH, CPSC, etc.) linked to products. Bulk-link products by pasting part numbers. Search by part number to find all events covering a product.
+- **Pre-Shipment Inspections (PSIR)** — Inspection reports with custom attributes, file attachments, pass/fail results, and bulk product linking. Search by part number to find all reports covering a product.
 - **Comments & Attachments** — Project comments with file attachments (images, PDFs, documents up to 20 MB). Comment authors and admins can delete comments; attached files are removed from disk on delete.
 - **Salsify Integration** — Map attributes to Salsify property IDs; sync all products in a project or a single product from its edit page. A confirmation dialog warns before overwriting Salsify data. Enable Salsify Debug mode in Settings to surface log and debug pages in the sidebar.
 - **Manual Status Override** — Admins and Product Managers can set a project's status directly from the project Settings tab at any time.
-- **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups written to local disk, with scheduling, retention policy, and one-click restore.
+- **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups written to local disk, with scheduling, retention policy, one-click restore, and a scoped API token for triggering backups from external automation without a browser session.
 - **Admin** — Users, categories, attributes (with EAV), workflow templates, compliance types, PSIR attributes, backup, and settings.
 
 ---
@@ -110,12 +110,20 @@ Backups are created via **Admin → Backup & Restore**. Each backup is a `pg_dum
 
 **Manual backup:** Click **Run Now** in the admin UI.
 
-**Scheduled backup:** Sympl does not have a built-in scheduler. Add a cron job on your server:
+**API Token:** Generate a scoped token from Admin → Backup & Restore → API Token. The token is shown once — copy it immediately. Use it to trigger backups without a browser session:
+
+```bash
+curl -s -X POST https://your-server/api/admin/backup/run \
+  -H "Authorization: Bearer sbk_<your-token>" \
+  -H "Content-Type: application/json"
+```
+
+**Scheduled backup:** Sympl does not have a built-in scheduler. Generate an API token and add a cron job:
 
 ```bash
 # Daily at 2:00 AM
 0 2 * * * curl -s -X POST https://your-server/api/admin/backup/run \
-  -H "Cookie: next-auth.session-token=<admin-token>" \
+  -H "Authorization: Bearer sbk_<your-token>" \
   -H "Content-Type: application/json" \
   -d '{"triggeredBy":"SCHEDULE"}'
 ```

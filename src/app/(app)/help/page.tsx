@@ -287,6 +287,9 @@ const sections: Section[] = [
           <LI><strong>WAIVED</strong> — event acknowledged and formally waived.</LI>
         </UL>
 
+        <H3>Search</H3>
+        <P>The search bar on the Compliance list matches event title, description, <strong>part number</strong>, and product name. Searching by part number returns all events linked to products with that part number.</P>
+
         <H3>Product tab on product edit page</H3>
         <P>When viewing a product at <Code>/products/[id]</Code>, switch to the <strong>Compliance</strong> tab to see all events linked to that product and log new ones without leaving the product view.</P>
 
@@ -333,6 +336,9 @@ const sections: Section[] = [
           <LI><strong>REJECTED</strong> — report rejected; follow-up required.</LI>
         </UL>
 
+        <H3>Search</H3>
+        <P>The search bar on the Inspections list matches the report title, reference number, inspector, inspection company, factory, <strong>part number</strong>, and product name. Searching by part number returns all reports that include a product with that part number.</P>
+
         <H3>Custom attributes</H3>
         <P>Admins can define additional fields to capture on every PSIR — for example AQL level, sample size, or inspection standard — at <strong>Admin → PSIR Attributes</strong>. Supported types: Text, Text Area, Number, Date, Select (dropdown), and Yes/No.</P>
 
@@ -377,6 +383,9 @@ const sections: Section[] = [
 
         <H3>Descriptions / Tooltips</H3>
         <P>The <strong>Description</strong> field on each attribute becomes the tooltip shown when hovering the column header in the product grid. Use it to explain what the field means, acceptable formats, or where the value comes from.</P>
+
+        <H3>Deleting attributes</H3>
+        <P>Non-core custom attributes can be deleted using the trash icon on the Attributes admin page. Deletion is blocked if any product has data stored for that attribute — remove the data first, or deactivate the attribute instead. Core attributes (those backed by typed database columns) cannot be deleted.</P>
 
         <H3>Salsify integration</H3>
         <P>Enable <strong>Salsify</strong> on an attribute and enter the Salsify Property ID. When products are synced, this attribute's value is sent to that Salsify property. Multi-value attributes are sent as arrays.</P>
@@ -744,14 +753,23 @@ const sections: Section[] = [
           Restore uses <Code>pg_restore --clean --if-exists</Code>, which drops and recreates all objects before restoring. <strong>All current data will be overwritten.</strong> Reload the application after a successful restore.
         </Callout>
 
+        <H3>API Token (for automation)</H3>
+        <P>
+          Generate an API token from the <strong>API Token</strong> section at the bottom of the Backup configuration page.
+          The token is shown once — copy it immediately. Use it to trigger backups from external schedulers or automation tools without needing a browser session:
+        </P>
+        <pre className="text-xs font-mono bg-gray-900 text-gray-100 rounded-lg p-3 overflow-x-auto mb-3">{`curl -s -X POST https://your-server/api/admin/backup/run \\
+  -H "Authorization: Bearer sbk_<your-token>" \\
+  -H "Content-Type: application/json"`}</pre>
+        <P>Tokens can be regenerated (invalidating the old one) or revoked entirely from the same section. The token hash is stored server-side — the plaintext is never saved and cannot be recovered after the initial display.</P>
+
         <H3>Scheduled backups</H3>
         <P>
-          Sympl does not run a built-in scheduler. To automate backups, add a cron entry on your server
-          that calls the backup endpoint with an authenticated admin session token:
+          Sympl does not run a built-in scheduler. To automate backups, generate an API token (above) and add a cron entry on your server:
         </P>
         <pre className="text-xs font-mono bg-gray-900 text-gray-100 rounded-lg p-3 overflow-x-auto mb-3">{`# Example: daily at 2:00 AM
 0 2 * * * curl -s -X POST https://your-server/api/admin/backup/run \\
-  -H "Cookie: next-auth.session-token=<token>" \\
+  -H "Authorization: Bearer sbk_<your-token>" \\
   -H "Content-Type: application/json" \\
   -d '{"triggeredBy":"SCHEDULE"}'`}</pre>
       </>
