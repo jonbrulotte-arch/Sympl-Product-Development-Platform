@@ -1,3 +1,4 @@
+import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -61,7 +62,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const role = session.user.role;
-  if (role !== "ADMIN" && role !== "PRODUCT_MANAGER") {
+  if (!(await can(role, "products:sync_salsify"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

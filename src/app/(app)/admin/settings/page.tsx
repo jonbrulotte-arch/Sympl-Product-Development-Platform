@@ -1,3 +1,4 @@
+import { can } from "@/lib/permissions";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { SalsifySettingsClient } from "./salsify-settings-client";
@@ -5,7 +6,7 @@ import { ProjectStatusesClient } from "./project-statuses-client";
 
 export default async function AdminSettingsPage() {
   const session = await auth();
-  if (!session?.user?.id || session.user.role !== "ADMIN") redirect("/");
+  if (!session?.user?.id || !(await can(session.user.role, "admin:settings"))) redirect("/");
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-8">

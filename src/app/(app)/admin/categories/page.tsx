@@ -1,3 +1,4 @@
+import { can } from "@/lib/permissions";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -5,7 +6,7 @@ import { CategoriesClient } from "./categories-client";
 
 export default async function AdminCategoriesPage() {
   const session = await auth();
-  if (!session?.user?.id || !["ADMIN", "PRODUCT_MANAGER"].includes(session.user.role!)) redirect("/");
+  if (!session?.user?.id || !(await can(session.user.role, "admin:categories"))) redirect("/");
 
   const categories = await prisma.category.findMany({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],

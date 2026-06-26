@@ -1,3 +1,4 @@
+import { can } from "@/lib/permissions";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
@@ -109,7 +110,7 @@ async function seedCoreAttributes() {
 
 export default async function AttributesPage() {
   const session = await auth();
-  if (!session?.user?.id || !["ADMIN", "PRODUCT_MANAGER"].includes(session.user.role!)) redirect("/dashboard");
+  if (!session?.user?.id || !(await can(session.user.role, "admin:attributes"))) redirect("/dashboard");
 
   // Seed core attribute definitions (idempotent — safe to run every page load)
   await seedCoreAttributes().catch(() => {});

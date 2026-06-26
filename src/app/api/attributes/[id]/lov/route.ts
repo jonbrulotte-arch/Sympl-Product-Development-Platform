@@ -1,3 +1,4 @@
+import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -6,7 +7,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (!session?.user?.id || !["ADMIN","PRODUCT_MANAGER"].includes(session.user.role!)) {
+  if (!session?.user?.id || !(await can(session.user.role, "admin:attributes"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (!session?.user?.id || !["ADMIN","PRODUCT_MANAGER"].includes(session.user.role!)) {
+  if (!session?.user?.id || !(await can(session.user.role, "admin:attributes"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

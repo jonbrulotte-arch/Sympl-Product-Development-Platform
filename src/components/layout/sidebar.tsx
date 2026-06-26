@@ -27,6 +27,7 @@ import {
 import { cn, getInitials } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import type { SafeUser } from "@/types";
+import type { Permission } from "@/lib/permissions";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -38,20 +39,17 @@ const navItems = [
   { href: "/help", label: "Help & Docs", icon: HelpCircle },
 ];
 
-// Visible to ADMIN and PRODUCT_MANAGER
-const pmAdminItems = [
-  { href: "/admin/categories", label: "Categories", icon: Tag },
-  { href: "/admin/attributes", label: "Attributes", icon: ListFilter },
-];
-
-// Visible to ADMIN only
-const adminOnlyItems = [
-  { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/workflow-templates", label: "Workflows", icon: GitBranch },
-  { href: "/admin/compliance-types", label: "Compliance Types", icon: ShieldCheck },
-  { href: "/admin/psir-attributes", label: "PSIR Attributes", icon: ClipboardCheck },
-  { href: "/admin/backup", label: "Backup & Restore", icon: HardDrive },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+// Maps each admin nav item to its required permission (null = ADMIN only, no permission key)
+const adminNavItems: { href: string; label: string; icon: React.ElementType; permission: Permission | null }[] = [
+  { href: "/admin/users",              label: "Users",              icon: Users,          permission: "admin:users" },
+  { href: "/admin/categories",         label: "Categories",         icon: Tag,            permission: "admin:categories" },
+  { href: "/admin/attributes",         label: "Attributes",         icon: ListFilter,     permission: "admin:attributes" },
+  { href: "/admin/workflow-templates", label: "Workflows",          icon: GitBranch,      permission: "admin:workflow_templates" },
+  { href: "/admin/compliance-types",   label: "Compliance Types",   icon: ShieldCheck,    permission: "admin:compliance_types" },
+  { href: "/admin/psir-attributes",    label: "PSIR Attributes",    icon: ClipboardCheck, permission: "admin:psir_attributes" },
+  { href: "/admin/backup",             label: "Backup & Restore",   icon: HardDrive,      permission: "admin:backup" },
+  { href: "/admin/settings",           label: "Settings",           icon: Settings,       permission: "admin:settings" },
+  { href: "/admin/access-control",     label: "Access Control",     icon: ShieldCheck,    permission: null }, // ADMIN only, always
 ];
 
 const salsifyDebugItems = [
@@ -61,9 +59,10 @@ const salsifyDebugItems = [
 
 interface SidebarProps {
   user: SafeUser;
+  grantedPermissions: Set<Permission>;
 }
 
-export function Sidebar({ user }: SidebarProps) {
+export function Sidebar({ user, grantedPermissions }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -118,34 +117,40 @@ export function Sidebar({ user }: SidebarProps) {
           </Link>
         ))}
 
-        {(user.role === "ADMIN" || user.role === "PRODUCT_MANAGER") && (
-          <>
-            <div className={cn("pt-4 pb-1", collapsed ? "px-0" : "px-2")}>
-              {!collapsed && (
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Admin</p>
-              )}
-            </div>
-            {[
-              ...pmAdminItems,
-              ...(user.role === "ADMIN" ? adminOnlyItems : []),
-              ...(user.role === "ADMIN" && salsifyDebugEnabled ? salsifyDebugItems : []),
-            ].map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
-                  pathname.startsWith(href)
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-300 hover:bg-gray-800 hover:text-white"
+        {(() => {
+          const visibleAdminItems = adminNavItems.filter(({ permission }) =>
+            permission === null
+              ? user.role === "ADMIN"
+              : grantedPermissions.has(permission)
+          );
+          const visibleDebugItems = user.role === "ADMIN" && salsifyDebugEnabled ? salsifyDebugItems : [];
+          const allVisible = [...visibleAdminItems, ...visibleDebugItems];
+          if (allVisible.length === 0) return null;
+          return (
+            <>
+              <div className={cn("pt-4 pb-1", collapsed ? "px-0" : "px-2")}>
+                {!collapsed && (
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Admin</p>
                 )}
-              >
-                <Icon className="h-5 w-5 shrink-0" />
-                {!collapsed && <span>{label}</span>}
-              </Link>
-            ))}
-          </>
-        )}
+              </div>
+              {allVisible.map(({ href, label, icon: Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
+                    pathname.startsWith(href)
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                  )}
+                >
+                  <Icon className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span>{label}</span>}
+                </Link>
+              ))}
+            </>
+          );
+        })()}
       </nav>
 
       {/* User section */}

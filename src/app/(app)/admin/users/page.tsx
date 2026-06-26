@@ -1,3 +1,4 @@
+import { can } from "@/lib/permissions";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
@@ -5,7 +6,7 @@ import { UsersClient } from "./users-client";
 
 export default async function UsersPage() {
   const session = await auth();
-  if (!session?.user?.id || session.user.role !== "ADMIN") redirect("/dashboard");
+  if (!session?.user?.id || !(await can(session.user.role, "admin:users"))) redirect("/dashboard");
 
   const users = await prisma.user.findMany({
     select: {

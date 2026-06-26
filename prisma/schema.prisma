@@ -862,3 +862,12 @@ model PasswordResetToken {
 
   @@index([email])
 }
+
+model RolePermission {
+  id         String  @id @default(cuid())
+  role       String
+  permission String
+  granted    Boolean @default(true)
+
+  @@unique([role, permission])
+}

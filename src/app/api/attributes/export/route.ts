@@ -1,3 +1,4 @@
+import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -5,7 +6,7 @@ import * as XLSX from "xlsx";
 
 export async function GET(_req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.id || !["ADMIN","PRODUCT_MANAGER"].includes(session.user.role!)) {
+  if (!session?.user?.id || !(await can(session.user.role, "admin:attributes"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
