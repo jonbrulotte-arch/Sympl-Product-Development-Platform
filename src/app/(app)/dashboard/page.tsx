@@ -116,7 +116,7 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* My Projects */}
-        <div className="lg:col-span-2">
+        <div>
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -160,7 +160,7 @@ export default async function DashboardPage() {
           </Card>
         </div>
 
-        {/* Needs Review + Activity */}
+        {/* Pending Approval + Needs Attention */}
         <div className="space-y-6">
           {pendingApprovalsData.length > 0 && (
             <Card className="border-yellow-300">
@@ -212,6 +212,17 @@ export default async function DashboardPage() {
             </Card>
           )}
 
+          {pendingApprovalsData.length === 0 && needsReview.length === 0 && (
+            <Card>
+              <CardContent className="p-6 text-center text-sm text-gray-400">
+                Nothing needs your attention right now.
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Recent Activity */}
+        <div>
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Recent Activity</CardTitle>
