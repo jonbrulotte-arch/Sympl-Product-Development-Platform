@@ -26,6 +26,7 @@ type ProductRow = {
   brand: string | null;
   upc: string | null;
   inventoryStatus: string | null;
+  inventoryStatusErp: string | null;
   packSize: string | null;
   material: string | null;
   size: string | null;
@@ -395,10 +396,22 @@ export function ProductsBrowser({
                 <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">
                   {product.upc ?? <span className="text-gray-300">—</span>}
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  {product.inventoryStatus
-                    ? <Badge variant="secondary" className="text-xs">{product.inventoryStatus}</Badge>
-                    : <span className="text-gray-300">—</span>}
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      ...(product.inventoryStatus ? product.inventoryStatus.split(/[\n,]+/) : []),
+                      ...(product.inventoryStatusErp ? product.inventoryStatusErp.split(/[\n,]+/) : []),
+                    ]
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                      .map((s, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs whitespace-nowrap">{s}</Badge>
+                      ))
+                    }
+                    {!product.inventoryStatus && !product.inventoryStatusErp && (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   <Link

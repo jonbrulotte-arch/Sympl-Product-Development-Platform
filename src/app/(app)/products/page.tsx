@@ -27,14 +27,23 @@ export default async function ProductsPage() {
     orderBy: { name: "asc" },
   });
 
-  // Distinct inventory statuses in use
-  const statusRows = await prisma.productRecord.findMany({
-    where: { isArchived: false, inventoryStatus: { not: null } },
-    select: { inventoryStatus: true },
-    distinct: ["inventoryStatus"],
-    orderBy: { inventoryStatus: "asc" },
-  });
-  const inventoryStatuses = statusRows.map((r) => r.inventoryStatus!);
+  // Distinct inventory statuses in use (both fields)
+  const [statusRows, erpStatusRows] = await Promise.all([
+    prisma.productRecord.findMany({
+      where: { isArchived: false, inventoryStatus: { not: null } },
+      select: { inventoryStatus: true },
+      distinct: ["inventoryStatus"],
+    }),
+    prisma.productRecord.findMany({
+      where: { isArchived: false, inventoryStatusErp: { not: null } },
+      select: { inventoryStatusErp: true },
+      distinct: ["inventoryStatusErp"],
+    }),
+  ]);
+  const inventoryStatuses = [...new Set([
+    ...statusRows.flatMap((r) => r.inventoryStatus!.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean)),
+    ...erpStatusRows.flatMap((r) => r.inventoryStatusErp!.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean)),
+  ])].sort();
 
   return (
     <ProductsBrowser

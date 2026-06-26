@@ -34,7 +34,12 @@ export async function GET(req: NextRequest) {
       : {}),
     ...(projectId ? { projectId } : {}),
     ...(brand ? { brand } : {}),
-    ...(inventoryStatus ? { inventoryStatus } : {}),
+    ...(inventoryStatus ? {
+      OR: [
+        { inventoryStatus: { contains: inventoryStatus, mode: "insensitive" as const } },
+        { inventoryStatusErp: { contains: inventoryStatus, mode: "insensitive" as const } },
+      ],
+    } : {}),
     ...(categoryId ? { categoryId } : {}),
     ...(search
       ? {
