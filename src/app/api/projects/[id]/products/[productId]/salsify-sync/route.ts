@@ -57,7 +57,7 @@ const CORE_FIELD_ACCESSOR: Record<string, (p: ProductRecord) => unknown> = {
 
 type Params = { params: Promise<{ id: string; productId: string }> };
 
-export async function POST(_req: NextRequest, { params }: Params) {
+export async function POST(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -67,6 +67,8 @@ export async function POST(_req: NextRequest, { params }: Params) {
   }
 
   const { productId } = await params;
+  const reqBody = await req.json().catch(() => ({}));
+  const skipAttributeKeys: string[] = Array.isArray(reqBody.skipAttributeKeys) ? reqBody.skipAttributeKeys : [];
 
   const config = await prisma.salsifyConfig.findFirst({ where: { isEnabled: true } });
   if (!config) {
@@ -85,7 +87,11 @@ export async function POST(_req: NextRequest, { params }: Params) {
   if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
   const salsifyAttrs = await prisma.attributeDefinition.findMany({
-    where: { salsifyEnabled: true, isActive: true },
+    where: {
+      salsifyEnabled: true,
+      isActive: true,
+      ...(skipAttributeKeys.length > 0 ? { key: { notIn: skipAttributeKeys } } : {}),
+    },
   });
 
   const salsifyId = product.partNumber ?? product.id;
@@ -126,11 +132,11 @@ export async function POST(_req: NextRequest, { params }: Params) {
     Authorization: `Bearer ${config.apiKey}`,
     "Content-Type": "application/json",
   };
-  const body = JSON.stringify(salsifyProduct);
+  const payload = JSON.stringify(salsifyProduct);
 
-  let res = await fetch(`${baseUrl}/${encoded}`, { method: "PUT", headers, body });
+  let res = await fetch(`${baseUrl}/${encoded}`, { method: "PUT", headers, body: payload });
   if (res.status === 404) {
-    res = await fetch(baseUrl, { method: "POST", headers, body });
+    res = await fetch(baseUrl, { method: "POST", headers, body: payload });
   }
 
   if (!res.ok) {

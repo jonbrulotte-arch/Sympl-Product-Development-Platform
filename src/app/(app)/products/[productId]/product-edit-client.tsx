@@ -13,6 +13,7 @@ import {
   Plus, X, Clock, Circle, Trash2, ChevronDown, ChevronUp, ShieldCheck, ClipboardCheck,
   FileText, CheckCircle, XCircle, AlertTriangle,
 } from "lucide-react";
+import { SalsifySyncModal } from "@/components/salsify/salsify-sync-modal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -569,17 +570,18 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"idle" | "synced" | "error">("idle");
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [showSalsifyModal, setShowSalsifyModal] = useState(false);
 
   const canSync = userRole === "ADMIN" || userRole === "PRODUCT_MANAGER";
 
-  async function syncToSalsify() {
-    if (!window.confirm("Sync to Salsify?\n\nSalsify-enabled attributes for this product will be sent to Salsify and will overwrite any existing data there. This cannot be undone.")) return;
+  async function syncToSalsify(skipKeys: string[]) {
+    setShowSalsifyModal(false);
     setSyncing(true);
     setSyncStatus("idle");
     setSyncError(null);
     const res = await fetch(
       `/api/projects/${product.projectId}/products/${product.id}/salsify-sync`,
-      { method: "POST" }
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ skipAttributeKeys: skipKeys }) }
     );
     if (res.ok) {
       setSyncStatus("synced");
@@ -697,6 +699,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
   };
 
   return (
+    <>
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Sticky header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 shrink-0 z-10">
@@ -727,7 +730,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
             {canSync && (
               <div className="flex flex-col items-end gap-0.5">
                 <button
-                  onClick={syncToSalsify}
+                  onClick={() => setShowSalsifyModal(true)}
                   disabled={syncing}
                   className="flex items-center gap-1.5 text-xs text-emerald-700 hover:text-emerald-900 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-60"
                 >
@@ -891,5 +894,14 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
         </div>
       </div>}
     </div>
+    {showSalsifyModal && (
+      <SalsifySyncModal
+        mode="product"
+        syncing={syncing}
+        onConfirm={syncToSalsify}
+        onClose={() => setShowSalsifyModal(false)}
+      />
+    )}
+    </>
   );
 }

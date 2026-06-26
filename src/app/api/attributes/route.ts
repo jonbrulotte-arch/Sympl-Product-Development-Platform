@@ -10,11 +10,13 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const categoryId = searchParams.get("categoryId");
   const coreOnly = searchParams.get("coreOnly") === "true";
+  const salsifyOnly = searchParams.get("salsifyOnly") === "true";
 
   const attributes = await prisma.attributeDefinition.findMany({
     where: {
       isActive: true,
       ...(coreOnly ? { isCore: true } : {}),
+      ...(salsifyOnly ? { salsifyEnabled: true, salsifyPropertyId: { not: null } } : {}),
       ...(categoryId ? { OR: [{ isCore: true }, { categoryId }] } : {}),
     },
     include: {

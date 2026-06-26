@@ -57,11 +57,13 @@ const CORE_FIELD_ACCESSOR: Record<string, (p: ProductRecord) => unknown> = {
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function POST(_req: NextRequest, { params }: Params) {
+export async function POST(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: projectId } = await params;
+  const body = await req.json().catch(() => ({}));
+  const skipAttributeKeys: string[] = Array.isArray(body.skipAttributeKeys) ? body.skipAttributeKeys : [];
 
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
@@ -75,9 +77,13 @@ export async function POST(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Salsify is not configured or not enabled. Configure it in Admin → Settings." }, { status: 400 });
   }
 
-  // Get all salsify-enabled attribute definitions
+  // Get all salsify-enabled attribute definitions, excluding any the user opted out of
   const salsifyAttrs = await prisma.attributeDefinition.findMany({
-    where: { salsifyEnabled: true, isActive: true },
+    where: {
+      salsifyEnabled: true,
+      isActive: true,
+      ...(skipAttributeKeys.length > 0 ? { key: { notIn: skipAttributeKeys } } : {}),
+    },
   });
 
   // Get products with their attribute values

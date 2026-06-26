@@ -13,6 +13,7 @@ import {
   ChevronUp, ChevronDown,
 } from "lucide-react";
 import type { ProjectWithRelations, ProductWithAttributes } from "@/types";
+import { SalsifySyncModal } from "@/components/salsify/salsify-sync-modal";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 
@@ -48,14 +49,19 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
   const [activeTab, setActiveTab] = useState("grid");
   const [salsifySyncing, setSalsifySyncing] = useState(false);
   const [salsifySyncResult, setSalsifySyncResult] = useState<string | null>(null);
+  const [showSalsifyModal, setShowSalsifyModal] = useState(false);
   const router = useRouter();
 
-  const handleSalsifySync = async () => {
-    if (!window.confirm("Sync to Salsify?\n\nAll Salsify-enabled attributes for every product in this project will be sent to Salsify and will overwrite any existing data there. This cannot be undone.")) return;
+  const handleSalsifySync = async (skipKeys: string[]) => {
+    setShowSalsifyModal(false);
     setSalsifySyncing(true);
     setSalsifySyncResult(null);
     try {
-      const res = await fetch(`/api/projects/${project.id}/salsify-sync`, { method: "POST" });
+      const res = await fetch(`/api/projects/${project.id}/salsify-sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skipAttributeKeys: skipKeys }),
+      });
       const data = await res.json();
       if (res.ok) {
         const errSummary = data.errors?.length ? ` — ${data.errors.length} error(s): ${data.errors[0]}` : "";
@@ -144,7 +150,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
                 <Button
                   size="sm"
                   className="bg-green-600 hover:bg-green-700 text-white"
-                  onClick={handleSalsifySync}
+                  onClick={() => setShowSalsifyModal(true)}
                   disabled={salsifySyncing}
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${salsifySyncing ? "animate-spin" : ""}`} />
@@ -1925,6 +1931,15 @@ function SettingsView({
             )}
           </div>
         </section>
+      )}
+
+      {showSalsifyModal && (
+        <SalsifySyncModal
+          mode="project"
+          syncing={salsifySyncing}
+          onConfirm={handleSalsifySync}
+          onClose={() => setShowSalsifyModal(false)}
+        />
       )}
     </div>
   );
