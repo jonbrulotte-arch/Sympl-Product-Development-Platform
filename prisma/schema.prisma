@@ -217,7 +217,7 @@ model AttributeSection {
   name      String
   slug      String @unique
   sortOrder Int    @default(0)
-  isCore    Boolean @default(true)
+  isCore    Boolean @default(false)
 
   attributes AttributeDefinition[]
 }
@@ -233,7 +233,7 @@ model AttributeDefinition {
   requirement       FieldRequirement @default(OPTIONAL)
   maxValues         Int              @default(1)
   sortOrder         Int              @default(0)
-  isCore            Boolean          @default(true)
+  isCore            Boolean          @default(false)
   isActive          Boolean          @default(true)
   validationRules   Json?
   defaultValue      String?

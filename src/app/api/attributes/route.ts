@@ -34,6 +34,6 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const attribute = await prisma.attributeDefinition.create({ data: body });
+  const attribute = await prisma.attributeDefinition.create({ data: { ...body, isCore: false } });
   return NextResponse.json(attribute, { status: 201 });
 }
