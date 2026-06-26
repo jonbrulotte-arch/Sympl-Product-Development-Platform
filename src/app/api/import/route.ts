@@ -30,8 +30,10 @@ export async function POST(req: NextRequest) {
       Array.isArray(row) && (row as unknown[]).some((c) => typeof c === "string" && (c as string).includes("Part Number"))
     );
 
-    const headers = (headerRowIndex >= 0 ? (raw[headerRowIndex] as string[]) : (raw[0] as string[])).filter(Boolean);
-    const dataRows = raw.slice(headerRowIndex + 2).slice(0, 5);
+    const headerIdx = headerRowIndex >= 0 ? headerRowIndex : 0;
+    const headers = (raw[headerIdx] as string[]).filter(Boolean);
+    const allDataRows = raw.slice(headerIdx + 1);
+    const dataRows = allDataRows.slice(0, 5);
 
     const sampleRows = dataRows.map((row) => {
       const obj: Record<string, string> = {};
@@ -46,7 +48,7 @@ export async function POST(req: NextRequest) {
       selectedSheet,
       headers,
       sampleRows,
-      totalRows: raw.length - headerRowIndex - 2,
+      totalRows: allDataRows.filter((r) => (r as string[]).some((c) => c !== "" && c != null)).length,
     });
   }
 
@@ -63,8 +65,9 @@ export async function POST(req: NextRequest) {
   const headerRowIndex = raw.findIndex((row) =>
     Array.isArray(row) && (row as unknown[]).some((c) => typeof c === "string" && (c as string).includes("Part Number"))
   );
-  const headers = raw[headerRowIndex] as string[];
-  const dataRows = raw.slice(headerRowIndex + 2);
+  const headerIdx = headerRowIndex >= 0 ? headerRowIndex : 0;
+  const headers = raw[headerIdx] as string[];
+  const dataRows = raw.slice(headerIdx + 1);
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
