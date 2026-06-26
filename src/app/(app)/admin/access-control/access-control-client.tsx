@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { Permission, PERMISSIONS } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
@@ -97,8 +97,8 @@ export function AccessControlClient({ matrix, permissions, roles }: Props) {
           </thead>
           <tbody>
             {Object.entries(groups).map(([group, perms]) => (
-              <>
-                <tr key={`group-${group}`} className="border-b border-gray-100 bg-gray-50/60">
+              <React.Fragment key={group}>
+                <tr className="border-b border-gray-100 bg-gray-50/60">
                   <td colSpan={roles.length + 1} className="px-5 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     {groupLabels[group] ?? group}
                   </td>
@@ -137,7 +137,7 @@ export function AccessControlClient({ matrix, permissions, roles }: Props) {
                     </tr>
                   );
                 })}
-              </>
+              </React.Fragment>
             ))}
           </tbody>
         </table>

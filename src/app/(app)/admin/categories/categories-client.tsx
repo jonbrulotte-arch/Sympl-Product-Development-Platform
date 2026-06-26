@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -135,9 +135,8 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {rootCategories.map((cat) => (
-                  <>
+                  <React.Fragment key={cat.id}>
                     <CategoryRow
-                      key={cat.id}
                       cat={cat}
                       indent={0}
                       allCategories={categories}
@@ -156,7 +155,7 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
                         onDelete={deleteCategory}
                       />
                     ))}
-                  </>
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
