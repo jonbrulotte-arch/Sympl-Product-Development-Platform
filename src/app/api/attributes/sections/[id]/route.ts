@@ -6,7 +6,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (!session?.user?.id || session.user.role !== "ADMIN") {
+  if (!session?.user?.id || !["ADMIN","PRODUCT_MANAGER"].includes(session.user.role!)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (!session?.user?.id || session.user.role !== "ADMIN") {
+  if (!session?.user?.id || !["ADMIN","PRODUCT_MANAGER"].includes(session.user.role!)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

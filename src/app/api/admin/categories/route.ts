@@ -5,7 +5,7 @@ import { slugify } from "@/lib/utils";
 
 async function requireAdmin() {
   const session = await auth();
-  if (!session?.user?.id || session.user.role !== "ADMIN") return null;
+  if (!session?.user?.id || !["ADMIN","PRODUCT_MANAGER"].includes(session.user.role!)) return null;
   return session;
 }
 

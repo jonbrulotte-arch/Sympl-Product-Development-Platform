@@ -38,10 +38,15 @@ const navItems = [
   { href: "/help", label: "Help & Docs", icon: HelpCircle },
 ];
 
-const adminItems = [
-  { href: "/admin/users", label: "Users", icon: Users },
+// Visible to ADMIN and PRODUCT_MANAGER
+const pmAdminItems = [
   { href: "/admin/categories", label: "Categories", icon: Tag },
   { href: "/admin/attributes", label: "Attributes", icon: ListFilter },
+];
+
+// Visible to ADMIN only
+const adminOnlyItems = [
+  { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/workflow-templates", label: "Workflows", icon: GitBranch },
   { href: "/admin/compliance-types", label: "Compliance Types", icon: ShieldCheck },
   { href: "/admin/psir-attributes", label: "PSIR Attributes", icon: ClipboardCheck },
@@ -120,7 +125,11 @@ export function Sidebar({ user }: SidebarProps) {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Admin</p>
               )}
             </div>
-            {[...adminItems, ...(salsifyDebugEnabled ? salsifyDebugItems : [])].map(({ href, label, icon: Icon }) => (
+            {[
+              ...pmAdminItems,
+              ...(user.role === "ADMIN" ? adminOnlyItems : []),
+              ...(user.role === "ADMIN" && salsifyDebugEnabled ? salsifyDebugItems : []),
+            ].map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}

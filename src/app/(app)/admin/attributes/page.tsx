@@ -109,7 +109,7 @@ async function seedCoreAttributes() {
 
 export default async function AttributesPage() {
   const session = await auth();
-  if (!session?.user?.id || session.user.role !== "ADMIN") redirect("/dashboard");
+  if (!session?.user?.id || !["ADMIN", "PRODUCT_MANAGER"].includes(session.user.role!)) redirect("/dashboard");
 
   // Seed core attribute definitions (idempotent — safe to run every page load)
   await seedCoreAttributes().catch(() => {});

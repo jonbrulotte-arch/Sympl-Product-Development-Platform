@@ -5,7 +5,7 @@ import { CategoriesClient } from "./categories-client";
 
 export default async function AdminCategoriesPage() {
   const session = await auth();
-  if (!session?.user?.id || session.user.role !== "ADMIN") redirect("/");
+  if (!session?.user?.id || !["ADMIN", "PRODUCT_MANAGER"].includes(session.user.role!)) redirect("/");
 
   const categories = await prisma.category.findMany({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
