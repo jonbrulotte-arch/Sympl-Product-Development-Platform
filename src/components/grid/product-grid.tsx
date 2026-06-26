@@ -468,7 +468,7 @@ export function ProductGrid({
             const raw = value != null ? String(value) : "";
             const vals = isMultiValueAttr(attrDef)
               ? raw.split("\n").map((s) => s.trim()).filter(Boolean)
-              : [raw];
+              : raw.trim() ? [raw.trim()] : [];
             body = {
               attributeValues: vals.map((textValue, valueIndex) => ({
                 attributeDefinitionId: attrDef.id,

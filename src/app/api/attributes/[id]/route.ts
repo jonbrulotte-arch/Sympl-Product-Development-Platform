@@ -60,17 +60,19 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   const { id } = await params;
 
-  const attr = await prisma.attributeDefinition.findUnique({
-    where: { id },
-    include: { _count: { select: { values: true } } },
-  });
+  const attr = await prisma.attributeDefinition.findUnique({ where: { id } });
   if (!attr) return NextResponse.json({ error: "Attribute not found" }, { status: 404 });
   if (attr.isCore) {
     return NextResponse.json({ error: "Core attributes cannot be deleted." }, { status: 409 });
   }
-  if (attr._count.values > 0) {
+
+  // Count only non-empty values — empty strings written by the grid are not real data
+  const realValueCount = await prisma.productAttributeValue.count({
+    where: { attributeDefinitionId: id, NOT: { textValue: "" } },
+  });
+  if (realValueCount > 0) {
     return NextResponse.json({
-      error: `Cannot delete: ${attr._count.values} product record(s) have data for this attribute. Remove the data first or deactivate instead.`,
+      error: `Cannot delete: ${realValueCount} product record(s) have data for this attribute. Remove the data first or deactivate instead.`,
     }, { status: 409 });
   }
 
