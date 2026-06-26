@@ -49,6 +49,8 @@ export default async function DashboardPage() {
       where: { userId },
       include: {
         user: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true } },
+        product: { select: { id: true, partNumber: true, itemName: true } },
       },
       orderBy: { createdAt: "desc" },
       take: 10,
@@ -232,21 +234,44 @@ export default async function DashboardPage() {
                 {recentActivity.length === 0 && (
                   <p className="px-4 py-4 text-sm text-gray-400">No recent activity.</p>
                 )}
-                {recentActivity.map((log) => (
-                  <div key={log.id} className="flex items-start gap-3 px-4 py-3">
-                    <Clock className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-700">
-                        <span className="font-medium">{log.action.replace("_", " ")}</span>{" "}
-                        {log.entityType}
-                        {log.newValue && (
-                          <span className="text-gray-500"> — {log.newValue.slice(0, 40)}</span>
+                {recentActivity.map((log) => {
+                  const meta = log.metadata as Record<string, string> | null;
+                  const subject =
+                    log.product
+                      ? log.product.itemName ?? log.product.partNumber
+                      : meta?.stageName ?? meta?.templateName ?? null;
+                  const detail =
+                    log.fieldKey && log.newValue
+                      ? `${log.fieldKey.replace(/_/g, " ")}: ${log.newValue.slice(0, 30)}`
+                      : log.newValue
+                      ? log.newValue.slice(0, 40)
+                      : null;
+                  const actionLabel = log.action.replace(/_/g, " ").toLowerCase();
+                  const entityLabel =
+                    log.entityType === "ProductRecord" ? "product" :
+                    log.entityType === "WorkflowStage" ? "workflow stage" :
+                    log.entityType === "Project" ? "project" :
+                    log.entityType.toLowerCase();
+                  return (
+                    <div key={log.id} className="flex items-start gap-3 px-4 py-3">
+                      <Clock className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-700 leading-relaxed">
+                          <span className="font-medium capitalize">{actionLabel}</span>
+                          {" "}<span className="text-gray-500">{entityLabel}</span>
+                          {subject && <span className="font-medium text-gray-800"> · {subject}</span>}
+                        </p>
+                        {detail && (
+                          <p className="text-xs text-gray-400 truncate">{detail}</p>
                         )}
-                      </p>
-                      <p className="text-xs text-gray-400">{formatDate(log.createdAt)}</p>
+                        <p className="text-xs text-gray-400">
+                          {log.project?.name && <span className="mr-1">{log.project.name} ·</span>}
+                          {formatDate(log.createdAt)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
