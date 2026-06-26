@@ -169,6 +169,8 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
           {[
             { id: "grid", label: "Products", icon: Package },
             { id: "workflow", label: "Workflow", icon: CheckCircle },
+            { id: "compliance", label: "Compliance", icon: ShieldCheck },
+            { id: "inspections", label: "Inspections", icon: ClipboardCheck },
             { id: "comments", label: "Comments", icon: MessageSquare },
             { id: "activity", label: "Activity", icon: Clock },
             { id: "members", label: "Members", icon: Users },
@@ -208,6 +210,14 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
 
         {activeTab === "workflow" && (
           <WorkflowView project={project} canEdit={canEdit} currentUserId={currentUserId} />
+        )}
+
+        {activeTab === "compliance" && (
+          <ProjectComplianceView projectId={project.id} />
+        )}
+
+        {activeTab === "inspections" && (
+          <ProjectInspectionsView projectId={project.id} />
         )}
 
         {activeTab === "comments" && (
@@ -1943,6 +1953,158 @@ function MembersView({ project }: { project: ProjectWithRelations; canEdit: bool
               {member.canApprove && <Badge variant="outline">Can Approve</Badge>}
             </div>
           </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Project Compliance View ───────────────────────────────────────────────────
+
+type ComplianceEvent = {
+  id: string; title: string; status: string; severity: string | null;
+  dueDate: string | null; createdAt: string;
+  type: { name: string; color: string };
+  createdBy: { name: string | null; email: string };
+  products: { product: { id: string; partNumber: string; itemName: string | null } }[];
+};
+
+function ProjectComplianceView({ projectId }: { projectId: string }) {
+  const [events, setEvents] = useState<ComplianceEvent[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/compliance/events?projectId=${projectId}&pageSize=50`)
+      .then((r) => r.json())
+      .then((d) => { setEvents(d.data ?? []); setTotal(d.total ?? 0); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [projectId]);
+
+  const severityColor: Record<string, string> = {
+    CRITICAL: "bg-red-100 text-red-700",
+    HIGH: "bg-orange-100 text-orange-700",
+    MEDIUM: "bg-yellow-100 text-yellow-700",
+    LOW: "bg-gray-100 text-gray-600",
+  };
+  const statusColor: Record<string, string> = {
+    OPEN: "bg-red-100 text-red-700",
+    IN_PROGRESS: "bg-blue-100 text-blue-700",
+    RESOLVED: "bg-green-100 text-green-700",
+    CLOSED: "bg-gray-100 text-gray-600",
+    WAIVED: "bg-purple-100 text-purple-700",
+  };
+
+  return (
+    <div className="p-6 overflow-y-auto h-full">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="text-sm font-medium text-gray-700">{total} compliance event{total !== 1 ? "s" : ""}</p>
+          <p className="text-xs text-gray-400 mt-0.5">Regulatory and compliance issues linked to products in this project.</p>
+        </div>
+        <Link href="/compliance" className="text-xs text-blue-600 hover:underline">Manage in Compliance module →</Link>
+      </div>
+      {loading && <p className="text-sm text-gray-400">Loading…</p>}
+      {!loading && events.length === 0 && (
+        <p className="text-sm text-gray-400">No compliance events linked to products in this project.</p>
+      )}
+      <div className="space-y-2">
+        {events.map((ev) => (
+          <Link key={ev.id} href={`/compliance/${ev.id}`} className="block border border-gray-200 rounded-lg px-4 py-3 hover:bg-gray-50 transition-colors">
+            <div className="flex items-start gap-3">
+              <span className="mt-1 h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: ev.type.color ?? "#6b7280" }} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-medium text-gray-900">{ev.title}</p>
+                  <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-600">{ev.type.name}</span>
+                  {ev.severity && <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${severityColor[ev.severity] ?? "bg-gray-100 text-gray-600"}`}>{ev.severity}</span>}
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${statusColor[ev.status] ?? "bg-gray-100 text-gray-600"}`}>{ev.status.replace("_", " ")}</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  {ev.products.length} product{ev.products.length !== 1 ? "s" : ""}
+                  {ev.dueDate && ` · Due ${formatDate(new Date(ev.dueDate))}`}
+                  {` · by ${ev.createdBy.name ?? ev.createdBy.email}`}
+                </p>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Project Inspections View ──────────────────────────────────────────────────
+
+type PsirRow = {
+  id: string; title: string; referenceNumber: string | null;
+  inspectionDate: string | null; inspector: string | null;
+  result: string; status: string;
+  products: { product: { id: string; partNumber: string; itemName: string | null } }[];
+};
+
+function ProjectInspectionsView({ projectId }: { projectId: string }) {
+  const [psirs, setPsirs] = useState<PsirRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/psir?projectId=${projectId}&pageSize=50`)
+      .then((r) => r.json())
+      .then((d) => { setPsirs(d.data ?? []); setTotal(d.total ?? 0); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [projectId]);
+
+  const resultColor: Record<string, string> = {
+    PASS: "bg-green-100 text-green-700",
+    FAIL: "bg-red-100 text-red-700",
+    CONDITIONAL: "bg-yellow-100 text-yellow-700",
+    PENDING: "bg-gray-100 text-gray-600",
+  };
+  const statusColor: Record<string, string> = {
+    DRAFT: "bg-gray-100 text-gray-600",
+    SUBMITTED: "bg-blue-100 text-blue-700",
+    APPROVED: "bg-green-100 text-green-700",
+    REJECTED: "bg-red-100 text-red-700",
+  };
+
+  return (
+    <div className="p-6 overflow-y-auto h-full">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="text-sm font-medium text-gray-700">{total} inspection report{total !== 1 ? "s" : ""}</p>
+          <p className="text-xs text-gray-400 mt-0.5">Pre-shipment inspection reports linked to products in this project.</p>
+        </div>
+        <Link href="/psir" className="text-xs text-blue-600 hover:underline">Manage in Inspections module →</Link>
+      </div>
+      {loading && <p className="text-sm text-gray-400">Loading…</p>}
+      {!loading && psirs.length === 0 && (
+        <p className="text-sm text-gray-400">No inspection reports linked to products in this project.</p>
+      )}
+      <div className="space-y-2">
+        {psirs.map((psir) => (
+          <Link key={psir.id} href={`/psir/${psir.id}`} className="block border border-gray-200 rounded-lg px-4 py-3 hover:bg-gray-50 transition-colors">
+            <div className="flex items-start gap-3">
+              <ClipboardCheck className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-medium text-gray-900">{psir.title}</p>
+                  {psir.referenceNumber && <span className="text-xs text-gray-400">#{psir.referenceNumber}</span>}
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${resultColor[psir.result] ?? "bg-gray-100 text-gray-600"}`}>{psir.result}</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${statusColor[psir.status] ?? "bg-gray-100 text-gray-600"}`}>{psir.status}</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  {psir.products.length} product{psir.products.length !== 1 ? "s" : ""}
+                  {psir.inspector && ` · ${psir.inspector}`}
+                  {psir.inspectionDate && ` · ${formatDate(new Date(psir.inspectionDate))}`}
+                </p>
+              </div>
+            </div>
+          </Link>
         ))}
       </div>
     </div>

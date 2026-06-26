@@ -28,6 +28,7 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const productId = searchParams.get("productId");
+  const projectId = searchParams.get("projectId");
   const status = searchParams.get("status");
   const typeId = searchParams.get("typeId");
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
@@ -35,6 +36,7 @@ export async function GET(req: Request) {
 
   const where = {
     ...(productId && { products: { some: { productId } } }),
+    ...(projectId && { products: { some: { product: { projectId } } } }),
     ...(status && { status }),
     ...(typeId && { typeId }),
   };
