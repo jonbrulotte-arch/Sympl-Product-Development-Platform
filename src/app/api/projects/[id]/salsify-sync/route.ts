@@ -64,6 +64,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { id: projectId } = await params;
   const body = await req.json().catch(() => ({}));
   const skipAttributeKeys: string[] = Array.isArray(body.skipAttributeKeys) ? body.skipAttributeKeys : [];
+  const productIds: string[] | null = Array.isArray(body.productIds) && body.productIds.length > 0 ? body.productIds : null;
 
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   // Get products with their attribute values
   const products = await prisma.productRecord.findMany({
-    where: { projectId, isArchived: false },
+    where: { projectId, isArchived: false, ...(productIds ? { id: { in: productIds } } : {}) },
     include: {
       attributeValues: {
         include: { attributeDefinition: true },

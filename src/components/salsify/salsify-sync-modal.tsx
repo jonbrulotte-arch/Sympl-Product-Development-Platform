@@ -15,12 +15,14 @@ type SalsifyAttr = {
 type Props = {
   /** "project" syncs all products in the project; "product" syncs a single product */
   mode: "project" | "product";
+  /** When set, shows how many selected products will sync instead of "all" */
+  syncProductCount?: number;
   onConfirm: (skipKeys: string[]) => void;
   onClose: () => void;
   syncing: boolean;
 };
 
-export function SalsifySyncModal({ mode, onConfirm, onClose, syncing }: Props) {
+export function SalsifySyncModal({ mode, syncProductCount, onConfirm, onClose, syncing }: Props) {
   const [attrs, setAttrs] = useState<SalsifyAttr[]>([]);
   const [loading, setLoading] = useState(true);
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -72,9 +74,11 @@ export function SalsifySyncModal({ mode, onConfirm, onClose, syncing }: Props) {
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-semibold text-gray-900">Sync to Salsify</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {mode === "project"
-                ? "All products in this project will be synced. Existing Salsify data for checked attributes will be overwritten."
-                : "This product will be synced. Existing Salsify data for checked attributes will be overwritten."}
+              {mode === "product"
+                ? "This product will be synced. Existing Salsify data for checked attributes will be overwritten."
+                : syncProductCount != null
+                  ? `${syncProductCount} selected product${syncProductCount !== 1 ? "s" : ""} will be synced. Existing Salsify data for checked attributes will be overwritten.`
+                  : "All products in this project will be synced. Existing Salsify data for checked attributes will be overwritten."}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 shrink-0">

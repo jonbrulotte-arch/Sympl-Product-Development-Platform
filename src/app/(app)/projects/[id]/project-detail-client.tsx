@@ -50,7 +50,13 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
   const [salsifySyncing, setSalsifySyncing] = useState(false);
   const [salsifySyncResult, setSalsifySyncResult] = useState<string | null>(null);
   const [showSalsifyModal, setShowSalsifyModal] = useState(false);
+  const [salsifySelectedIds, setSalsifySelectedIds] = useState<string[] | null>(null);
   const router = useRouter();
+
+  const openSalsifyModal = (selectedIds?: string[]) => {
+    setSalsifySelectedIds(selectedIds && selectedIds.length > 0 ? selectedIds : null);
+    setShowSalsifyModal(true);
+  };
 
   const handleSalsifySync = async (skipKeys: string[]) => {
     setShowSalsifyModal(false);
@@ -60,7 +66,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
       const res = await fetch(`/api/projects/${project.id}/salsify-sync`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ skipAttributeKeys: skipKeys }),
+        body: JSON.stringify({ skipAttributeKeys: skipKeys, ...(salsifySelectedIds ? { productIds: salsifySelectedIds } : {}) }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -150,7 +156,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
                 <Button
                   size="sm"
                   className="bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => setShowSalsifyModal(true)}
+                  onClick={() => openSalsifyModal()}
                   disabled={salsifySyncing}
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${salsifySyncing ? "animate-spin" : ""}`} />
@@ -211,6 +217,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
             canEdit={canEdit}
             onExport={handleExport}
             onImport={() => router.push(`/import?projectId=${project.id}`)}
+            onSalsifySync={project.status === "EXPORT_READY" ? openSalsifyModal : undefined}
           />
         </div>
 
@@ -245,6 +252,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
       {showSalsifyModal && (
         <SalsifySyncModal
           mode="project"
+          syncProductCount={salsifySelectedIds?.length}
           syncing={salsifySyncing}
           onConfirm={handleSalsifySync}
           onClose={() => setShowSalsifyModal(false)}

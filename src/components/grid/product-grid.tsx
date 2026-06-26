@@ -17,7 +17,7 @@ import {
   type Row,
   type Column,
 } from "@tanstack/react-table";
-import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle } from "lucide-react";
+import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -404,6 +404,7 @@ interface ProductGridProps {
   canEdit: boolean;
   onExport?: () => void;
   onImport?: () => void;
+  onSalsifySync?: (selectedIds: string[]) => void;
 }
 
 export function ProductGrid({
@@ -415,6 +416,7 @@ export function ProductGrid({
   canEdit,
   onExport,
   onImport,
+  onSalsifySync,
 }: ProductGridProps) {
   const enriched = (initialProducts as (ProductRow & {
     attributeValues?: { attributeDefinition: { key: string }; valueIndex: number; textValue?: string | null }[]
@@ -706,6 +708,13 @@ export function ProductGrid({
           {selectedRows.size > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">{selectedRows.size} selected</span>
+              {onSalsifySync && (
+                <Button size="sm" variant="outline" onClick={() => onSalsifySync([...selectedRows])}
+                  className="text-emerald-700 border-emerald-300 bg-emerald-50 hover:bg-emerald-100">
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Sync to Salsify
+                </Button>
+              )}
               {canEdit && (
                 <Button size="sm" variant="outline" onClick={() => setBulkEditOpen(true)}>
                   <Edit3 className="h-3.5 w-3.5" />
