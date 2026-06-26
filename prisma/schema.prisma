@@ -843,6 +843,7 @@ model BackupConfig {
   retainCount     Int      @default(7)
   lastRunAt       DateTime?
   nextRunAt       DateTime?
+  apiTokenHash    String?  @db.Text
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }

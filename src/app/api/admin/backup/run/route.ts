@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { createCipheriv, randomBytes } from "crypto";
+import { createCipheriv, createHash, randomBytes } from "crypto";
 import { getBackupKey } from "@/lib/backup-key";
 import { createWriteStream, mkdirSync, readdirSync, statSync, unlinkSync } from "fs";
 import path from "path";
@@ -13,13 +13,29 @@ import { Readable } from "stream";
 
 const execFileAsync = promisify(execFile);
 
-export async function POST(req: NextRequest) {
+async function isAuthorized(req: NextRequest): Promise<boolean> {
+  // Accept admin session
   const session = await auth();
-  if (!session?.user?.id || !(await can(session.user.role, "admin:backup")))
+  if (session?.user?.id && (await can(session.user.role, "admin:backup"))) return true;
+
+  // Accept Bearer token
+  const authHeader = req.headers.get("authorization") ?? "";
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (match) {
+    const tokenHash = createHash("sha256").update(match[1]).digest("hex");
+    const config = await prisma.backupConfig.findFirst({ select: { apiTokenHash: true } });
+    if (config?.apiTokenHash && config.apiTokenHash === tokenHash) return true;
+  }
+
+  return false;
+}
+
+export async function POST(req: NextRequest) {
+  if (!(await isAuthorized(req)))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
-  const triggeredBy: string = body.triggeredBy ?? "MANUAL";
+  const triggeredBy: string = body.triggeredBy ?? "API";
 
   const config = await prisma.backupConfig.findFirst();
   if (!config) {

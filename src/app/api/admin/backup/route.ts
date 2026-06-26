@@ -15,7 +15,7 @@ export async function GET() {
   ]);
 
   return NextResponse.json({
-    config,
+    config: config ? { ...config, apiTokenHash: undefined, hasApiToken: !!config.apiTokenHash } : null,
     logs: logs.map((l) => ({ ...l, fileSizeBytes: l.fileSizeBytes != null ? l.fileSizeBytes.toString() : null })),
   });
 }
