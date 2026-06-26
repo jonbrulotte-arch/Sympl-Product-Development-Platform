@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Pencil, ToggleLeft, ToggleRight, Tag } from "lucide-react";
+import { Plus, Pencil, ToggleLeft, ToggleRight, Tag, Trash2 } from "lucide-react";
 
 type Category = {
   id: string;
@@ -50,7 +50,7 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
         const res = await fetch("/api/admin/categories", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: editing.id, ...body }),
+          body: JSON.stringify({ id: editing.id, ...body, parentId: form.parentId || null }),
         });
         if (!res.ok) throw new Error((await res.json()).error ?? "Save failed");
         const updated = await res.json();
@@ -70,6 +70,21 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const deleteCategory = async (cat: Category) => {
+    if (!confirm(`Delete "${cat.name}"? This cannot be undone.`)) return;
+    const res = await fetch("/api/admin/categories", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: cat.id }),
+    });
+    if (res.ok) {
+      setCategories((prev) => prev.filter((c) => c.id !== cat.id));
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error ?? "Delete failed");
     }
   };
 
@@ -128,6 +143,7 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
                       allCategories={categories}
                       onEdit={openEdit}
                       onToggle={toggleActive}
+                      onDelete={deleteCategory}
                     />
                     {childrenOf(cat.id).map((child) => (
                       <CategoryRow
@@ -137,6 +153,7 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
                         allCategories={categories}
                         onEdit={openEdit}
                         onToggle={toggleActive}
+                        onDelete={deleteCategory}
                       />
                     ))}
                   </>
@@ -201,14 +218,17 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
 }
 
 function CategoryRow({
-  cat, indent, allCategories, onEdit, onToggle,
+  cat, indent, allCategories, onEdit, onToggle, onDelete,
 }: {
   cat: Category; indent: number;
   allCategories: Category[];
   onEdit: (c: Category) => void;
   onToggle: (c: Category) => void;
+  onDelete: (c: Category) => void;
 }) {
   const parent = allCategories.find((c) => c.id === cat.parentId);
+  const canDelete = cat._count.products === 0 && cat._count.projects === 0 &&
+    allCategories.filter((c) => c.parentId === cat.id).length === 0;
   return (
     <tr className={`hover:bg-gray-50 ${!cat.isActive ? "opacity-50" : ""}`}>
       <td className="px-4 py-2.5">
@@ -229,11 +249,19 @@ function CategoryRow({
       </td>
       <td className="px-4 py-2.5">
         <div className="flex items-center gap-1 justify-end">
-          <button onClick={() => onEdit(cat)} className="p-1 text-gray-400 hover:text-blue-600 transition-colors">
+          <button onClick={() => onEdit(cat)} className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="Edit">
             <Pencil className="h-3.5 w-3.5" />
           </button>
-          <button onClick={() => onToggle(cat)} className="p-1 text-gray-400 hover:text-gray-700 transition-colors">
+          <button onClick={() => onToggle(cat)} className="p-1 text-gray-400 hover:text-gray-700 transition-colors" title={cat.isActive ? "Deactivate" : "Activate"}>
             {cat.isActive ? <ToggleRight className="h-4 w-4 text-green-500" /> : <ToggleLeft className="h-4 w-4" />}
+          </button>
+          <button
+            onClick={() => onDelete(cat)}
+            disabled={!canDelete}
+            className="p-1 text-gray-300 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            title={canDelete ? "Delete" : "Cannot delete: category is in use or has sub-categories"}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
       </td>

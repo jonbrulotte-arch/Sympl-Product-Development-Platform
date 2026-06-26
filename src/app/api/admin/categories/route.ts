@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest) {
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { id, name, description, isActive, sortOrder } = await req.json();
+  const { id, name, description, isActive, sortOrder, parentId } = await req.json();
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const data: Record<string, unknown> = {};
@@ -52,6 +52,7 @@ export async function PATCH(req: NextRequest) {
   if (description !== undefined) data.description = description?.trim() || null;
   if (isActive !== undefined) data.isActive = isActive;
   if (sortOrder !== undefined) data.sortOrder = sortOrder;
+  if (parentId !== undefined) data.parentId = parentId || null;
 
   const category = await prisma.category.update({
     where: { id },
@@ -68,6 +69,24 @@ export async function DELETE(req: NextRequest) {
   const { id } = await req.json();
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-  await prisma.category.update({ where: { id }, data: { isActive: false } });
+  // Safety check — block deletion if anything references this category
+  const category = await prisma.category.findUnique({
+    where: { id },
+    include: {
+      _count: { select: { products: true, projects: true, children: true } },
+    },
+  });
+  if (!category) return NextResponse.json({ error: "Category not found" }, { status: 404 });
+  if (category._count.products > 0) {
+    return NextResponse.json({ error: `Cannot delete: ${category._count.products} product(s) use this category.` }, { status: 409 });
+  }
+  if (category._count.projects > 0) {
+    return NextResponse.json({ error: `Cannot delete: ${category._count.projects} project(s) use this category.` }, { status: 409 });
+  }
+  if (category._count.children > 0) {
+    return NextResponse.json({ error: `Cannot delete: this category has ${category._count.children} sub-categor${category._count.children === 1 ? "y" : "ies"}. Remove or reassign them first.` }, { status: 409 });
+  }
+
+  await prisma.category.delete({ where: { id } });
   return NextResponse.json({ success: true });
 }
