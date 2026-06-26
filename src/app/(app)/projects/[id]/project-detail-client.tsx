@@ -1976,9 +1976,9 @@ function ProjectComplianceView({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/compliance/events?projectId=${projectId}&pageSize=50`)
+    fetch(`/api/compliance/events?projectId=${projectId}`)
       .then((r) => r.json())
-      .then((d) => { setEvents(d.data ?? []); setTotal(d.total ?? 0); })
+      .then((d) => { setEvents(d.events ?? []); setTotal(d.total ?? 0); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [projectId]);
@@ -2052,9 +2052,9 @@ function ProjectInspectionsView({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/psir?projectId=${projectId}&pageSize=50`)
+    fetch(`/api/psir?projectId=${projectId}`)
       .then((r) => r.json())
-      .then((d) => { setPsirs(d.data ?? []); setTotal(d.total ?? 0); })
+      .then((d) => { setPsirs(d.psirs ?? []); setTotal(d.total ?? 0); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [projectId]);
