@@ -57,6 +57,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         ...(updateStage.description !== undefined && { description: updateStage.description?.trim() || null }),
         ...(updateStage.sortOrder !== undefined && { sortOrder: updateStage.sortOrder }),
         ...(updateStage.isRequired !== undefined && { isRequired: updateStage.isRequired }),
+        ...(updateStage.onApproveSetStatus !== undefined && { onApproveSetStatus: updateStage.onApproveSetStatus || null }),
+        ...(updateStage.onRejectSetStatus !== undefined && { onRejectSetStatus: updateStage.onRejectSetStatus || null }),
+        ...(updateStage.dependsOnStageTemplateId !== undefined && { dependsOnStageTemplateId: updateStage.dependsOnStageTemplateId || null }),
       },
       include: STAGE_INCLUDE,
     });

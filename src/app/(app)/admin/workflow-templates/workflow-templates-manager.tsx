@@ -14,6 +14,9 @@ type StageTemplateAssignee = { id: string; userId: string; user: AssigneeUser };
 type StageTemplate = {
   id: string; name: string; description: string | null;
   sortOrder: number; isRequired: boolean;
+  onApproveSetStatus: string | null;
+  onRejectSetStatus: string | null;
+  dependsOnStageTemplateId: string | null;
   defaultAssignees: StageTemplateAssignee[];
 };
 type WorkflowTemplate = {
@@ -22,6 +25,17 @@ type WorkflowTemplate = {
   stageTemplates: StageTemplate[];
 };
 type UserOption = { id: string; name: string | null; email: string; role: string };
+
+const PROJECT_STATUSES = [
+  { value: "", label: "No change" },
+  { value: "DRAFT", label: "Draft" },
+  { value: "IN_PROGRESS", label: "In Progress" },
+  { value: "NEEDS_REVIEW", label: "Needs Review" },
+  { value: "CHANGES_REQUESTED", label: "Changes Requested" },
+  { value: "APPROVED", label: "Approved" },
+  { value: "EXPORT_READY", label: "Export Ready" },
+  { value: "ARCHIVED", label: "Archived" },
+];
 
 export function WorkflowTemplatesManager() {
   const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
@@ -124,6 +138,24 @@ export function WorkflowTemplatesManager() {
           : t
       ));
       setEditingStage(null);
+    }
+  };
+
+  const updateStageField = async (
+    templateId: string,
+    stageId: string,
+    field: "onApproveSetStatus" | "onRejectSetStatus" | "dependsOnStageTemplateId",
+    value: string | null,
+  ) => {
+    const res = await patch(templateId, { updateStage: { id: stageId, [field]: value } });
+    if (res.ok) {
+      setTemplates((prev) => prev.map((t) =>
+        t.id === templateId
+          ? { ...t, stageTemplates: t.stageTemplates.map((s) =>
+              s.id === stageId ? { ...s, [field]: value } : s
+            )}
+          : t
+      ));
     }
   };
 
@@ -402,6 +434,49 @@ export function WorkflowTemplatesManager() {
                             <User className="h-3 w-3" />
                             <span>{stage.defaultAssignees.length === 0 ? "Add default approver" : "Add"}</span>
                           </button>
+                        </div>
+
+                        {/* Stage behaviour settings */}
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-gray-500">
+                          <label className="flex items-center gap-1.5">
+                            <span className="text-gray-400 whitespace-nowrap">On approval →</span>
+                            <select
+                              className="border border-gray-200 rounded px-1.5 py-0.5 text-xs text-gray-700 bg-white"
+                              value={stage.onApproveSetStatus ?? ""}
+                              onChange={(e) => updateStageField(template.id, stage.id, "onApproveSetStatus", e.target.value || null)}
+                            >
+                              {PROJECT_STATUSES.map((s) => (
+                                <option key={s.value} value={s.value}>{s.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="flex items-center gap-1.5">
+                            <span className="text-gray-400 whitespace-nowrap">On rejection →</span>
+                            <select
+                              className="border border-gray-200 rounded px-1.5 py-0.5 text-xs text-gray-700 bg-white"
+                              value={stage.onRejectSetStatus ?? ""}
+                              onChange={(e) => updateStageField(template.id, stage.id, "onRejectSetStatus", e.target.value || null)}
+                            >
+                              {PROJECT_STATUSES.map((s) => (
+                                <option key={s.value} value={s.value}>{s.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="flex items-center gap-1.5">
+                            <span className="text-gray-400 whitespace-nowrap">Depends on →</span>
+                            <select
+                              className="border border-gray-200 rounded px-1.5 py-0.5 text-xs text-gray-700 bg-white"
+                              value={stage.dependsOnStageTemplateId ?? ""}
+                              onChange={(e) => updateStageField(template.id, stage.id, "dependsOnStageTemplateId", e.target.value || null)}
+                            >
+                              <option value="">No dependency</option>
+                              {template.stageTemplates
+                                .filter((s) => s.id !== stage.id)
+                                .map((s) => (
+                                  <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                            </select>
+                          </label>
                         </div>
 
                         {/* User picker dropdown */}

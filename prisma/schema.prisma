@@ -495,16 +495,21 @@ model WorkflowTemplate {
 }
 
 model WorkflowStageTemplate {
-  id                 String   @id @default(cuid())
-  workflowTemplateId String
-  name               String
-  description        String?
-  sortOrder          Int      @default(0)
-  isRequired         Boolean  @default(true)
-  requiredFields     String[] @default([])
+  id                      String         @id @default(cuid())
+  workflowTemplateId      String
+  name                    String
+  description             String?
+  sortOrder               Int            @default(0)
+  isRequired              Boolean        @default(true)
+  requiredFields          String[]       @default([])
+  onApproveSetStatus      ProjectStatus?
+  onRejectSetStatus       ProjectStatus?
+  dependsOnStageTemplateId String?
 
-  workflowTemplate WorkflowTemplate                @relation(fields: [workflowTemplateId], references: [id], onDelete: Cascade)
-  defaultAssignees WorkflowStageTemplateAssignee[]
+  workflowTemplate       WorkflowTemplate                @relation(fields: [workflowTemplateId], references: [id], onDelete: Cascade)
+  defaultAssignees       WorkflowStageTemplateAssignee[]
+  dependsOnStageTemplate WorkflowStageTemplate?          @relation("TemplateStageDepend", fields: [dependsOnStageTemplateId], references: [id], onDelete: SetNull)
+  dependentStageTemplates WorkflowStageTemplate[]        @relation("TemplateStageDepend")
 }
 
 model WorkflowStageTemplateAssignee {

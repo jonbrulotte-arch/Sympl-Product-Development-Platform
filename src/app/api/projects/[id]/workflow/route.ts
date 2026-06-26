@@ -68,42 +68,63 @@ export async function POST(req: NextRequest, { params }: Params) {
       include: {
         stageTemplates: {
           orderBy: { sortOrder: "asc" },
-          include: { defaultAssignees: { select: { userId: true } } },
+          include: { defaultAssignees: { select: { userId: true } }, dependsOnStageTemplate: true },
         },
       },
     });
     if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 });
 
     const existingCount = await prisma.workflowStage.count({ where: { projectId } });
-    const stages = await Promise.all(
-      template.stageTemplates.map(async (st, i) => {
-        const stage = await prisma.workflowStage.create({
+    // Pass 1: create all stages (without dependencies)
+    const createdStages = await Promise.all(
+      template.stageTemplates.map(async (st, i) =>
+        prisma.workflowStage.create({
           data: {
             projectId,
             name: st.name,
             description: st.description,
             sortOrder: existingCount + i,
             isRequired: st.isRequired,
+            onApproveSetStatus: st.onApproveSetStatus ?? null,
+            onRejectSetStatus: st.onRejectSetStatus ?? null,
           },
           include: STAGE_INCLUDE,
-        });
-        // Pre-assign default approvers from the template
+        })
+      )
+    );
+    // Build template stageId → real stageId map
+    const templateToReal = new Map<string, string>();
+    template.stageTemplates.forEach((st, i) => templateToReal.set(st.id, createdStages[i].id));
+    // Pass 2: wire dependencies and assignees
+    const stages = await Promise.all(
+      template.stageTemplates.map(async (st, i) => {
+        const stage = createdStages[i];
+        const updates: Promise<unknown>[] = [];
+        if (st.dependsOnStageTemplateId && templateToReal.has(st.dependsOnStageTemplateId)) {
+          updates.push(prisma.workflowStage.update({
+            where: { id: stage.id },
+            data: { dependsOnStageId: templateToReal.get(st.dependsOnStageTemplateId) },
+          }));
+        }
         if (st.defaultAssignees.length > 0) {
-          await prisma.workflowApproval.createMany({
+          updates.push(prisma.workflowApproval.createMany({
             data: st.defaultAssignees.map((a) => ({
               stageId: stage.id,
               approverId: a.userId,
               status: "PENDING",
             })),
             skipDuplicates: true,
-          });
-          // Reload with approvals
+          }));
+        }
+        await Promise.all(updates);
+        if (updates.length > 0) {
           return prisma.workflowStage.findUnique({ where: { id: stage.id }, include: STAGE_INCLUDE })!;
         }
         return stage;
       })
     );
     for (const s of stages) {
+      if (!s) continue;
       logActivity({ userId: session.user.id, action: "CREATED", entityType: "WorkflowStage", entityId: s.id, projectId, newValue: s.name }).catch(() => {});
     }
     return NextResponse.json(stages, { status: 201 });
