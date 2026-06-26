@@ -142,15 +142,15 @@ export default async function DashboardPage() {
                     className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-gray-900 truncate">{project.name}</p>
+                      <p className="text-sm font-medium text-gray-900 truncate">{project.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
                         <ProjectStatusBadge status={project.status} />
+                        <p className="text-xs text-gray-500">
+                          {project._count.products} products
+                          {project.brand && ` · ${project.brand}`}
+                          {project.category && ` · ${project.category.name}`}
+                        </p>
                       </div>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {project._count.products} products
-                        {project.brand && ` · ${project.brand}`}
-                        {project.category && ` · ${project.category.name}`}
-                      </p>
                     </div>
                     <div className="text-xs text-gray-400 whitespace-nowrap">
                       {formatDate(project.updatedAt)}
