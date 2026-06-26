@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
         { brand: { contains: search, mode: "insensitive" as const } },
         { retailer: { contains: search, mode: "insensitive" as const } },
         { channel: { contains: search, mode: "insensitive" as const } },
+        { tags: { has: search } },
         { owner: { name: { contains: search, mode: "insensitive" as const } } },
         { owner: { email: { contains: search, mode: "insensitive" as const } } },
         { members: { some: { user: { name: { contains: search, mode: "insensitive" as const } } } } },
