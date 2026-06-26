@@ -85,6 +85,7 @@ async function main() {
         requirement: attr.req,
         sortOrder: attr.sort,
         isActive: true,
+        isCore: true,
         salsifyEnabled: false,
         ...(section ? { sectionId: section.id } : {}),
       },

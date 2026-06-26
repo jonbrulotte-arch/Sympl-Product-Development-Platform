@@ -17,7 +17,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Whitelist known fields and use relation syntax for FK fields
   const {
     label, description, attributeType, requirement, maxValues, sortOrder,
-    categoryId, sectionId, isActive, isCore,
+    categoryId, sectionId, isActive,
     salsifyEnabled, salsifyPropertyId, salsifyLocale,
     defaultValue, unit, validationRules,
   } = body;
@@ -32,7 +32,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       ...(maxValues !== undefined && { maxValues: Number(maxValues) }),
       ...(sortOrder !== undefined && { sortOrder: Number(sortOrder) }),
       ...(isActive !== undefined && { isActive }),
-      ...(isCore !== undefined && { isCore }),
       ...(salsifyEnabled !== undefined && { salsifyEnabled }),
       ...(salsifyPropertyId !== undefined && { salsifyPropertyId: salsifyPropertyId || null }),
       ...(salsifyLocale !== undefined && { salsifyLocale: salsifyLocale || null }),
