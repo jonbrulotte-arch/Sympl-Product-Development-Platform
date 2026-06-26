@@ -242,6 +242,14 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
           <SettingsView project={project} canEdit={canEdit} onSaved={() => router.refresh()} allCategories={allCategories} userRole={userRole} />
         )}
       </div>
+      {showSalsifyModal && (
+        <SalsifySyncModal
+          mode="project"
+          syncing={salsifySyncing}
+          onConfirm={handleSalsifySync}
+          onClose={() => setShowSalsifyModal(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1933,14 +1941,6 @@ function SettingsView({
         </section>
       )}
 
-      {showSalsifyModal && (
-        <SalsifySyncModal
-          mode="project"
-          syncing={salsifySyncing}
-          onConfirm={handleSalsifySync}
-          onClose={() => setShowSalsifyModal(false)}
-        />
-      )}
     </div>
   );
 }
