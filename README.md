@@ -1,4 +1,4 @@
-# Sympl Product Development Platform
+# Sympl PM - Product Development Platform
 
 A product lifecycle management platform for retail brands — centralizes product data, tracks approvals through configurable workflows, manages compliance events and pre-shipment inspections, and integrates with Salsify for data syndication.
 
