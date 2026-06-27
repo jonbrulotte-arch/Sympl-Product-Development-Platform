@@ -216,10 +216,13 @@ const sections: Section[] = [
         <H3>Freezing columns</H3>
         <P>Hover over a column header and click the pin icon to freeze it to the left side of the grid. Frozen columns stay visible while scrolling horizontally.</P>
 
+        <H3>Sync to Salsify from the grid</H3>
+        <P>When one or more rows are selected, a green <strong>Sync to Salsify</strong> button appears in the selection toolbar (alongside Bulk Edit, Duplicate, and Delete). Clicking it opens the same attribute opt-out modal and syncs only the selected products. The button is only shown when the project is in <strong>Export Ready</strong> status and Salsify is enabled.</P>
+
         <H3>Import / Export</H3>
         <UL>
-          <LI><strong>Import</strong> — upload an Excel or CSV file. Map source columns to Sympl fields on the next screen. Duplicate part numbers are flagged.</LI>
-          <LI><strong>Export</strong> — downloads the visible grid rows as an Excel file.</LI>
+          <LI><strong>Import</strong> — upload an Excel (<Code>.xlsx</Code>) file. Map source columns to Sympl fields on the next screen. The importer auto-detects columns by matching header names to known Sympl field labels.</LI>
+          <LI><strong>Export</strong> — downloads all products in the project as an Excel file with every core field and custom attribute as columns.</LI>
         </UL>
       </>
     ),
@@ -697,9 +700,16 @@ const sections: Section[] = [
         <P>In <strong>Admin → Attributes</strong>, open any attribute, enable the Salsify toggle, and enter the Salsify Property ID. This is the property name in Salsify that this attribute's value will be written to.</P>
 
         <H3>Syncing products</H3>
-        <P>From a project, click the <strong>Sync to Salsify</strong> button (available when Salsify is enabled and the project is in <strong>Export Ready</strong> status). This sends all products in the project with their mapped attribute values to Salsify.</P>
-        <P>Admins and Product Managers can also sync a single product directly from its edit page (<Code>/products/[id]</Code>) using the <strong>Sync to Salsify</strong> button in the top-right. This is useful for pushing updates to a single product without re-syncing the whole project.</P>
-        <Callout>A confirmation dialog appears before every sync reminding you that attribute values in Salsify will be overwritten. This action cannot be undone.</Callout>
+        <P>There are three ways to sync to Salsify, all requiring the project to be in <strong>Export Ready</strong> status and Salsify to be enabled:</P>
+        <UL>
+          <LI><strong>Full project sync</strong> — click <strong>Sync to Salsify</strong> in the project header. Sends every non-archived product in the project.</LI>
+          <LI><strong>Selected rows</strong> — check one or more rows in the product grid, then click <strong>Sync to Salsify</strong> in the selection toolbar. Only the checked products are synced.</LI>
+          <LI><strong>Single product</strong> — open a product at <Code>/products/[id]</Code> and click <strong>Sync to Salsify</strong> in the top-right header. Useful for pushing a single update without touching the rest of the project.</LI>
+        </UL>
+
+        <H3>Attribute opt-out per sync</H3>
+        <P>Before every sync a confirmation modal appears listing all Salsify-enabled attributes grouped by section. Each attribute has a checkbox — uncheck any attribute you want to exclude from <em>this particular sync</em>. This does not permanently change the attribute&apos;s Salsify settings; the exclusion applies only to the current sync run. Use this to avoid overwriting data that already exists correctly in Salsify.</P>
+        <Callout>Syncing overwrites the corresponding Salsify property values for each checked attribute. Attributes you uncheck are left untouched in Salsify. This action cannot be undone.</Callout>
 
         <H3>Multi-value attributes</H3>
         <P>Attributes with Max Values &gt; 1 are sent to Salsify as JSON arrays, making them compatible with multi-value Salsify properties. Only values that are actually stored are sent — if a product has a single value for a multi-value attribute, a scalar (not an array) is sent to Salsify.</P>
@@ -707,7 +717,7 @@ const sections: Section[] = [
         <H3>Debug mode</H3>
         <P>Admins can enable <strong>Salsify Debug</strong> in <strong>Admin → Settings</strong>. When enabled, two additional pages appear in the Admin sidebar: <strong>Salsify Log</strong> (sync history and payloads) and <strong>Salsify Debug</strong> (live API inspection). Disable debug mode to hide these pages for non-technical users.</P>
 
-        <Callout type="tip">After a project sync, the sync result (how many products sent and any errors) appears next to the Sync button in the project header.</Callout>
+        <Callout type="tip">After a project or row-selection sync, the result (how many products sent and any errors) appears next to the Sync button in the project header.</Callout>
       </>
     ),
   },

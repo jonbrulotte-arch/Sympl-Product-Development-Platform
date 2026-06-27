@@ -13,7 +13,7 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Compliance** — Track regulatory events (Prop 65, REACH, CPSC, etc.) linked to products. Bulk-link products by pasting part numbers. Search by part number to find all events covering a product.
 - **Pre-Shipment Inspections (PSIR)** — Inspection reports with custom attributes, file attachments, pass/fail results, and bulk product linking. Search by part number to find all reports covering a product.
 - **Comments & Attachments** — Project comments with file attachments (images, PDFs, documents up to 20 MB). Comment authors and admins can delete comments; attached files are removed from disk on delete.
-- **Salsify Integration** — Map attributes to Salsify property IDs; sync all products in a project or a single product from its edit page. A confirmation dialog warns before overwriting Salsify data. Enable Salsify Debug mode in Settings to surface log and debug pages in the sidebar.
+- **Salsify Integration** — Map attributes to Salsify property IDs; sync all products in a project, a selection of rows from the grid, or a single product from its edit page. A pre-sync modal lists all Salsify-enabled attributes with per-attribute opt-out checkboxes, giving fine-grained control over what gets overwritten in Salsify each run. Enable Salsify Debug mode in Settings to surface log and debug pages in the sidebar.
 - **Manual Status Override** — Admins and Product Managers can set a project's status directly from the project Settings tab at any time.
 - **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups written to local disk, with scheduling, retention policy, one-click restore, and a scoped API token for triggering backups from external automation without a browser session.
 - **Admin** — Users, categories, attributes (with EAV), workflow templates, compliance types, PSIR attributes, backup, and settings.
@@ -136,8 +136,11 @@ curl -s -X POST https://your-server/api/admin/backup/run \
 
 1. Go to **Admin → Settings** and enter your Salsify API Key and Organization ID. Enable the **Enable Salsify Sync** toggle.
 2. In **Admin → Attributes**, enable Salsify on each attribute you want to sync and enter the Salsify Property ID.
-3. Sync a full project from the project page (**Sync to Salsify** button, requires `EXPORT_READY` status), or sync a single product from its edit page.
-4. A confirmation dialog appears before every sync — attribute values already in Salsify will be overwritten.
+3. Sync products in one of three ways (all require `EXPORT_READY` status):
+   - **Full project** — click **Sync to Salsify** in the project header.
+   - **Selected rows** — check rows in the product grid, then click **Sync to Salsify** in the selection toolbar.
+   - **Single product** — click **Sync to Salsify** on the product edit page (`/products/[id]`).
+4. A pre-sync modal lists every Salsify-enabled attribute with checkboxes. Uncheck any attribute to exclude it from this sync run without permanently changing the attribute's Salsify settings.
 
 Enable **Salsify Debug** in Admin → Settings to show **Salsify Log** and **Salsify Debug** pages in the admin sidebar (useful for troubleshooting payloads and sync errors).
 
