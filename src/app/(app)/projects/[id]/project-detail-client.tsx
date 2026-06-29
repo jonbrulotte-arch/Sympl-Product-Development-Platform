@@ -2045,7 +2045,7 @@ function ProjectComplianceView({ projectId }: { projectId: string }) {
       )}
       <div className="space-y-2">
         {events.map((ev) => (
-          <Link key={ev.id} href={`/compliance/${ev.id}`} className="block border border-gray-200 rounded-lg px-4 py-3 hover:bg-gray-50 transition-colors">
+          <div key={ev.id} className="border border-gray-200 rounded-lg px-4 py-3">
             <div className="flex items-start gap-3">
               <span className="mt-1 h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: ev.type.color ?? "#6b7280" }} />
               <div className="flex-1 min-w-0">
@@ -2062,7 +2062,7 @@ function ProjectComplianceView({ projectId }: { projectId: string }) {
                 </p>
               </div>
             </div>
-          </Link>
+          </div>
         ))}
       </div>
     </div>
