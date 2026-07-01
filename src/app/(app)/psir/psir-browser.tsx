@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDate } from "@/lib/utils";
 import {
-  ClipboardCheck, Plus, Search, X, ChevronLeft, ChevronRight,
-  CheckCircle2, XCircle, Clock, AlertTriangle, FileText, Package,
+  ClipboardCheck, Plus, Search, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
+  CheckCircle2, XCircle, Clock, AlertTriangle, FileText, Package, Pencil, Trash2, ExternalLink,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -15,6 +15,10 @@ import {
 type ProductRef = {
   id: string; partNumber: string | null; itemName: string | null;
   project: { id: string; name: string };
+};
+
+type DocumentRef = {
+  id: string; originalName: string; filePath: string; fileSize: number | null;
 };
 
 type PsirRow = {
@@ -28,11 +32,18 @@ type PsirRow = {
   countryOfOrigin: string | null;
   result: string;
   status: string;
+  notes: string | null;
   createdAt: string;
   createdBy: { name: string | null; email: string };
   products: { product: ProductRef }[];
-  documents: { id: string }[];
+  documents: DocumentRef[];
 };
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -115,17 +126,26 @@ function QuickCreateModal({
 
 // ─── PSIR Row Card ────────────────────────────────────────────────────────────
 
-function PsirCard({ psir, onClick }: { psir: PsirRow; onClick: () => void }) {
+function PsirCard({
+  psir,
+  onEdit,
+  onDelete,
+  onStatusChange,
+}: {
+  psir: PsirRow;
+  onEdit: () => void;
+  onDelete: () => void;
+  onStatusChange: (status: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
   const resultMeta = RESULT_STYLES[psir.result] ?? RESULT_STYLES.PENDING;
+
   return (
-    <div
-      onClick={onClick}
-      className="bg-white border border-gray-200 rounded-xl px-5 py-4 hover:border-indigo-300 hover:shadow-sm transition-all cursor-pointer group"
-    >
-      <div className="flex items-start justify-between gap-3">
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-indigo-200 transition-colors">
+      <div className="px-5 py-4 flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-semibold text-gray-900 group-hover:text-indigo-700 transition-colors">{psir.title}</p>
+            <p className="text-sm font-semibold text-gray-900">{psir.title}</p>
             {psir.referenceNumber && (
               <span className="text-xs font-mono text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">{psir.referenceNumber}</span>
             )}
@@ -144,13 +164,101 @@ function PsirCard({ psir, onClick }: { psir: PsirRow; onClick: () => void }) {
             <span>by {psir.createdBy.name ?? psir.createdBy.email} · {formatDate(psir.createdAt)}</span>
           </div>
         </div>
-        <div className="flex flex-col items-end gap-1.5 shrink-0">
+
+        <div className="flex items-center gap-2 shrink-0">
           <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${resultMeta.cls}`}>
             {resultMeta.icon} {psir.result}
           </span>
           <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[psir.status] ?? ""}`}>{psir.status}</span>
+          <button onClick={() => setExpanded((x) => !x)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400">
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          <button onClick={onEdit} className="p-1.5 rounded hover:bg-gray-100 text-gray-400">
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={onDelete} className="p-1.5 rounded hover:bg-red-50 text-red-400">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
+
+      {expanded && (
+        <div className="border-t border-gray-100 px-5 py-4 space-y-3 bg-gray-50">
+          {psir.notes && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Notes</p>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{psir.notes}</p>
+            </div>
+          )}
+
+          {psir.countryOfOrigin && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Country of Origin</p>
+              <p className="text-sm text-gray-700">{psir.countryOfOrigin}</p>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-2">Products</p>
+            <div className="space-y-1">
+              {psir.products.length === 0 && (
+                <p className="text-xs text-gray-400 italic">No products linked</p>
+              )}
+              {psir.products.map(({ product }) => (
+                <div key={product.id} className="flex items-center justify-between text-xs bg-white border border-gray-100 rounded px-2 py-1.5">
+                  <span>
+                    <span className="font-mono text-gray-500">{product.partNumber ?? "—"}</span>
+                    {" "}<span className="text-gray-700">{product.itemName ?? ""}</span>
+                  </span>
+                  <a
+                    href={`/projects/${product.project.id}`}
+                    className="text-indigo-600 hover:underline flex items-center gap-1"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {product.project.name} <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {psir.documents.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2">Attachments</p>
+              <div className="space-y-1">
+                {psir.documents.map((d) => (
+                  <a
+                    key={d.id}
+                    href={`/${d.filePath}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 text-xs bg-white border border-gray-100 rounded px-2 py-1.5 hover:bg-indigo-50 group"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                    <span className="text-indigo-600 group-hover:underline truncate flex-1">{d.originalName}</span>
+                    {d.fileSize && <span className="text-gray-400 shrink-0">{formatBytes(d.fileSize)}</span>}
+                    <ExternalLink className="h-3 w-3 text-gray-300 shrink-0" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500">Change status:</span>
+            {STATUSES.filter((s) => s !== psir.status).map((s) => (
+              <button
+                key={s}
+                onClick={() => onStatusChange(s)}
+                className="text-xs px-2 py-0.5 rounded border border-gray-200 hover:bg-gray-100 text-gray-600"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -193,6 +301,24 @@ export function PsirBrowser() {
   }, [page, debouncedSearch, filterStatus, filterResult]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function deletePsir(id: string) {
+    if (!confirm("Delete this inspection report? This cannot be undone.")) return;
+    await fetch(`/api/psir/${id}`, { method: "DELETE" });
+    load();
+  }
+
+  async function changeStatus(id: string, status: string) {
+    const res = await fetch(`/api/psir/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setPsirs((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    }
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const passCount = psirs.filter((p) => p.result === "PASS").length;
@@ -260,7 +386,13 @@ export function PsirBrowser() {
           </div>
         )}
         {!loading && psirs.map((psir) => (
-          <PsirCard key={psir.id} psir={psir} onClick={() => router.push(`/psir/${psir.id}`)} />
+          <PsirCard
+            key={psir.id}
+            psir={psir}
+            onEdit={() => router.push(`/psir/${psir.id}`)}
+            onDelete={() => deletePsir(psir.id)}
+            onStatusChange={(s) => changeStatus(psir.id, s)}
+          />
         ))}
       </div>
 
