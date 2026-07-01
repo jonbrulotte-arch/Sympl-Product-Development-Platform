@@ -3,59 +3,18 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import type { ProductRecord } from "@prisma/client";
+import { CORE_FIELDS, CORE_FIELD_KEYS } from "@/lib/core-fields";
 
-// Map from AttributeDefinition.key → accessor on ProductRecord
-// Used to read core model fields in attr-def order.
-const CORE_FIELD_ACCESSOR: Record<string, (p: ProductRecord) => unknown> = {
-  partNumber:          (p) => p.partNumber ?? "",
-  modelNumber:         (p) => p.modelNumber ?? "",
-  itemName:            (p) => p.itemName ?? "",
-  brand:               (p) => p.brand ?? "",
-  upc:                 (p) => p.upc ?? "",
-  inventoryStatus:     (p) => p.inventoryStatus ?? "",
-  warrantyInfo:        (p) => p.warrantyInfo ?? "",
-  htsCode:             (p) => p.htsCode ?? "",
-  htsCodeCanada:       (p) => p.htsCodeCanada ?? "",
-  productComposition:  (p) => p.productComposition ?? "",
-  needsProp65:         (p) => p.needsProp65 ? "Yes" : "No",
-  packagingType:       (p) => p.packagingType ?? "",
-  packSize:            (p) => p.packSize ?? "",
-  numberOfPieces:      (p) => p.numberOfPieces ?? "",
-  individualOrSet:     (p) => p.individualOrSet ?? "",
-  material:            (p) => p.material ?? "",
-  size:                (p) => p.size ?? "",
-  jspCategory:         (p) => p.jspCategory ?? "",
-  userManual:          (p) => p.userManual ?? "",
-  cutSheets:           (p) => p.cutSheets ?? "",
-  upcHeight:           (p) => p.upcHeight?.toString() ?? "",
-  upcWidth:            (p) => p.upcWidth?.toString() ?? "",
-  upcLength:           (p) => p.upcLength?.toString() ?? "",
-  upcWeight:           (p) => p.upcWeight?.toString() ?? "",
-  itemHeight:          (p) => p.itemHeight?.toString() ?? "",
-  itemWidth:           (p) => p.itemWidth?.toString() ?? "",
-  itemLength:          (p) => p.itemLength?.toString() ?? "",
-  itemWeight:          (p) => p.itemWeight?.toString() ?? "",
-  innerCartonGtin:     (p) => p.innerCartonGtin ?? "",
-  innerCartonHeight:   (p) => p.innerCartonHeight?.toString() ?? "",
-  innerCartonWidth:    (p) => p.innerCartonWidth?.toString() ?? "",
-  innerCartonLength:   (p) => p.innerCartonLength?.toString() ?? "",
-  innerCartonWeight:   (p) => p.innerCartonWeight?.toString() ?? "",
-  innerCartonQty:      (p) => p.innerCartonQty ?? "",
-  masterCartonGtin:    (p) => p.masterCartonGtin ?? "",
-  masterCartonHeight:  (p) => p.masterCartonHeight?.toString() ?? "",
-  masterCartonWidth:   (p) => p.masterCartonWidth?.toString() ?? "",
-  masterCartonLength:  (p) => p.masterCartonLength?.toString() ?? "",
-  masterCartonWeight:  (p) => p.masterCartonWeight?.toString() ?? "",
-  masterCartonQty:     (p) => p.masterCartonQty ?? "",
-  palletGtin:          (p) => p.palletGtin ?? "",
-  palletHeight:        (p) => p.palletHeight?.toString() ?? "",
-  palletWidth:         (p) => p.palletWidth?.toString() ?? "",
-  palletLength:        (p) => p.palletLength?.toString() ?? "",
-  palletWeight:        (p) => p.palletWeight?.toString() ?? "",
-  palletStackable:     (p) => p.palletStackable ? "Yes" : "No",
-  layersPerPallet:     (p) => p.layersPerPallet ?? "",
-  palletQty:           (p) => p.palletQty ?? "",
-};
+// Reads a core model field off a ProductRecord and formats it for the sheet.
+// Field list is shared with the import mapping UI and import route so every
+// column that can be exported can also be re-imported and vice versa.
+function readCoreField(p: ProductRecord, key: string, type: (typeof CORE_FIELDS)[number]["type"]): unknown {
+  const v = (p as unknown as Record<string, unknown>)[key];
+  if (v === null || v === undefined) return "";
+  if (type === "boolean") return v ? "Yes" : "No";
+  if (type === "decimal") return (v as { toString(): string }).toString();
+  return v;
+}
 
 export async function GET(
   _req: NextRequest,
@@ -80,7 +39,7 @@ export async function GET(
     }),
     // Core model field attr defs — drives column order for hardcoded fields
     prisma.attributeDefinition.findMany({
-      where: { key: { in: Object.keys(CORE_FIELD_ACCESSOR) }, isActive: true },
+      where: { key: { in: CORE_FIELD_KEYS }, isActive: true },
       include: { section: true },
       orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
     }),
@@ -96,11 +55,23 @@ export async function GET(
       where: {
         categoryId: null,
         isActive: true,
-        key: { notIn: Object.keys(CORE_FIELD_ACCESSOR) },
+        key: { notIn: CORE_FIELD_KEYS },
       },
       orderBy: [{ sortOrder: "asc" }],
     }),
   ]);
+
+  const coreFieldByKey = Object.fromEntries(CORE_FIELDS.map((f) => [f.key, f]));
+
+  // Core fields in attr-def order (section.sortOrder → sortOrder), then any core
+  // field with no AttributeDefinition row at all appended at the end — otherwise
+  // fields that were never seeded as an admin-visible attribute (e.g. legacy
+  // schema columns) would be silently excluded from the export entirely.
+  const orderedCoreKeys = [
+    ...coreAttrDefs.map((a) => a.key),
+    ...CORE_FIELD_KEYS.filter((k) => !coreAttrDefs.some((a) => a.key === k)),
+  ];
+  const coreColumnLabels = new Map(coreAttrDefs.map((a) => [a.key, a.label]));
 
   // EAV attr defs in order: category-specific first, then global
   const eavAttrDefs = [...categoryEavAttrs, ...globalEavAttrs];
@@ -121,9 +92,11 @@ export async function GET(
     const row: Record<string, unknown> = {};
 
     // Core fields in attr-def order (section.sortOrder → sortOrder)
-    for (const attr of coreAttrDefs) {
-      const accessor = CORE_FIELD_ACCESSOR[attr.key];
-      if (accessor) row[attr.label] = accessor(p);
+    for (const key of orderedCoreKeys) {
+      const field = coreFieldByKey[key];
+      if (!field) continue;
+      const label = coreColumnLabels.get(key) ?? field.label;
+      row[label] = readCoreField(p, key, field.type);
     }
 
     // Seed EAV columns (empty) — maintains column presence even without data

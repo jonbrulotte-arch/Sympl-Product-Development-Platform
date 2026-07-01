@@ -7,47 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, ArrowRight, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Suspense } from "react";
+import { CORE_FIELDS } from "@/lib/core-fields";
 
-// Core field mappings
-const SYMPL_FIELDS = [
-  { key: "partNumber", label: "Part Number" },
-  { key: "modelNumber", label: "Model Number" },
-  { key: "itemName", label: "Item Name" },
-  { key: "brand", label: "Brand" },
-  { key: "upc", label: "UPC" },
-  { key: "inventoryStatus", label: "Inventory Status" },
-  { key: "warrantyInfo", label: "Warranty" },
-  { key: "htsCode", label: "HTS Code" },
-  { key: "htsCodeCanada", label: "HTS Code (Canada)" },
-  { key: "productComposition", label: "Product Composition" },
-  { key: "packagingType", label: "Packaging Type" },
-  { key: "packSize", label: "Pack Size" },
-  { key: "numberOfPieces", label: "Number of Pieces" },
-  { key: "individualOrSet", label: "Individual/Set" },
-  { key: "material", label: "Material" },
-  { key: "size", label: "Size" },
-  { key: "jspCategory", label: "JSP Category" },
-  { key: "masterCartonGtin", label: "Master Carton GTIN-14" },
-  { key: "palletGtin", label: "Pallet GTIN" },
-  { key: "upcHeight", label: "UPC Height (in)" },
-  { key: "upcWidth", label: "UPC Width (in)" },
-  { key: "upcLength", label: "UPC Length (in)" },
-  { key: "upcWeight", label: "UPC Weight (lbs)" },
-  { key: "itemHeight", label: "Item Height (in)" },
-  { key: "itemWidth", label: "Item Width (in)" },
-  { key: "itemLength", label: "Item Length (in)" },
-  { key: "itemWeight", label: "Item Weight (lbs)" },
-  { key: "masterCartonHeight", label: "Master Carton Height (in)" },
-  { key: "masterCartonWidth", label: "Master Carton Width (in)" },
-  { key: "masterCartonLength", label: "Master Carton Length (in)" },
-  { key: "masterCartonWeight", label: "Master Carton Weight (lbs)" },
-  { key: "masterCartonQty", label: "Master Carton Qty" },
-  { key: "palletHeight", label: "Pallet Height (in)" },
-  { key: "palletWidth", label: "Pallet Width (in)" },
-  { key: "palletLength", label: "Pallet Length (in)" },
-  { key: "palletWeight", label: "Pallet Weight (lbs)" },
-  { key: "palletQty", label: "Pallet Qty" },
-];
+// Core field mappings — single source of truth shared with export & import route
+const SYMPL_FIELDS = CORE_FIELDS.map((f) => ({ key: f.key, label: f.label }));
 
 type AttrOption = { key: string; label: string };
 
@@ -106,6 +69,7 @@ function ImportWizardContent() {
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [importResult, setImportResult] = useState<{
     importedRows: number; errorRows: number; totalRows: number;
+    createdRows?: number; updatedRows?: number;
     errors: { row: number; errors: string[] }[];
   } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -134,10 +98,27 @@ function ImportWizardContent() {
   useEffect(() => {
     fetch("/api/attributes")
       .then((r) => r.json())
-      .then((data: { key: string; label: string }[]) => {
-        if (Array.isArray(data)) {
-          setAttrFields(data.map((a) => ({ key: `attr:${a.key}`, label: a.label })));
+      .then((data: { key: string; label: string; isCore: boolean; maxValues: number }[]) => {
+        if (!Array.isArray(data)) return;
+        // Core fields already have their own mapping options (SYMPL_FIELDS) —
+        // including them again here would create two identically-labeled
+        // options and the auto-mapper could silently pick the wrong one,
+        // sending the value to an EAV row instead of the real column.
+        const custom = data.filter((a) => !a.isCore);
+        const options: AttrOption[] = [];
+        for (const a of custom) {
+          if (a.maxValues > 1) {
+            // Multi-value attrs export as separate "Label 1", "Label 2", ... columns.
+            // Offer one mapping target per index so re-importing them doesn't
+            // collapse all values onto a single valueIndex and overwrite each other.
+            for (let i = 1; i <= a.maxValues; i++) {
+              options.push({ key: `attr:${a.key}:${i - 1}`, label: `${a.label} (${i})` });
+            }
+          } else {
+            options.push({ key: `attr:${a.key}:0`, label: a.label });
+          }
         }
+        setAttrFields(options);
       })
       .catch(() => {});
   }, []);
@@ -478,6 +459,13 @@ function ImportWizardContent() {
                 <p className={cn("text-sm", importResult.errorRows > 0 ? "text-red-600" : "text-gray-400")}>Errors</p>
               </div>
             </div>
+
+            {(importResult.createdRows !== undefined || importResult.updatedRows !== undefined) && (
+              <p className="text-sm text-gray-500 mb-4">
+                {importResult.createdRows ?? 0} new product{importResult.createdRows === 1 ? "" : "s"} created,{" "}
+                {importResult.updatedRows ?? 0} existing product{importResult.updatedRows === 1 ? "" : "s"} updated
+              </p>
+            )}
 
             {importResult.errors.length > 0 && (
               <div className="text-left mb-6 max-h-48 overflow-y-auto border border-red-200 rounded-lg p-3">
