@@ -139,6 +139,30 @@ const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
     meta: { section: "Status" },
   },
   {
+    accessorKey: "inventoryStatusErp",
+    header: "Inventory Status (ERP)",
+    size: 160,
+    meta: { section: "Status" },
+  },
+  {
+    accessorKey: "projectFolder",
+    header: "Project Folder",
+    size: 160,
+    meta: { section: "Status" },
+  },
+  {
+    accessorKey: "wrikeUrl",
+    header: "Wrike URL",
+    size: 160,
+    meta: { section: "Status" },
+  },
+  {
+    accessorKey: "psir",
+    header: "PSIR",
+    size: 140,
+    meta: { section: "Status" },
+  },
+  {
     accessorKey: "warrantyInfo",
     header: "Warranty",
     size: 160,
@@ -169,9 +193,21 @@ const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
     meta: { section: "Regulatory", fieldType: "boolean" },
   },
   {
+    accessorKey: "batteriesRequired",
+    header: "Batteries Required",
+    size: 140,
+    meta: { section: "Regulatory" },
+  },
+  {
     accessorKey: "packagingType",
     header: "Packaging Type",
     size: 140,
+    meta: { section: "Product" },
+  },
+  {
+    accessorKey: "packagingLangType",
+    header: "Packaging Language Type",
+    size: 160,
     meta: { section: "Product" },
   },
   {
@@ -341,6 +377,48 @@ const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
     header: "MC Qty",
     size: 80,
     meta: { section: "Master Carton" },
+  },
+  {
+    accessorKey: "altCartonGtin",
+    header: "Alt Carton GTIN",
+    size: 130,
+    meta: { section: "Alt Carton" },
+  },
+  {
+    accessorKey: "altCartonType",
+    header: "Alt Carton Type",
+    size: 130,
+    meta: { section: "Alt Carton" },
+  },
+  {
+    accessorKey: "altCartonHeight",
+    header: "Alt C. H (in)",
+    size: 100,
+    meta: { section: "Alt Carton" },
+  },
+  {
+    accessorKey: "altCartonWidth",
+    header: "Alt C. W (in)",
+    size: 100,
+    meta: { section: "Alt Carton" },
+  },
+  {
+    accessorKey: "altCartonLength",
+    header: "Alt C. L (in)",
+    size: 100,
+    meta: { section: "Alt Carton" },
+  },
+  {
+    accessorKey: "altCartonWeight",
+    header: "Alt C. Wt (lbs)",
+    size: 110,
+    meta: { section: "Alt Carton" },
+  },
+  {
+    accessorKey: "altCartonQty",
+    header: "Alt C. Qty",
+    size: 90,
+    meta: { section: "Alt Carton" },
   },
   {
     accessorKey: "palletGtin",

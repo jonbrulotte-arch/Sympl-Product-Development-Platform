@@ -3,20 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { ProjectDetailClient } from "./project-detail-client";
 import { canEditProject } from "@/lib/permissions";
+import { CORE_FIELD_KEYS } from "@/lib/core-fields";
 
 // Keys already rendered as typed columns in the grid — exclude from EAV query
-const CORE_COLUMN_KEYS = new Set([
-  "partNumber", "modelNumber", "itemName", "brand", "upc",
-  "inventoryStatus", "warrantyInfo",
-  "htsCode", "htsCodeCanada", "productComposition", "needsProp65",
-  "packagingType", "packSize", "numberOfPieces", "individualOrSet", "material", "size",
-  "jspCategory", "userManual", "cutSheets",
-  "upcHeight", "upcWidth", "upcLength", "upcWeight",
-  "itemHeight", "itemWidth", "itemLength", "itemWeight",
-  "innerCartonGtin", "innerCartonHeight", "innerCartonWidth", "innerCartonLength", "innerCartonWeight", "innerCartonQty",
-  "masterCartonGtin", "masterCartonHeight", "masterCartonWidth", "masterCartonLength", "masterCartonWeight", "masterCartonQty",
-  "palletGtin", "palletHeight", "palletWidth", "palletLength", "palletWeight", "palletStackable", "layersPerPallet", "palletQty",
-]);
+const CORE_COLUMN_KEYS = new Set(CORE_FIELD_KEYS);
 
 export default async function ProjectDetailPage({
   params,

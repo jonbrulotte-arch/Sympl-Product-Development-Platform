@@ -7,10 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, ArrowRight, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Suspense } from "react";
-import { CORE_FIELDS } from "@/lib/core-fields";
+import { CORE_FIELDS, CORE_FIELD_KEYS } from "@/lib/core-fields";
 
 // Core field mappings — single source of truth shared with export & import route
 const SYMPL_FIELDS = CORE_FIELDS.map((f) => ({ key: f.key, label: f.label }));
+const CORE_FIELD_KEY_SET = new Set(CORE_FIELD_KEYS);
 
 type AttrOption = { key: string; label: string };
 
@@ -100,11 +101,14 @@ function ImportWizardContent() {
       .then((r) => r.json())
       .then((data: { key: string; label: string; isCore: boolean; maxValues: number }[]) => {
         if (!Array.isArray(data)) return;
-        // Core fields already have their own mapping options (SYMPL_FIELDS) —
-        // including them again here would create two identically-labeled
-        // options and the auto-mapper could silently pick the wrong one,
-        // sending the value to an EAV row instead of the real column.
-        const custom = data.filter((a) => !a.isCore);
+        // Exclude only attributes that are backed by a real ProductRecord column
+        // (already covered by SYMPL_FIELDS) — including them again here would
+        // create two identically-labeled options and the auto-mapper could pick
+        // the wrong one, sending the value to an EAV row instead of the real
+        // column. Many "core" (isCore=true) attributes — Product Series, Product
+        // Sub-Series, Project Engineer, Vendor, etc. — have no ProductRecord
+        // column at all and are EAV-only, so isCore alone can't be the filter.
+        const custom = data.filter((a) => !CORE_FIELD_KEY_SET.has(a.key));
         const options: AttrOption[] = [];
         for (const a of custom) {
           if (a.maxValues > 1) {
