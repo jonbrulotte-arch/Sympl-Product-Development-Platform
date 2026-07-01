@@ -98,10 +98,12 @@ async function main() {
     { key: "htsCodeCanada", label: "HTS Code (Canada)", sectionSlug: "regulatory", type: "TEXT", req: "CONDITIONAL" },
     { key: "productComposition", label: "Product Composition", sectionSlug: "regulatory", type: "TEXT", req: "CONDITIONAL" },
     { key: "needsProp65", label: "Needs Prop 65", sectionSlug: "regulatory", type: "BOOLEAN", req: "CONDITIONAL" },
+    { key: "batteriesRequired", label: "Batteries Required", sectionSlug: "regulatory", type: "TEXT", req: "CONDITIONAL" },
     { key: "countryOfOrigin", label: "Country of Origin", sectionSlug: "regulatory", type: "SELECT", req: "REQUIRED", maxValues: 4 },
     { key: "prop65Chemicals", label: "Prop 65 Chemicals", sectionSlug: "regulatory", type: "TEXT", req: "CONDITIONAL", maxValues: 6 },
     // Universal Product Data — core model fields
     { key: "packagingType", label: "Packaging Type", sectionSlug: "universal-product-data", type: "SELECT", req: "CONDITIONAL" },
+    { key: "packagingLangType", label: "Packaging Language Type", sectionSlug: "universal-product-data", type: "TEXT", req: "OPTIONAL" },
     { key: "packSize", label: "Pack Size", sectionSlug: "universal-product-data", type: "TEXT", req: "CONDITIONAL" },
     { key: "numberOfPieces", label: "Number of Pieces", sectionSlug: "universal-product-data", type: "NUMBER", req: "CONDITIONAL" },
     { key: "individualOrSet", label: "Individual/Set", sectionSlug: "universal-product-data", type: "SELECT", req: "CONDITIONAL" },
@@ -141,6 +143,14 @@ async function main() {
     { key: "masterCartonLength", label: "Master Carton Length (in)", sectionSlug: "dimensions-supply-chain", type: "DECIMAL", req: "OPTIONAL" },
     { key: "masterCartonWeight", label: "Master Carton Weight (lbs)", sectionSlug: "dimensions-supply-chain", type: "DECIMAL", req: "OPTIONAL" },
     { key: "masterCartonQty", label: "Master Carton Qty", sectionSlug: "dimensions-supply-chain", type: "NUMBER", req: "OPTIONAL" },
+    // Alt Carton
+    { key: "altCartonGtin", label: "Alt Carton GTIN", sectionSlug: "dimensions-supply-chain", type: "TEXT", req: "OPTIONAL" },
+    { key: "altCartonType", label: "Alt Carton Type", sectionSlug: "dimensions-supply-chain", type: "TEXT", req: "OPTIONAL" },
+    { key: "altCartonHeight", label: "Alt Carton Height (in)", sectionSlug: "dimensions-supply-chain", type: "DECIMAL", req: "OPTIONAL" },
+    { key: "altCartonWidth", label: "Alt Carton Width (in)", sectionSlug: "dimensions-supply-chain", type: "DECIMAL", req: "OPTIONAL" },
+    { key: "altCartonLength", label: "Alt Carton Length (in)", sectionSlug: "dimensions-supply-chain", type: "DECIMAL", req: "OPTIONAL" },
+    { key: "altCartonWeight", label: "Alt Carton Weight (lbs)", sectionSlug: "dimensions-supply-chain", type: "DECIMAL", req: "OPTIONAL" },
+    { key: "altCartonQty", label: "Alt Carton Qty", sectionSlug: "dimensions-supply-chain", type: "NUMBER", req: "OPTIONAL" },
     // Pallet
     { key: "palletGtin", label: "Pallet GTIN", sectionSlug: "dimensions-supply-chain", type: "TEXT", req: "OPTIONAL" },
     { key: "palletHeight", label: "Pallet Height (in)", sectionSlug: "dimensions-supply-chain", type: "DECIMAL", req: "OPTIONAL" },
