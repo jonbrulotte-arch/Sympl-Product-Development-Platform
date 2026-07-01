@@ -5,6 +5,8 @@ import * as XLSX from "xlsx";
 import type { ProductRecord } from "@prisma/client";
 import { CORE_FIELDS, CORE_FIELD_KEYS } from "@/lib/core-fields";
 
+const CORE_FIELD_BY_KEY = Object.fromEntries(CORE_FIELDS.map((f) => [f.key, f]));
+
 // Reads a core model field off a ProductRecord and formats it for the sheet.
 // Field list is shared with the import mapping UI and import route so every
 // column that can be exported can also be re-imported and vice versa.
@@ -28,7 +30,13 @@ export async function GET(
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const [products, coreAttrDefs, categoryEavAttrs, globalEavAttrs] = await Promise.all([
+  // A single ordered list covering every attribute that can appear on a product
+  // in this project — core (ProductRecord-backed) and EAV alike — sorted by
+  // (section.sortOrder, attr.sortOrder). Sections mix core and custom fields
+  // (e.g. "Core Data" holds Part Number, a real column, alongside Product
+  // Series, an EAV-only attribute), so ordering them separately in two blocks
+  // previously split apart fields that belong together.
+  const [products, attrDefs] = await Promise.all([
     prisma.productRecord.findMany({
       where: { projectId, isArchived: false },
       include: {
@@ -37,84 +45,60 @@ export async function GET(
       },
       orderBy: { rowIndex: "asc" },
     }),
-    // Core model field attr defs — drives column order for hardcoded fields
     prisma.attributeDefinition.findMany({
-      where: { key: { in: CORE_FIELD_KEYS }, isActive: true },
+      where: {
+        isActive: true,
+        OR: [
+          { key: { in: CORE_FIELD_KEYS } },
+          { categoryId: null },
+          ...(project.categoryId ? [{ categoryId: project.categoryId }] : []),
+        ],
+      },
       include: { section: true },
       orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
     }),
-    // Category-specific EAV attrs
-    project.categoryId
-      ? prisma.attributeDefinition.findMany({
-          where: { categoryId: project.categoryId, isActive: true },
-          orderBy: [{ sortOrder: "asc" }],
-        })
-      : Promise.resolve([]),
-    // Global EAV attrs (exclude core fields)
-    prisma.attributeDefinition.findMany({
-      where: {
-        categoryId: null,
-        isActive: true,
-        key: { notIn: CORE_FIELD_KEYS },
-      },
-      orderBy: [{ sortOrder: "asc" }],
-    }),
   ]);
 
-  const coreFieldByKey = Object.fromEntries(CORE_FIELDS.map((f) => [f.key, f]));
-
-  // Core fields in attr-def order (section.sortOrder → sortOrder), then any core
-  // field with no AttributeDefinition row at all appended at the end — otherwise
-  // fields that were never seeded as an admin-visible attribute (e.g. legacy
-  // schema columns) would be silently excluded from the export entirely.
-  const orderedCoreKeys = [
-    ...coreAttrDefs.map((a) => a.key),
-    ...CORE_FIELD_KEYS.filter((k) => !coreAttrDefs.some((a) => a.key === k)),
+  // Core fields with no AttributeDefinition row at all (never seeded/admin-visible)
+  // are appended at the end since they have no section to sort by.
+  const seenCoreKeys = new Set(attrDefs.filter((a) => CORE_FIELD_BY_KEY[a.key]).map((a) => a.key));
+  const orderedColumns: { key: string; label: string; maxValues: number; isCoreField: boolean }[] = [
+    ...attrDefs.map((a) => ({
+      key: a.key,
+      label: a.label,
+      maxValues: a.maxValues,
+      isCoreField: !!CORE_FIELD_BY_KEY[a.key],
+    })),
+    ...CORE_FIELD_KEYS.filter((k) => !seenCoreKeys.has(k)).map((k) => ({
+      key: k,
+      label: CORE_FIELD_BY_KEY[k].label,
+      maxValues: 1,
+      isCoreField: true,
+    })),
   ];
-  const coreColumnLabels = new Map(coreAttrDefs.map((a) => [a.key, a.label]));
-
-  // EAV attr defs in order: category-specific first, then global
-  const eavAttrDefs = [...categoryEavAttrs, ...globalEavAttrs];
-
-  // Pre-build EAV column template (empty values) so columns always appear
-  const eavHeadersTemplate: Record<string, string> = {};
-  for (const attr of eavAttrDefs) {
-    if (attr.maxValues > 1) {
-      for (let i = 1; i <= attr.maxValues; i++) {
-        eavHeadersTemplate[`${attr.label} ${i}`] = "";
-      }
-    } else {
-      eavHeadersTemplate[attr.label] = "";
-    }
-  }
 
   const rows = products.map((p) => {
     const row: Record<string, unknown> = {};
 
-    // Core fields in attr-def order (section.sortOrder → sortOrder)
-    for (const key of orderedCoreKeys) {
-      const field = coreFieldByKey[key];
-      if (!field) continue;
-      const label = coreColumnLabels.get(key) ?? field.label;
-      row[label] = readCoreField(p, key, field.type);
-    }
-
-    // Seed EAV columns (empty) — maintains column presence even without data
-    Object.assign(row, eavHeadersTemplate);
-
-    // Fill in actual EAV values
-    const grouped: Record<string, string[]> = {};
+    const eavValuesByDefId: Record<string, string[]> = {};
     for (const av of p.attributeValues) {
-      const label = av.attributeDefinition.label;
-      if (!grouped[label]) grouped[label] = [];
-      grouped[label][av.valueIndex] = av.textValue ?? av.numberValue?.toString() ?? av.booleanValue?.toString() ?? "";
+      if (!eavValuesByDefId[av.attributeDefinitionId]) eavValuesByDefId[av.attributeDefinitionId] = [];
+      eavValuesByDefId[av.attributeDefinitionId][av.valueIndex] =
+        av.textValue ?? av.numberValue?.toString() ?? av.booleanValue?.toString() ?? "";
     }
-    for (const [label, values] of Object.entries(grouped)) {
-      const maxVals = eavAttrDefs.find((a) => a.label === label)?.maxValues ?? 1;
-      if (maxVals > 1) {
-        values.forEach((v, i) => { row[`${label} ${i + 1}`] = v; });
+    const attrDefIdByKey = Object.fromEntries(attrDefs.map((a) => [a.key, a.id]));
+
+    for (const col of orderedColumns) {
+      if (col.isCoreField) {
+        const field = CORE_FIELD_BY_KEY[col.key];
+        row[col.label] = readCoreField(p, col.key, field.type);
+        continue;
+      }
+      const values = eavValuesByDefId[attrDefIdByKey[col.key]] ?? [];
+      if (col.maxValues > 1) {
+        for (let i = 1; i <= col.maxValues; i++) row[`${col.label} ${i}`] = values[i - 1] ?? "";
       } else {
-        row[label] = values[0] ?? "";
+        row[col.label] = values[0] ?? "";
       }
     }
 
