@@ -17,7 +17,7 @@ import {
   type Row,
   type Column,
 } from "@tanstack/react-table";
-import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw } from "lucide-react";
+import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -49,6 +49,7 @@ type ProductRow = ProductRecord & {
   _saveStatus?: "idle" | "saving" | "saved" | "error";
   _eavValues?: EavMap;
   _eavArrays?: EavArrayMap;
+  duplicateOf?: { productId: string; projectId: string; projectName: string } | null;
 };
 
 // Portal tooltip that escapes overflow-auto scroll containers
@@ -566,8 +567,11 @@ export function ProductGrid({
             body: JSON.stringify(body),
           });
           if (!res.ok) throw new Error("Save failed");
+          const updated = await res.json().catch(() => null);
           setProducts((prev) =>
-            prev.map((p) => (p.id === productId ? { ...p, _saveStatus: "saved" } : p))
+            prev.map((p) => (p.id === productId
+              ? { ...p, _saveStatus: "saved", duplicateOf: updated?.duplicateOf ?? null }
+              : p))
           );
           setTimeout(() => {
             setProducts((prev) =>
@@ -1363,6 +1367,14 @@ function GridRow({
               );
             })() : (
               <div className={cn("px-2 py-1 text-sm truncate min-h-[32px] flex items-center gap-1 flex-wrap", isEav ? "text-amber-900" : "text-gray-700")}>
+                {colId === "partNumber" && (row.original as ProductRow).duplicateOf && (
+                  <span
+                    title={`Duplicate Part Number — also used in project "${(row.original as ProductRow).duplicateOf!.projectName}"`}
+                    className="shrink-0"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                  </span>
+                )}
                 {value != null && String(value) !== "" ? (() => {
                   if (attrDef && isMultiValueAttr(attrDef)) {
                     const vals = isEav

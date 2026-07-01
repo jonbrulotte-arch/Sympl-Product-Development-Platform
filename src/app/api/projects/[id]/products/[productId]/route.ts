@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validation";
 import { logActivity } from "@/lib/activity";
+import { findDuplicateForProduct } from "@/lib/duplicate-check";
 
 type Params = { params: Promise<{ id: string; productId: string }> };
 
@@ -29,7 +30,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
   });
 
   if (!product) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(product);
+  const duplicateOf = await findDuplicateForProduct(product.partNumber, product.projectId, product.id);
+  return NextResponse.json({ ...product, duplicateOf });
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -111,7 +113,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   prisma.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } }).catch(() => {});
 
-  return NextResponse.json(updated);
+  const duplicateOf = await findDuplicateForProduct(updated.partNumber, updated.projectId, updated.id);
+
+  return NextResponse.json({ ...updated, duplicateOf });
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {

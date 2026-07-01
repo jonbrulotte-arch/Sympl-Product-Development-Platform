@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { findDuplicatesForProducts } from "@/lib/duplicate-check";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -71,8 +72,13 @@ export async function GET(req: NextRequest) {
     prisma.productRecord.count({ where }),
   ]);
 
+  const dupes = await findDuplicatesForProducts(
+    products.map((p) => ({ id: p.id, partNumber: p.partNumber, projectId: p.projectId }))
+  );
+  const withDupes = products.map((p) => ({ ...p, duplicateOf: dupes.get(p.id) ?? null }));
+
   return NextResponse.json({
-    data: JSON.parse(JSON.stringify(products)),
+    data: JSON.parse(JSON.stringify(withDupes)),
     total,
     page,
     pageSize,

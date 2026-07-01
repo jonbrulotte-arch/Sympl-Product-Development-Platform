@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validation";
 import { logActivity } from "@/lib/activity";
+import { findDuplicateForProduct, findDuplicatesForProducts } from "@/lib/duplicate-check";
 
 export async function GET(
   req: NextRequest,
@@ -27,7 +28,10 @@ export async function GET(
     orderBy: { rowIndex: "asc" },
   });
 
-  return NextResponse.json(products);
+  const dupes = await findDuplicatesForProducts(
+    products.map((p) => ({ id: p.id, partNumber: p.partNumber, projectId: p.projectId }))
+  );
+  return NextResponse.json(products.map((p) => ({ ...p, duplicateOf: dupes.get(p.id) ?? null })));
 }
 
 export async function POST(
@@ -98,5 +102,7 @@ export async function POST(
     data: { updatedAt: new Date() },
   });
 
-  return NextResponse.json(product, { status: 201 });
+  const duplicateOf = await findDuplicateForProduct(product.partNumber, product.projectId, product.id);
+
+  return NextResponse.json({ ...product, duplicateOf }, { status: 201 });
 }

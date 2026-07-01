@@ -10,7 +10,7 @@ import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { formatDate } from "@/lib/utils";
 import {
   Search, Filter, X, ChevronLeft, ChevronRight,
-  ExternalLink, Pencil, Save, Package,
+  ExternalLink, Pencil, Save, Package, AlertTriangle,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -37,6 +37,7 @@ type ProductRow = {
   createdBy: { name: string | null };
   updatedBy: { name: string | null } | null;
   attributeValues: { attributeDefinition: { key: string; label: string }; textValue: string | null }[];
+  duplicateOf: { productId: string; projectId: string; projectName: string } | null;
 };
 
 type Filters = {
@@ -385,7 +386,14 @@ export function ProductsBrowser({
                 onClick={() => router.push(`/products/${product.id}`)}
               >
                 <td className="px-4 py-3 font-mono text-xs text-gray-700 whitespace-nowrap">
-                  {product.partNumber ?? <span className="text-gray-300">—</span>}
+                  <div className="flex items-center gap-1.5">
+                    {product.partNumber ?? <span className="text-gray-300">—</span>}
+                    {product.duplicateOf && (
+                      <span title={`Duplicate Part Number — also used in project "${product.duplicateOf.projectName}"`}>
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3 text-gray-900 max-w-xs truncate">
                   {product.itemName ?? <span className="text-gray-300">—</span>}
