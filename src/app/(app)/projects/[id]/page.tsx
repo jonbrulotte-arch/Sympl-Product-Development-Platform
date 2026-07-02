@@ -46,7 +46,7 @@ export default async function ProjectDetailPage({
         },
         orderBy: { sortOrder: "asc" },
       },
-      _count: { select: { products: true } },
+      _count: { select: { products: { where: { isArchived: false } } } },
     },
   });
 

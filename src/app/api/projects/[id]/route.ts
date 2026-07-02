@@ -29,7 +29,7 @@ async function getProject(id: string) {
         },
         orderBy: { sortOrder: "asc" },
       },
-      _count: { select: { products: true } },
+      _count: { select: { products: { where: { isArchived: false } } } },
     },
   });
 }
@@ -118,7 +118,7 @@ export async function PATCH(
           user: { select: { id: true, name: true, email: true, image: true, role: true } },
         },
       },
-      _count: { select: { products: true } },
+      _count: { select: { products: { where: { isArchived: false } } } },
     },
   });
 

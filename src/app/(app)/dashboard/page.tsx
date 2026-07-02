@@ -25,7 +25,7 @@ export default async function DashboardPage() {
       include: {
         owner: { select: { id: true, name: true, email: true } },
         category: true,
-        _count: { select: { products: true } },
+        _count: { select: { products: { where: { isArchived: false } } } },
       },
       orderBy: { updatedAt: "desc" },
       take: 8,
@@ -41,7 +41,7 @@ export default async function DashboardPage() {
       },
       include: {
         owner: { select: { id: true, name: true, email: true } },
-        _count: { select: { products: true } },
+        _count: { select: { products: { where: { isArchived: false } } } },
       },
       take: 5,
     }),
