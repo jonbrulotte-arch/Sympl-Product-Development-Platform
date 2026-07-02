@@ -119,6 +119,8 @@ model User {
   updatedCompliance      ComplianceEvent[]    @relation("ComplianceUpdater")
   complianceDocuments    ComplianceDocument[]
   createdPsirs           Psir[]               @relation("PsirCreator")
+  shareLinks             ShareLink[]
+  apiTokens              ApiToken[]
   updatedPsirs           Psir[]               @relation("PsirUpdater")
   psirDocuments          PsirDocument[]
 }
@@ -347,6 +349,8 @@ model ProductRecord {
   isArchived      Boolean  @default(false)
   isDuplicate     Boolean  @default(false)
   salsifyLastSyncedAt DateTime?
+  salsifyLastPulledAt DateTime?
+  salsifyData         Json?
   sourceProductId String?
   createdById     String
   updatedById     String?
@@ -880,4 +884,34 @@ model RolePermission {
   granted    Boolean @default(true)
 
   @@unique([role, permission])
+}
+
+// ─── Sharing & API Access ────────────────────────────────────────────────────
+
+model ShareLink {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  entityType  String // PRODUCT | PSIR
+  entityId    String
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([entityType, entityId])
+}
+
+model ApiToken {
+  id          String    @id @default(cuid())
+  name        String
+  tokenHash   String    @unique
+  scope       String    @default("read:products")
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Cascade)
 }

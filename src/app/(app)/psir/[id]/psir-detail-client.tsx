@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDate } from "@/lib/utils";
+import { ShareLinkButton } from "@/components/share-link-button";
 import {
   ArrowLeft, Save, CheckCircle2, AlertCircle, RefreshCw, Upload, Trash2,
   FileText, Download, Plus, X, Search, Package, ExternalLink,
@@ -467,13 +468,16 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
               {psir.updatedBy && ` · Updated by ${psir.updatedBy.name ?? psir.updatedBy.email} · ${formatDate(psir.updatedAt)}`}
             </div>
           </div>
-          <button
-            onClick={deletePsir}
-            className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-            title="Delete report"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <ShareLinkButton entityType="PSIR" entityId={psir.id} />
+            <button
+              onClick={deletePsir}
+              className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+              title="Delete report"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 

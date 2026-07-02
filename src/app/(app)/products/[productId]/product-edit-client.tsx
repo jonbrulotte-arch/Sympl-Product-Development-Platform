@@ -14,6 +14,7 @@ import {
   FileText, CheckCircle, XCircle, AlertTriangle,
 } from "lucide-react";
 import { SalsifySyncModal } from "@/components/salsify/salsify-sync-modal";
+import { ShareLinkButton } from "@/components/share-link-button";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,13 @@ interface Product {
   updatedBy: { name: string | null; email: string } | null;
   attributeValues: AV[];
   duplicateOf: { productId: string; projectId: string; projectName: string } | null;
+  salsifyLastPulledAt: string | null;
+  salsifyData: {
+    updatedAt?: string | null;
+    version?: string | null;
+    propertyCount?: number;
+    digitalAssets?: { id?: string | null; name?: string | null; url?: string | null; format?: string | null }[];
+  } | null;
 }
 
 interface Props {
@@ -592,6 +600,25 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
     return Math.round((filled / total) * 100);
   }, [core, eav, coreAttrDefs, globalAttrs, categoryAttrs]);
 
+  const [pulling, setPulling] = useState(false);
+  const [pullError, setPullError] = useState<string | null>(null);
+
+  async function pullFromSalsify() {
+    setPulling(true);
+    setPullError(null);
+    const res = await fetch(
+      `/api/projects/${product.projectId}/products/${product.id}/salsify-pull`,
+      { method: "POST" }
+    );
+    if (res.ok) {
+      startTransition(() => router.refresh());
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setPullError(data.error ?? "Pull failed");
+    }
+    setPulling(false);
+  }
+
   async function syncToSalsify(skipKeys: string[]) {
     setShowSalsifyModal(false);
     setSyncing(true);
@@ -755,6 +782,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {canSync && <ShareLinkButton entityType="PRODUCT" entityId={product.id} />}
             {canSync && (
               <div className="flex flex-col items-end gap-0.5">
                 <button
@@ -768,6 +796,20 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
                 {syncStatus === "error" && syncError && (
                   <p className="text-xs text-red-600 max-w-xs text-right">{syncError}</p>
                 )}
+              </div>
+            )}
+            {canSync && (
+              <div className="flex flex-col items-end gap-0.5">
+                <button
+                  onClick={pullFromSalsify}
+                  disabled={pulling}
+                  className="flex items-center gap-1.5 text-xs text-sky-700 hover:text-sky-900 border border-sky-300 bg-sky-50 hover:bg-sky-100 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-60"
+                  title="Fetch current digital assets and state from Salsify"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${pulling ? "animate-spin" : ""}`} />
+                  {pulling ? "Pulling…" : "Pull from Salsify"}
+                </button>
+                {pullError && <p className="text-xs text-red-600 max-w-xs text-right">{pullError}</p>}
               </div>
             )}
             <Link
@@ -825,6 +867,46 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
                 <span>Last updated by {product.updatedBy.name ?? product.updatedBy.email} · {formatDate(product.updatedAt)}</span>
               )}
             </div>
+
+            {/* Salsify pull-back panel */}
+            {product.salsifyData && (
+              <div className="bg-sky-50/60 border border-sky-200 rounded-lg p-4 space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <p className="text-sm font-semibold text-sky-900">In Salsify</p>
+                  <p className="text-xs text-sky-700">
+                    {product.salsifyData.updatedAt && `Salsify last updated ${formatDate(product.salsifyData.updatedAt)} · `}
+                    {typeof product.salsifyData.propertyCount === "number" && `${product.salsifyData.propertyCount} properties · `}
+                    Pulled {product.salsifyLastPulledAt ? formatDate(product.salsifyLastPulledAt) : "—"}
+                  </p>
+                </div>
+                {(product.salsifyData.digitalAssets?.length ?? 0) > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {product.salsifyData.digitalAssets!.map((a, i) => (
+                      <a
+                        key={i}
+                        href={a.url ?? "#"}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group border border-sky-200 rounded-lg overflow-hidden bg-white hover:border-sky-400 transition-colors"
+                        title={a.name ?? undefined}
+                      >
+                        {a.url && /\.(png|jpe?g|gif|webp)($|\?)/i.test(a.url) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={a.url} alt={a.name ?? ""} className="h-20 w-20 object-cover" />
+                        ) : (
+                          <div className="h-20 w-20 flex flex-col items-center justify-center text-sky-600 text-xs gap-1 px-1 text-center">
+                            <FileText className="h-5 w-5" />
+                            <span className="truncate w-full">{a.format ?? "asset"}</span>
+                          </div>
+                        )}
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-sky-700">No digital assets on the Salsify side.</p>
+                )}
+              </div>
+            )}
 
             {/* Core field sections */}
             {coreGroups.map((group) => (

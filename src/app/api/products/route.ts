@@ -2,10 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { findDuplicatesForProducts } from "@/lib/duplicate-check";
+import { authenticateApiToken } from "@/lib/api-tokens";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // External integrations (ERP/BI) may authenticate with a read-only
+  // "spt_" API token instead of a session — grants read access to all
+  // products, same as an admin session, but nothing else.
+  let tokenAccess = false;
+  if (!session?.user?.id) {
+    tokenAccess = !!(await authenticateApiToken(req, "read:products"));
+    if (!tokenAccess) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const { searchParams } = new URL(req.url);
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
@@ -17,8 +26,8 @@ export async function GET(req: NextRequest) {
   const inventoryStatus = searchParams.get("inventoryStatus") ?? "";
   const categoryId = searchParams.get("categoryId") ?? "";
 
-  const userId = session.user.id;
-  const isAdmin = session.user.role === "ADMIN";
+  const userId = session?.user?.id ?? "";
+  const isAdmin = tokenAccess || session?.user?.role === "ADMIN";
 
   const where = {
     isArchived: false,

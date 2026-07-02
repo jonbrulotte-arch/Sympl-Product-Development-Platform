@@ -8,8 +8,10 @@ const { auth } = NextAuth(authConfig);
 export default auth((req: NextRequest & { auth: unknown }) => {
   const { pathname } = req.nextUrl;
 
-  // API routes and auth routes pass through — they handle auth themselves
-  if (pathname.startsWith("/api/") || pathname.startsWith("/login")) {
+  // API routes and auth routes pass through — they handle auth themselves.
+  // /share/<token> pages are intentionally public: access is controlled by
+  // the unguessable, expiring token itself.
+  if (pathname.startsWith("/api/") || pathname.startsWith("/login") || pathname.startsWith("/share/")) {
     return NextResponse.next();
   }
 

@@ -145,6 +145,35 @@ Compliance events and workflow stages with a due date trigger in-app notificatio
 
 Each item alerts once; changing its due date re-arms the alert. Overdue compliance notifies the event creator and affected project owners; overdue stages notify pending approvers and the project owner.
 
+**Leadership digest:** a pipeline/compliance/approvals-aging summary emailed to all active Admins and Product Managers. Same token, typically weekly:
+
+```bash
+# Mondays at 7:00 AM
+0 7 * * 1 curl -s -X POST https://your-server/api/cron/digest \
+  -H "Authorization: Bearer sbk_<your-token>"
+```
+
+Admins can preview the digest HTML at `/api/cron/digest` in the browser without sending.
+
+---
+
+## Read-Only API Tokens
+
+Generate scoped tokens from **Admin → API Tokens** for external tools (ERP, BI) to pull product data without a browser session. Tokens are shown once at creation (`spt_` prefix) and can be revoked at any time:
+
+```bash
+curl -H "Authorization: Bearer spt_<your-token>" \
+  "https://your-server/api/products?search=SP-004&page=1"
+```
+
+The token grants read access to the products API only — no writes, no other endpoints.
+
+---
+
+## Share Links
+
+Admins and Product Managers can create expiring read-only share links for a product or inspection report (Share button on the record page). Anyone with the URL can view the data — no account required — until the link expires (7/30/90 days) or is revoked. Shared views show data only: no attachments, no navigation into the app.
+
 ---
 
 ## Salsify Integration

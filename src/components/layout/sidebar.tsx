@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   ClipboardCheck,
   HardDrive,
+  KeyRound,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -49,6 +50,7 @@ const adminNavItems: { href: string; label: string; icon: React.ElementType; per
   { href: "/admin/psir-attributes",    label: "PSIR Attributes",    icon: ClipboardCheck, permission: "admin:psir_attributes" },
   { href: "/admin/backup",             label: "Backup & Restore",   icon: HardDrive,      permission: "admin:backup" },
   { href: "/admin/settings",           label: "Settings",           icon: Settings,       permission: "admin:settings" },
+  { href: "/admin/api-tokens",         label: "API Tokens",         icon: KeyRound,       permission: "admin:settings" },
   { href: "/admin/access-control",     label: "Access Control",     icon: ShieldCheck,    permission: null }, // ADMIN only, always
 ];
 
