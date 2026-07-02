@@ -51,6 +51,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
   const [salsifySyncResult, setSalsifySyncResult] = useState<string | null>(null);
   const [showSalsifyModal, setShowSalsifyModal] = useState(false);
   const [salsifySelectedIds, setSalsifySelectedIds] = useState<string[] | null>(null);
+  const [gridReloadKey, setGridReloadKey] = useState(0);
   const router = useRouter();
 
   const openSalsifyModal = (selectedIds?: string[]) => {
@@ -72,6 +73,8 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
       if (res.ok) {
         const errSummary = data.errors?.length ? ` — ${data.errors.length} error(s): ${data.errors[0]}` : "";
         setSalsifySyncResult(`Synced ${data.synced} of ${data.total} product(s) to Salsify${errSummary}`);
+        // Refresh grid rows so the Salsify drift column reflects the new sync timestamps
+        setGridReloadKey((k) => k + 1);
       } else {
         setSalsifySyncResult(data.error ?? "Sync failed");
       }
@@ -233,6 +236,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
             onExport={handleExport}
             onImport={() => router.push(`/import?projectId=${project.id}`)}
             onSalsifySync={project.status === "EXPORT_READY" ? openSalsifyModal : undefined}
+            reloadKey={gridReloadKey}
           />
         </div>
 

@@ -52,6 +52,26 @@ type ProductRow = ProductRecord & {
   duplicateOf?: { productId: string; projectId: string; projectName: string } | null;
 };
 
+// Builds the _eavValues/_eavArrays display maps from raw attributeValues.
+// Used for the initial server-provided rows and for refetches after syncs.
+function enrichProducts(list: ProductRow[]): ProductRow[] {
+  return (list as (ProductRow & {
+    attributeValues?: { attributeDefinition: { key: string }; valueIndex: number; textValue?: string | null }[]
+  })[]).map((p) => {
+    const arrays: EavArrayMap = {};
+    for (const av of (p.attributeValues ?? []).sort((a, b) => a.valueIndex - b.valueIndex)) {
+      const k = av.attributeDefinition.key;
+      if (!arrays[k]) arrays[k] = [];
+      arrays[k].push(av.textValue ?? "");
+    }
+    return {
+      ...p,
+      _eavArrays: arrays,
+      _eavValues: Object.fromEntries(Object.entries(arrays).map(([k, vals]) => [k, vals.join(" · ")])),
+    };
+  });
+}
+
 // Portal tooltip that escapes overflow-auto scroll containers
 function GridTooltip({ label, description }: { label: string; description: string }) {
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -484,6 +504,9 @@ interface ProductGridProps {
   onExport?: () => void;
   onImport?: () => void;
   onSalsifySync?: (selectedIds: string[]) => void;
+  // Increment to make the grid refetch its rows from the server (e.g. after
+  // a Salsify sync updates per-product sync timestamps)
+  reloadKey?: number;
 }
 
 export function ProductGrid({
@@ -496,24 +519,21 @@ export function ProductGrid({
   onExport,
   onImport,
   onSalsifySync,
+  reloadKey = 0,
 }: ProductGridProps) {
-  const enriched = (initialProducts as (ProductRow & {
-    attributeValues?: { attributeDefinition: { key: string }; valueIndex: number; textValue?: string | null }[]
-  })[]).map((p) => {
-    const arrays: EavArrayMap = {};
-    for (const av of (p.attributeValues ?? []).sort((a, b) => a.valueIndex - b.valueIndex)) {
-      const k = av.attributeDefinition.key;
-      if (!arrays[k]) arrays[k] = [];
-      arrays[k].push(av.textValue ?? "");
-    }
-    return {
-      ...p,
-      _eavArrays: arrays,
-      _eavValues: Object.fromEntries(Object.entries(arrays).map(([k, vals]) => [k, vals.join(" · ")])),
-    };
-  });
+  const [products, setProducts] = useState<ProductRow[]>(() => enrichProducts(initialProducts));
 
-  const [products, setProducts] = useState<ProductRow[]>(enriched);
+  // Refetch rows when the parent signals server-side changes (e.g. Salsify
+  // sync stamped salsifyLastSyncedAt) so computed columns update in place.
+  const lastReloadKey = useRef(reloadKey);
+  useEffect(() => {
+    if (reloadKey === lastReloadKey.current) return;
+    lastReloadKey.current = reloadKey;
+    fetch(`/api/projects/${projectId}/products`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (Array.isArray(data)) setProducts(enrichProducts(data)); })
+      .catch(() => {});
+  }, [reloadKey, projectId]);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -570,7 +590,15 @@ export function ProductGrid({
           const updated = await res.json().catch(() => null);
           setProducts((prev) =>
             prev.map((p) => (p.id === productId
-              ? { ...p, _saveStatus: "saved", duplicateOf: updated?.duplicateOf ?? null }
+              ? {
+                  ...p,
+                  _saveStatus: "saved",
+                  duplicateOf: updated?.duplicateOf ?? null,
+                  // Keep freshness fields current so computed columns
+                  // (Salsify drift, completeness) update without a reload
+                  ...(updated?.updatedAt ? { updatedAt: updated.updatedAt } : {}),
+                  ...(updated?.salsifyLastSyncedAt !== undefined ? { salsifyLastSyncedAt: updated.salsifyLastSyncedAt } : {}),
+                }
               : p))
           );
           setTimeout(() => {
