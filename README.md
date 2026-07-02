@@ -6,17 +6,23 @@ A product lifecycle management platform for retail brands — centralizes produc
 
 ## Features
 
+- **Dashboard** — Landing view with pipeline stats, approvals waiting on you, overdue compliance events, projects needing attention, and recent activity.
 - **Projects** — Organize products into projects with statuses, team members, and workflow stages. Search, filter by status, and switch between card and list views.
-- **Product Grid** — Spreadsheet-style inline editing with custom EAV attributes, column tooltips, freezable columns, bulk edit, and Excel/CSV import & export.
-- **Product Record** — Full edit page per product with core fields, custom attributes by section, category inheritance from project, Salsify sync button (Admin/PM), and tabs for Compliance and Inspections.
-- **Workflows** — Configurable approval stages per project with per-stage approvers, voting, automatic status transitions, and reusable templates. Stages can be reordered with up/down controls and can declare informational dependencies on other stages, compliance events, or PSIRs.
-- **Compliance** — Track regulatory events (Prop 65, REACH, CPSC, etc.) linked to products. Bulk-link products by pasting part numbers. Search by part number to find all events covering a product.
-- **Pre-Shipment Inspections (PSIR)** — Inspection reports with custom attributes, file attachments, pass/fail results, and bulk product linking. Search by part number to find all reports covering a product.
-- **Comments & Attachments** — Project comments with file attachments (images, PDFs, documents up to 20 MB). Comment authors and admins can delete comments; attached files are removed from disk on delete.
-- **Salsify Integration** — Map attributes to Salsify property IDs; sync all products in a project, a selection of rows from the grid, or a single product from its edit page. A pre-sync modal lists all Salsify-enabled attributes with per-attribute opt-out checkboxes, giving fine-grained control over what gets overwritten in Salsify each run. Enable Salsify Debug mode in Settings to surface log and debug pages in the sidebar.
+- **Product Grid** — Spreadsheet-style inline editing with custom EAV attributes, column tooltips, freezable columns, saved views (named sort/visibility/pinning combos per project), bulk edit, and Excel import & export. Computed columns show per-product required-field completeness (%) and Salsify sync freshness (Synced / Changed / never). Duplicate Part Numbers used in another project are flagged with a warning icon.
+- **Product Record** — Full edit page per product with core fields, custom attributes by section, category inheritance from project, completeness chip, duplicate-part-number banner, Share / Pull-from-Salsify / Sync buttons (Admin/PM), and tabs for Compliance, Inspections, and field-level change History.
+- **Import with dry-run** — Excel import auto-maps columns, matches rows to existing products by Part Number (update-in-place, never duplicates), and shows a Verify step with create/update counts and cell-level old → new diffs before anything is written.
+- **Workflows** — Configurable approval stages per project with per-stage approvers, voting, automatic status transitions, and reusable templates. Stages can be reordered, carry due dates (overdue stages show red chips and a project-header badge, and escalate to pending approvers via the overdue cron), and can declare informational dependencies on other stages, compliance events, or PSIRs.
+- **Compliance** — Track regulatory events (Prop 65, REACH, CPSC, etc.) linked to products. Bulk-link products by pasting part numbers or uploading a spreadsheet. Overdue events surface on the dashboard and trigger notifications. Image attachments preview inline.
+- **Pre-Shipment Inspections (PSIR)** — Inspection reports with custom attributes, file attachments, pass/fail results, and bulk product linking (paste or .xlsx upload). List cards expand in place with quick status changes.
+- **Notifications** — In-app bell for workflow votes, stage completions, comments, and @mentions; cron-driven overdue alerts and a scheduled leadership digest email (pipeline, compliance risk, approvals aging).
+- **Comments & Attachments** — Project comments with file attachments (20 MB limit, type allowlist, served behind authentication). @mention teammates to notify them directly.
+- **Salsify Integration** — Map attributes to Salsify property IDs; sync all products in a project, a selection of rows from the grid, or a single product from its edit page — with a per-attribute opt-out modal before every sync. Per-product drift detection shows what's stale in Salsify, and Pull-from-Salsify brings digital-asset URLs and state back into Sympl. Enable Salsify Debug mode in Settings for log and inspector pages.
+- **Read-Only Share Links** — Expiring tokenized URLs (7/30/90 days) that let a buyer or vendor view one product or inspection report without an account. Revocable at any time.
+- **Read-Only API Tokens** — Scoped `spt_` tokens (Admin → API Tokens) let ERP/BI tools pull product data via the API without a browser session.
 - **Manual Status Override** — Admins and Product Managers can set a project's status directly from the project Settings tab at any time.
-- **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups written to local disk, with scheduling, retention policy, one-click restore, and a scoped API token for triggering backups from external automation without a browser session.
-- **Admin** — Users, categories, attributes (with EAV), workflow templates, compliance types, PSIR attributes, backup, and settings.
+- **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups written to local disk, with retention policy, one-click restore, and a scoped API token for external cron automation.
+- **Security** — Project-level authorization on every route, authenticated file serving with an upload-type allowlist, login rate limiting, immediate session invalidation for deactivated accounts, and last-admin lockout protection.
+- **Admin** — Users, categories, attributes (with EAV), workflow templates, compliance types, PSIR attributes, API tokens, backup, access control, and settings.
 
 ---
 
@@ -47,6 +53,10 @@ SALSIFY_ORG_ID=
 # Backup encryption (optional — falls back to NEXTAUTH_SECRET if not set)
 # Generate with: openssl rand -hex 32
 BACKUP_ENCRYPTION_KEY=
+
+# Seeding (optional)
+# SEED_DEMO_USERS=true      # create demo accounts + sample project (never use in production)
+# SEED_ADMIN_PASSWORD=      # bootstrap admin password; random one is generated and printed if unset
 ```
 
 > **Backup key note:** If `BACKUP_ENCRYPTION_KEY` is not set, the backup encryption key is derived from `NEXTAUTH_SECRET` via HMAC-SHA256. Set an explicit key if you need to restore backups on a server with a different `NEXTAUTH_SECRET`.
@@ -66,7 +76,10 @@ npm install
 ```bash
 npx prisma db push
 npx prisma generate
+npm run db:seed   # creates sections, core attributes, and an admin account
 ```
+
+The seed prints the bootstrap admin credentials once (`admin@sympl.dev` with either `SEED_ADMIN_PASSWORD` or a generated password). Change the password after first login. Set `SEED_DEMO_USERS=true` to also create demo PM/Contributor accounts and a sample project — development only.
 
 ### 3. Run the development server
 
@@ -75,6 +88,10 @@ npm run dev
 ```
 
 Open [http://localhost:4000](http://localhost:4000).
+
+### File storage
+
+Uploaded attachments are stored in `data/uploads` (outside the public web root) and served through an authenticated route. Back this directory up separately from the database.
 
 ---
 
@@ -186,6 +203,10 @@ Admins and Product Managers can create expiring read-only share links for a prod
    - **Single product** — click **Sync to Salsify** on the product edit page (`/products/[id]`).
 4. A pre-sync modal lists every Salsify-enabled attribute with checkboxes. Uncheck any attribute to exclude it from this sync run without permanently changing the attribute's Salsify settings.
 
+**Drift detection:** every successful sync records a per-product timestamp. The grid's **Salsify** column shows *Synced* (green, unchanged since last sync), *Changed* (yellow, edited since last sync — Salsify is stale), or *—* (never synced).
+
+**Pull from Salsify:** on the product edit page, pull the product's current Salsify state (digital-asset URLs, version, last-updated) back into Sympl. Assets display as thumbnails in an "In Salsify" panel.
+
 Enable **Salsify Debug** in Admin → Settings to show **Salsify Log** and **Salsify Debug** pages in the admin sidebar (useful for troubleshooting payloads and sync errors).
 
 ---
@@ -207,17 +228,23 @@ npx prisma generate
 src/
   app/
     (app)/          # Authenticated app routes
-      admin/        # Admin pages (users, attributes, backup, etc.)
+      admin/        # Admin pages (users, attributes, api-tokens, backup, etc.)
       compliance/   # Compliance events
+      dashboard/    # Landing dashboard
+      notifications/# Notification list
       products/     # Global product browser + per-product edit page
       projects/     # Project list + per-project grid
       psir/         # Pre-shipment inspection reports
-    api/            # API route handlers
+    api/            # API route handlers (incl. cron/ for scheduled jobs)
+    share/          # Public read-only share-link pages (token-gated)
+    uploads/        # Authenticated file serving for attachments
   components/
     grid/           # Product grid (inline editing, EAV, tooltips)
     layout/         # Sidebar, shell
     ui/             # Shared UI primitives
-  lib/              # Auth, Prisma client, validation, backup key
+  lib/              # Auth, Prisma client, validation, access control, uploads
 prisma/
   schema.prisma
+data/
+  uploads/          # Attachment storage (private, outside the web root)
 ```
