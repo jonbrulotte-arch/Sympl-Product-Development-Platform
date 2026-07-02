@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate } from "@/lib/utils";
 import { KeyRound, Copy, Check, Trash2 } from "lucide-react";
+import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
 type Token = {
   id: string; name: string; scope: string;
@@ -54,11 +55,13 @@ export function ApiTokensClient() {
 
   const copyToken = async () => {
     if (!newToken) return;
-    try {
-      await navigator.clipboard.writeText(newToken.token);
+    const ok = await copyToClipboard(newToken.token);
+    if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch { /* ignore */ }
+    } else {
+      window.prompt("Copy this token:", newToken.token);
+    }
   };
 
   return (

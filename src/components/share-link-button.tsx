@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Link2, Copy, Check, X, Trash2 } from "lucide-react";
+import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
 type ActiveLink = { id: string; url: string; expiresAt: string };
 
@@ -42,11 +43,14 @@ export function ShareLinkButton({ entityType, entityId }: { entityType: "PRODUCT
 
   const copy = async (link: ActiveLink) => {
     const fullUrl = `${window.location.origin}${link.url}`;
-    try {
-      await navigator.clipboard.writeText(fullUrl);
+    const ok = await copyToClipboard(fullUrl);
+    if (ok) {
       setCopiedId(link.id);
       setTimeout(() => setCopiedId(null), 2000);
-    } catch { /* clipboard unavailable */ }
+    } else {
+      // Last resort: let the user copy it manually
+      window.prompt("Copy this link:", fullUrl);
+    }
   };
 
   return (
