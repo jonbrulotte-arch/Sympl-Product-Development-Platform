@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { unlink } from "fs/promises";
-import path from "path";
+import { checkProjectAccess } from "@/lib/project-access";
+import { deleteUploadFile } from "@/lib/uploads";
 
 export async function GET(
   _req: NextRequest,
@@ -12,6 +12,8 @@ export async function GET(
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: projectId } = await params;
+  const access = await checkProjectAccess(projectId, session, "view");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 
   const comments = await prisma.comment.findMany({
     where: { projectId, parentId: null },
@@ -38,6 +40,10 @@ export async function POST(
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: projectId } = await params;
+  // Commenting requires view access — Reviewers can comment but not edit products
+  const access = await checkProjectAccess(projectId, session, "view");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
+
   const { content, productId, fieldKey, parentId } = await req.json();
 
   if (!content?.trim()) {
@@ -90,8 +96,7 @@ export async function DELETE(
       const attachments: { url: string }[] = JSON.parse(attachMatch[1]);
       for (const a of attachments) {
         if (a.url?.startsWith("/uploads/")) {
-          const filePath = path.join(process.cwd(), "public", a.url);
-          await unlink(filePath).catch(() => {});
+          await deleteUploadFile(a.url.slice(1)).catch(() => {});
         }
       }
     } catch { /* ignore parse errors */ }

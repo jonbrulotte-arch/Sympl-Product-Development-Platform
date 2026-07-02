@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import type { ProductRecord } from "@prisma/client";
 import { CORE_FIELDS, CORE_FIELD_KEYS } from "@/lib/core-fields";
+import { checkProjectAccess } from "@/lib/project-access";
 
 const CORE_FIELD_BY_KEY = Object.fromEntries(CORE_FIELDS.map((f) => [f.key, f]));
 
@@ -26,6 +27,8 @@ export async function GET(
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: projectId } = await params;
+  const access = await checkProjectAccess(projectId, session, "view");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { checkProjectAccess } from "@/lib/project-access";
 
 export async function GET(
   req: NextRequest,
@@ -10,6 +11,9 @@ export async function GET(
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: projectId } = await params;
+  const access = await checkProjectAccess(projectId, session, "view");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
+
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get("page") ?? "1");
   const pageSize = 50;

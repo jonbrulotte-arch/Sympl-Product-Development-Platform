@@ -5,6 +5,7 @@ import { ProjectDetailClient } from "./project-detail-client";
 import { canEditProject } from "@/lib/permissions";
 import { CORE_FIELD_KEYS } from "@/lib/core-fields";
 import { findDuplicatesForProducts } from "@/lib/duplicate-check";
+import { checkProjectAccess } from "@/lib/project-access";
 
 // Keys already rendered as typed columns in the grid — exclude from EAV query
 const CORE_COLUMN_KEYS = new Set(CORE_FIELD_KEYS);
@@ -18,6 +19,9 @@ export default async function ProjectDetailPage({
   if (!session?.user?.id) return null;
 
   const { id } = await params;
+
+  const access = await checkProjectAccess(id, session, "view");
+  if (!access.ok) notFound();
 
   const project = await prisma.project.findUnique({
     where: { id },

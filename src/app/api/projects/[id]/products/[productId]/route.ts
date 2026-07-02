@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validation";
 import { logActivity } from "@/lib/activity";
 import { findDuplicateForProduct } from "@/lib/duplicate-check";
+import { checkProjectAccess } from "@/lib/project-access";
 
 type Params = { params: Promise<{ id: string; productId: string }> };
 
@@ -11,7 +12,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { productId } = await params;
+  const { id: routeProjectId, productId } = await params;
+  const viewAccess = await checkProjectAccess(routeProjectId, session, "view");
+  if (!viewAccess.ok) return NextResponse.json({ error: viewAccess.error }, { status: viewAccess.status });
   const product = await prisma.productRecord.findUnique({
     where: { id: productId },
     include: {
@@ -29,7 +32,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
     },
   });
 
-  if (!product) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!product || product.projectId !== routeProjectId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const duplicateOf = await findDuplicateForProduct(product.partNumber, product.projectId, product.id);
   return NextResponse.json({ ...product, duplicateOf });
 }
@@ -39,6 +44,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: projectId, productId } = await params;
+  const editAccess = await checkProjectAccess(projectId, session, "edit");
+  if (!editAccess.ok) return NextResponse.json({ error: editAccess.error }, { status: editAccess.status });
+
   const body = await req.json();
   const { attributeValues: attrValues, ...coreData } = body;
 
@@ -123,6 +131,14 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: projectId, productId } = await params;
+  const access = await checkProjectAccess(projectId, session, "edit");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
+
+  // Verify the product actually belongs to the project the caller was authorized on
+  const target = await prisma.productRecord.findUnique({ where: { id: productId }, select: { projectId: true } });
+  if (!target || target.projectId !== projectId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   await prisma.productRecord.update({
     where: { id: productId },

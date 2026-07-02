@@ -52,9 +52,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { id: token.id as string },
           select: { role: true, isActive: true },
         });
-        if (dbUser?.isActive) {
-          token.role = dbUser.role;
-        }
+        // Deactivated (or deleted) users lose their session immediately —
+        // returning null invalidates the token instead of letting it ride
+        // out the remaining JWT lifetime.
+        if (!dbUser?.isActive) return null;
+        token.role = dbUser.role;
       }
       return token;
     },

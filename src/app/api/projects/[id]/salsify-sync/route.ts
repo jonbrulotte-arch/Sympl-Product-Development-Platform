@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { can } from "@/lib/permissions";
+import { checkProjectAccess } from "@/lib/project-access";
 import type { ProductRecord } from "@prisma/client";
 
 // Accessor for core fields stored directly on ProductRecord (not as EAV values)
@@ -61,7 +63,14 @@ export async function POST(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  if (!(await can(session.user.role, "products:sync_salsify"))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { id: projectId } = await params;
+  const access = await checkProjectAccess(projectId, session, "view");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
+
   const body = await req.json().catch(() => ({}));
   const skipAttributeKeys: string[] = Array.isArray(body.skipAttributeKeys) ? body.skipAttributeKeys : [];
   const productIds: string[] | null = Array.isArray(body.productIds) && body.productIds.length > 0 ? body.productIds : null;

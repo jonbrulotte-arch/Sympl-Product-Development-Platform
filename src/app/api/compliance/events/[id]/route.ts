@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { EVENT_INCLUDE } from "../route";
+import { canMutateQaRecords } from "@/lib/project-access";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -15,6 +16,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!canMutateQaRecords(session.user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const { id } = await params;
   const body = await req.json();
   const { title, description, notes, severity, status, dueDate, resolvedAt, addProductIds, removeProductIds } = body;
@@ -53,14 +57,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!canMutateQaRecords(session.user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const { id } = await params;
 
   const docs = await prisma.complianceDocument.findMany({ where: { eventId: id } });
-  const { unlink } = await import("fs/promises");
-  const path = await import("path");
-  await Promise.allSettled(
-    docs.map((d: { filePath: string }) => unlink(path.join(process.cwd(), "public", d.filePath)))
-  );
+  const { deleteUploadFile } = await import("@/lib/uploads");
+  await Promise.allSettled(docs.map((d: { filePath: string }) => deleteUploadFile(d.filePath)));
 
   await prisma.complianceEvent.delete({ where: { id } });
   return NextResponse.json({ ok: true });

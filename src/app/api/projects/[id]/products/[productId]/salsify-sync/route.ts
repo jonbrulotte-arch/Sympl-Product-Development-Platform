@@ -2,6 +2,7 @@ import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { checkProjectAccess } from "@/lib/project-access";
 import type { ProductRecord } from "@prisma/client";
 
 const CORE_FIELD_ACCESSOR: Record<string, (p: ProductRecord) => unknown> = {
@@ -66,7 +67,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { productId } = await params;
+  const { id: projectId, productId } = await params;
+  const access = await checkProjectAccess(projectId, session, "view");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const reqBody = await req.json().catch(() => ({}));
   const skipAttributeKeys: string[] = Array.isArray(reqBody.skipAttributeKeys) ? reqBody.skipAttributeKeys : [];
 
@@ -84,7 +87,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       attributeValues: { include: { attributeDefinition: true } },
     },
   });
-  if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
+  if (!product || product.projectId !== projectId) {
+    return NextResponse.json({ error: "Product not found" }, { status: 404 });
+  }
 
   const salsifyAttrs = await prisma.attributeDefinition.findMany({
     where: {
