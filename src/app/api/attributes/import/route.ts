@@ -2,7 +2,7 @@ import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import * as XLSX from "xlsx";
+import { parseUploadedWorkbook } from "@/lib/xlsx-parse";
 
 const VALID_TYPES = ["TEXT","TEXTAREA","NUMBER","DECIMAL","BOOLEAN","DATE","SELECT","MULTI_SELECT","URL","EMAIL","UPC","GTIN"];
 const VALID_REQS  = ["REQUIRED","CONDITIONAL","OPTIONAL"];
@@ -17,10 +17,24 @@ export async function POST(req: NextRequest) {
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
 
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array" });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws);
+  let matrix: string[][];
+  try {
+    const wb = await parseUploadedWorkbook(await file.arrayBuffer());
+    matrix = wb.getRows(wb.sheetNames[0]);
+  } catch {
+    return NextResponse.json({ error: "Could not parse file — ensure it is a valid .xlsx workbook" }, { status: 400 });
+  }
+
+  // First row is the header; convert remaining rows to keyed objects
+  const headerRow = (matrix[0] ?? []).map((h) => h?.toString().trim() ?? "");
+  const rows: Record<string, unknown>[] = matrix.slice(1)
+    .filter((r) => r.some((c) => c !== "" && c != null))
+    .map((r) => {
+      const obj: Record<string, unknown> = {};
+      // Skip empty cells so `?? default` fallbacks behave as before
+      headerRow.forEach((h, i) => { if (h && r[i] !== "" && r[i] != null) obj[h] = r[i]; });
+      return obj;
+    });
 
   let created = 0, updated = 0;
   const errors: string[] = [];

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkProjectAccess } from "@/lib/project-access";
 import { deleteUploadFile } from "@/lib/uploads";
+import { createNotificationForMany } from "@/lib/notifications";
 
 export async function GET(
   _req: NextRequest,
@@ -65,6 +66,25 @@ export async function POST(
       replies: { include: { author: { select: { id: true, name: true, email: true, image: true, role: true } } } },
     },
   });
+
+  // Notify the project owner and members (except the author) — fire and forget
+  (async () => {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { name: true, ownerId: true, members: { select: { userId: true } } },
+    });
+    if (!project) return;
+    const recipients = [...new Set([project.ownerId, ...project.members.map((m) => m.userId)])]
+      .filter((uid) => uid !== session.user.id);
+    const preview = content.trim().replace(/<!--attachments:.*?-->/s, "").slice(0, 120);
+    await createNotificationForMany(recipients, {
+      title: `New comment on ${project.name}`,
+      message: `${session.user.name ?? session.user.email}: ${preview}`,
+      type: "info",
+      link: `/projects/${projectId}?tab=comments`,
+      projectId,
+    });
+  })().catch(() => {});
 
   return NextResponse.json(comment, { status: 201 });
 }

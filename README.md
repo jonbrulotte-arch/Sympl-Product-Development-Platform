@@ -37,7 +37,8 @@ Create a `.env` file at the project root:
 ```env
 DATABASE_URL=postgresql://user:password@localhost:5432/sympl_db
 NEXTAUTH_SECRET=your-secret-here
-NEXTAUTH_URL=http://localhost:3000
+# Externally reachable URL of the app (NextAuth v5 reads AUTH_URL)
+AUTH_URL=http://localhost:4000
 
 # Salsify (optional — configure in Admin → Settings)
 SALSIFY_API_KEY=
@@ -73,7 +74,7 @@ npx prisma generate
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:4000](http://localhost:4000).
 
 ---
 

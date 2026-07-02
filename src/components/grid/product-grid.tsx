@@ -17,7 +17,7 @@ import {
   type Row,
   type Column,
 } from "@tanstack/react-table";
-import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw, AlertTriangle } from "lucide-react";
+import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw, AlertTriangle, Bookmark, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -661,6 +661,31 @@ export function ProductGrid({
       sectionMap.get(sectionName)!.push(col);
     };
 
+    // 0. Computed completeness column — % of REQUIRED attributes filled
+    const requiredCore = coreAttrDefs.filter((a) => a.requirement === "REQUIRED").map((a) => a.key);
+    const requiredEav = allAttrs.filter((a) => a.requirement === "REQUIRED").map((a) => a.key);
+    if (requiredCore.length + requiredEav.length > 0) {
+      addToSection("Core Data", {
+        id: "completeness",
+        header: "Complete",
+        size: 90,
+        enableSorting: true,
+        meta: { computed: true },
+        accessorFn: (row: ProductRow) => {
+          let filled = 0;
+          for (const key of requiredCore) {
+            const v = (row as unknown as Record<string, unknown>)[key];
+            if (v !== null && v !== undefined && v !== "") filled++;
+          }
+          for (const key of requiredEav) {
+            const vals = row._eavArrays?.[key];
+            if (vals && vals.some((x) => x !== "")) filled++;
+          }
+          return Math.round((filled / (requiredCore.length + requiredEav.length)) * 100);
+        },
+      }, 0);
+    }
+
     // 1. Core columns in attr-def order (section.sortOrder → attr.sortOrder)
     const seenCoreKeys = new Set<string>();
     for (const attr of coreAttrDefs) {
@@ -816,6 +841,16 @@ export function ProductGrid({
         </div>
 
         <div className="flex items-center gap-2">
+          <SavedViewsMenu
+            projectId={projectId}
+            getCurrentView={() => ({ sorting, columnVisibility, columnPinning, globalFilter })}
+            applyView={(v) => {
+              setSorting(v.sorting ?? []);
+              setColumnVisibility(v.columnVisibility ?? {});
+              setColumnPinning(v.columnPinning ?? { left: [], right: [] });
+              setGlobalFilter(v.globalFilter ?? "");
+            }}
+          />
           {onImport && (
             <Button size="sm" variant="outline" onClick={onImport}>
               <Upload className="h-3.5 w-3.5" />
@@ -1239,6 +1274,26 @@ function GridRow({
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isBoolean = (cell.column.columnDef.meta as any)?.fieldType === "boolean";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const isComputed = (cell.column.columnDef.meta as any)?.computed === true;
+
+        if (isComputed) {
+          const pct = typeof value === "number" ? value : 0;
+          return (
+            <td
+              key={cell.id}
+              style={{ width: cell.column.getSize(), ...pinnedStyle }}
+              className={cn("border-r border-gray-100 px-2 py-1", isPinned && "bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]")}
+            >
+              <span className={cn(
+                "inline-flex items-center text-xs font-semibold px-1.5 py-0.5 rounded-full",
+                pct >= 100 ? "bg-green-100 text-green-700" : pct >= 50 ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-700"
+              )}>
+                {pct}%
+              </span>
+            </td>
+          );
+        }
 
         const commit = (raw: string, navigate?: 1 | -1) => {
           if (isEav) {
@@ -1652,6 +1707,101 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Saved Views ──────────────────────────────────────────────────────────────
+// Named grid configurations (sort, column visibility, pinning, search) saved
+// per project in localStorage — same persistence approach as column widths.
+
+type SavedViewState = {
+  sorting?: SortingState;
+  columnVisibility?: VisibilityState;
+  columnPinning?: ColumnPinningState;
+  globalFilter?: string;
+};
+type SavedView = SavedViewState & { name: string };
+
+function SavedViewsMenu({
+  projectId,
+  getCurrentView,
+  applyView,
+}: {
+  projectId: string;
+  getCurrentView: () => SavedViewState;
+  applyView: (v: SavedViewState) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [views, setViews] = useState<SavedView[]>([]);
+  const [newName, setNewName] = useState("");
+  const storageKey = `grid-views-${projectId}`;
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) setViews(JSON.parse(saved));
+    } catch { /* ignore */ }
+  }, [storageKey]);
+
+  const persist = (next: SavedView[]) => {
+    setViews(next);
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* ignore */ }
+  };
+
+  const saveCurrent = () => {
+    const name = newName.trim();
+    if (!name) return;
+    const next = [...views.filter((v) => v.name !== name), { name, ...getCurrentView() }];
+    persist(next);
+    setNewName("");
+  };
+
+  return (
+    <div className="relative">
+      <Button size="sm" variant="outline" onClick={() => setOpen((o) => !o)}>
+        <Bookmark className="h-3.5 w-3.5" />
+        Views
+      </Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 z-40 w-64 bg-white border border-gray-200 rounded-lg shadow-xl p-2 space-y-1">
+            {views.length === 0 && (
+              <p className="text-xs text-gray-400 px-2 py-1.5">No saved views yet.</p>
+            )}
+            {views.map((v) => (
+              <div key={v.name} className="flex items-center gap-1 group">
+                <button
+                  className="flex-1 text-left text-sm text-gray-700 px-2 py-1.5 rounded hover:bg-gray-100 truncate"
+                  onClick={() => { applyView(v); setOpen(false); }}
+                >
+                  {v.name}
+                </button>
+                <button
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-red-400"
+                  title="Delete view"
+                  onClick={() => persist(views.filter((x) => x.name !== v.name))}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+            <div className="border-t border-gray-100 pt-2 mt-1 flex items-center gap-1">
+              <input
+                className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                placeholder="Save current as…"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && saveCurrent()}
+              />
+              <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={saveCurrent} disabled={!newName.trim()}>
+                Save
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

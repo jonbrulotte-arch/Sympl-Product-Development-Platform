@@ -47,7 +47,19 @@ function autoDetect(headers: string[], extraFields: AttrOption[]): Record<string
   return mapping;
 }
 
-type Step = "upload" | "preview" | "mapping" | "importing" | "complete";
+type Step = "upload" | "preview" | "mapping" | "verify" | "importing" | "complete";
+
+type DryRunResult = {
+  totalRows: number;
+  wouldCreate: number;
+  wouldUpdate: number;
+  changes: {
+    row: number;
+    partNumber: string | null;
+    action: "create" | "update";
+    fieldChanges: { field: string; from: string; to: string }[];
+  }[];
+};
 
 interface PreviewData {
   sheets: string[];
@@ -73,6 +85,7 @@ function ImportWizardContent() {
     createdRows?: number; updatedRows?: number;
     errors: { row: number; errors: string[] }[];
   } | null>(null);
+  const [dryRun, setDryRun] = useState<DryRunResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -173,20 +186,40 @@ function ImportWizardContent() {
     }
   };
 
+  const buildImportForm = (phase: string) => {
+    const formData = new FormData();
+    formData.append("file", file!);
+    formData.append("phase", phase);
+    formData.append("projectId", projectId!);
+    formData.append("sheetName", preview!.selectedSheet);
+    formData.append("columnMapping", JSON.stringify(mapping));
+    return formData;
+  };
+
+  // Dry run first — show what will be created vs. updated before writing
+  const handleVerify = async () => {
+    if (!file || !preview || !projectId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/import", { method: "POST", body: buildImportForm("dryrun") });
+      if (!res.ok) throw new Error("Dry run failed");
+      setDryRun(await res.json());
+      setStep("verify");
+    } catch {
+      setError("Could not analyze the import. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleImport = async () => {
     if (!file || !preview || !projectId) return;
     setLoading(true);
     setStep("importing");
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("phase", "import");
-    formData.append("projectId", projectId);
-    formData.append("sheetName", preview.selectedSheet);
-    formData.append("columnMapping", JSON.stringify(mapping));
-
     try {
-      const res = await fetch("/api/import", { method: "POST", body: formData });
+      const res = await fetch("/api/import", { method: "POST", body: buildImportForm("import") });
       if (!res.ok) throw new Error("Import failed");
       const data = await res.json();
       setImportResult(data);
@@ -203,6 +236,7 @@ function ImportWizardContent() {
     { id: "upload", label: "Upload" },
     { id: "preview", label: "Preview" },
     { id: "mapping", label: "Map Columns" },
+    { id: "verify", label: "Verify" },
     { id: "importing", label: "Importing" },
     { id: "complete", label: "Complete" },
   ];
@@ -425,8 +459,82 @@ function ImportWizardContent() {
             <Button variant="outline" onClick={() => setStep("preview")}>
               <ArrowLeft className="h-4 w-4" /> Back
             </Button>
-            <Button onClick={handleImport} disabled={loading || !projectId}>
-              {!projectId ? "Select a project to continue" : "Start Import"} <ArrowRight className="h-4 w-4" />
+            <Button onClick={handleVerify} disabled={loading || !projectId}>
+              {!projectId ? "Select a project to continue" : loading ? "Analyzing…" : "Review Changes"} <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Step: Verify (dry run) */}
+      {step === "verify" && dryRun && (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Review Before Importing</CardTitle>
+              <p className="text-sm text-gray-500 mt-1">
+                Nothing has been written yet. Here&apos;s what this import will do:
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-green-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-green-700">{dryRun.wouldCreate}</p>
+                  <p className="text-sm text-green-600">New products</p>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-blue-700">{dryRun.wouldUpdate}</p>
+                  <p className="text-sm text-blue-600">Updates to existing</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-gray-700">{dryRun.totalRows}</p>
+                  <p className="text-sm text-gray-600">Total rows</p>
+                </div>
+              </div>
+
+              {dryRun.changes.length > 0 && (
+                <div className="border border-gray-200 rounded-lg max-h-80 overflow-y-auto divide-y divide-gray-100">
+                  {dryRun.changes.map((c, i) => (
+                    <div key={i} className="px-3 py-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded-full font-medium",
+                          c.action === "create" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                        )}>
+                          {c.action === "create" ? "NEW" : "UPDATE"}
+                        </span>
+                        <span className="font-mono text-gray-700">{c.partNumber ?? `Row ${c.row}`}</span>
+                        {c.action === "update" && c.fieldChanges.length === 0 && (
+                          <span className="text-gray-400">no field changes</span>
+                        )}
+                      </div>
+                      {c.fieldChanges.length > 0 && (
+                        <div className="mt-1 ml-1 space-y-0.5">
+                          {c.fieldChanges.slice(0, 8).map((fc, j) => (
+                            <p key={j} className="text-gray-500">
+                              <span className="text-gray-700">{fc.field}:</span>{" "}
+                              <span className="line-through text-red-400">{fc.from || "—"}</span>{" "}
+                              → <span className="text-green-700">{fc.to || "—"}</span>
+                            </p>
+                          ))}
+                          {c.fieldChanges.length > 8 && (
+                            <p className="text-gray-400">+{c.fieldChanges.length - 8} more field{c.fieldChanges.length - 8 !== 1 ? "s" : ""}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-between">
+            <Button variant="outline" onClick={() => setStep("mapping")}>
+              <ArrowLeft className="h-4 w-4" /> Back to Mapping
+            </Button>
+            <Button onClick={handleImport} disabled={loading}>
+              Confirm &amp; Import <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -490,6 +598,7 @@ function ImportWizardContent() {
                 setFile(null);
                 setPreview(null);
                 setMapping({});
+                setDryRun(null);
                 setImportResult(null);
               }}>
                 Import Another File

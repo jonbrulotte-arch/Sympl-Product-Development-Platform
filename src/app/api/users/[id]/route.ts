@@ -15,6 +15,23 @@ export async function PATCH(
   const { id } = await params;
   const body = await req.json();
 
+  // Guard against locking everyone out: refuse to demote or deactivate the
+  // last remaining active ADMIN account.
+  const demoting = body.role !== undefined && body.role !== "ADMIN";
+  const deactivating = body.isActive === false;
+  if (demoting || deactivating) {
+    const target = await prisma.user.findUnique({ where: { id }, select: { role: true, isActive: true } });
+    if (target?.role === "ADMIN" && target.isActive) {
+      const activeAdmins = await prisma.user.count({ where: { role: "ADMIN", isActive: true } });
+      if (activeAdmins <= 1) {
+        return NextResponse.json(
+          { error: "Cannot demote or deactivate the last active admin account" },
+          { status: 400 }
+        );
+      }
+    }
+  }
+
   const user = await prisma.user.update({
     where: { id },
     data: {

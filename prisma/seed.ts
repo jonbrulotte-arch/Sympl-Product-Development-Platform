@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -12,46 +13,60 @@ const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter } as never);
 
+// Demo accounts with well-known passwords are only created when explicitly
+// requested — never by default on a production database.
+const SEED_DEMO = process.env.SEED_DEMO_USERS === "true";
+
 async function main() {
   console.log("Seeding database...");
 
   // ─── Admin user ────────────────────────────────────────────────────────────
-  const adminHash = await bcrypt.hash("admin123", 12);
-  const admin = await prisma.user.upsert({
-    where: { email: "admin@sympl.dev" },
-    update: {},
-    create: {
-      email: "admin@sympl.dev",
-      name: "Sympl Admin",
-      passwordHash: adminHash,
-      role: "ADMIN",
-    },
-  });
+  // If no active admin exists, bootstrap one. Password comes from
+  // SEED_ADMIN_PASSWORD, or is randomly generated and printed once.
+  let pm: { id: string } | null = null;
+  const existingAdmin = await prisma.user.findFirst({ where: { role: "ADMIN", isActive: true } });
+  if (!existingAdmin) {
+    const password =
+      process.env.SEED_ADMIN_PASSWORD ??
+      (SEED_DEMO ? "admin123" : randomBytes(9).toString("base64url"));
+    await prisma.user.upsert({
+      where: { email: "admin@sympl.dev" },
+      update: {},
+      create: {
+        email: "admin@sympl.dev",
+        name: "Sympl Admin",
+        passwordHash: await bcrypt.hash(password, 12),
+        role: "ADMIN",
+      },
+    });
+    console.log(`Admin account created: admin@sympl.dev / ${password}`);
+    console.log("^ Change this password after first login.");
+  }
 
-  const pmHash = await bcrypt.hash("password123", 12);
-  const pm = await prisma.user.upsert({
-    where: { email: "pm@sympl.dev" },
-    update: {},
-    create: {
-      email: "pm@sympl.dev",
-      name: "Product Manager",
-      passwordHash: pmHash,
-      role: "PRODUCT_MANAGER",
-    },
-  });
+  if (SEED_DEMO) {
+    pm = await prisma.user.upsert({
+      where: { email: "pm@sympl.dev" },
+      update: {},
+      create: {
+        email: "pm@sympl.dev",
+        name: "Product Manager",
+        passwordHash: await bcrypt.hash("password123", 12),
+        role: "PRODUCT_MANAGER",
+      },
+    });
 
-  await prisma.user.upsert({
-    where: { email: "contributor@sympl.dev" },
-    update: {},
-    create: {
-      email: "contributor@sympl.dev",
-      name: "Contributor User",
-      passwordHash: await bcrypt.hash("password123", 12),
-      role: "CONTRIBUTOR",
-    },
-  });
-
-  console.log("Users created");
+    await prisma.user.upsert({
+      where: { email: "contributor@sympl.dev" },
+      update: {},
+      create: {
+        email: "contributor@sympl.dev",
+        name: "Contributor User",
+        passwordHash: await bcrypt.hash("password123", 12),
+        role: "CONTRIBUTOR",
+      },
+    });
+    console.log("Demo users created (SEED_DEMO_USERS=true)");
+  }
 
   // ─── Attribute sections ────────────────────────────────────────────────────
   const sections: { name: string; slug: string; sortOrder: number; isCore: boolean }[] = [
@@ -334,9 +349,9 @@ async function main() {
 
   console.log("Workflow template created");
 
-  // ─── Sample project ────────────────────────────────────────────────────────
+  // ─── Sample project (demo mode only) ───────────────────────────────────────
   const existingProject = await prisma.project.findFirst({ where: { name: "Q2 Saw Blade Launch — Demo" } });
-  if (!existingProject) {
+  if (SEED_DEMO && pm && !existingProject) {
     const project = await prisma.project.create({
       data: {
         name: "Q2 Saw Blade Launch — Demo",
@@ -426,12 +441,13 @@ async function main() {
     });
   }
 
-  console.log("Sample project created");
   console.log("\n✅ Seed complete!");
-  console.log("\nDefault accounts:");
-  console.log("  Admin:  admin@sympl.dev / admin123");
-  console.log("  PM:     pm@sympl.dev / password123");
-  console.log("  User:   contributor@sympl.dev / password123");
+  if (SEED_DEMO) {
+    console.log("\nDemo accounts:");
+    console.log("  Admin:  admin@sympl.dev / admin123 (unless SEED_ADMIN_PASSWORD was set)");
+    console.log("  PM:     pm@sympl.dev / password123");
+    console.log("  User:   contributor@sympl.dev / password123");
+  }
 }
 
 main()

@@ -1,11 +1,68 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import * as XLSX from "xlsx";
 import { CORE_FIELDS, coerceCoreValue } from "@/lib/core-fields";
 import { checkProjectAccess } from "@/lib/project-access";
+import { parseUploadedWorkbook } from "@/lib/xlsx-parse";
 
 const CORE_FIELD_BY_KEY = Object.fromEntries(CORE_FIELDS.map((f) => [f.key, f]));
+
+function findHeaderRow(raw: string[][]): number {
+  const idx = raw.findIndex((row) =>
+    Array.isArray(row) && row.some((c) => typeof c === "string" && c.includes("Part Number"))
+  );
+  return idx >= 0 ? idx : 0;
+}
+
+type MappedRow = {
+  rowNumber: number;
+  coreValues: Record<string, string>;
+  coreData: Record<string, unknown>;
+  attrValues: { key: string; valueIndex: number; value: string }[];
+};
+
+function mapRows(
+  dataRows: string[][],
+  headers: string[],
+  mapping: Record<string, string>
+): MappedRow[] {
+  const out: MappedRow[] = [];
+  for (let i = 0; i < dataRows.length; i++) {
+    const row = dataRows[i];
+    if (row.every((c) => !c)) continue;
+
+    const rowData: Record<string, string> = {};
+    headers.forEach((h, j) => { rowData[h] = row[j]?.toString() ?? ""; });
+
+    // Core fields map to a plain key ("partNumber"); custom attributes map to
+    // "attr:<attributeKey>:<valueIndex>" so multi-value attributes don't
+    // collide onto the same slot and overwrite each other.
+    const coreValues: Record<string, string> = {};
+    const attrValues: MappedRow["attrValues"] = [];
+    for (const [sourceCol, targetField] of Object.entries(mapping)) {
+      if (!targetField || rowData[sourceCol] === undefined) continue;
+      if (targetField.startsWith("attr:")) {
+        const [, attrKey, idxStr] = targetField.split(":");
+        attrValues.push({ key: attrKey, valueIndex: parseInt(idxStr, 10) || 0, value: rowData[sourceCol] });
+      } else {
+        coreValues[targetField] = rowData[sourceCol];
+      }
+    }
+
+    if (!coreValues.partNumber && !coreValues.itemName) continue;
+
+    const coreData: Record<string, unknown> = {};
+    for (const [key, rawVal] of Object.entries(coreValues)) {
+      const field = CORE_FIELD_BY_KEY[key];
+      if (!field) continue;
+      const coerced = coerceCoreValue(field.type, rawVal);
+      if (coerced !== undefined) coreData[key] = coerced;
+    }
+
+    out.push({ rowNumber: i + 1, coreValues, coreData, attrValues });
+  }
+  return out;
+}
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -14,49 +71,42 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
   const projectId = formData.get("projectId") as string | null;
-  const phase = formData.get("phase") as string | null; // "preview" | "import"
+  const phase = formData.get("phase") as string | null; // "preview" | "dryrun" | "import"
   const sheetName = formData.get("sheetName") as string | null;
   const columnMapping = formData.get("columnMapping") as string | null;
 
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  const arrayBuffer = await file.arrayBuffer();
-  const wb = XLSX.read(arrayBuffer, { type: "array" });
+  let workbook;
+  try {
+    workbook = await parseUploadedWorkbook(await file.arrayBuffer());
+  } catch {
+    return NextResponse.json({ error: "Could not parse file — ensure it is a valid .xlsx workbook" }, { status: 400 });
+  }
 
   if (phase === "preview") {
-    const sheets = wb.SheetNames;
-    const selectedSheet = sheetName ?? sheets[0];
-    const ws = wb.Sheets[selectedSheet];
-    const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "" }) as unknown[][];
-
-    // Find header row (skip section-level rows)
-    const headerRowIndex = raw.findIndex((row) =>
-      Array.isArray(row) && (row as unknown[]).some((c) => typeof c === "string" && (c as string).includes("Part Number"))
-    );
-
-    const headerIdx = headerRowIndex >= 0 ? headerRowIndex : 0;
-    const headers = (raw[headerIdx] as string[]).filter(Boolean);
+    const selectedSheet = sheetName ?? workbook.sheetNames[0];
+    const raw = workbook.getRows(selectedSheet);
+    const headerIdx = findHeaderRow(raw);
+    const headers = (raw[headerIdx] ?? []).filter(Boolean);
     const allDataRows = raw.slice(headerIdx + 1);
-    const dataRows = allDataRows.slice(0, 5);
 
-    const sampleRows = dataRows.map((row) => {
+    const sampleRows = allDataRows.slice(0, 5).map((row) => {
       const obj: Record<string, string> = {};
-      headers.forEach((h, i) => {
-        obj[h] = (row as string[])[i]?.toString() ?? "";
-      });
+      headers.forEach((h, i) => { obj[h] = row[i]?.toString() ?? ""; });
       return obj;
     });
 
     return NextResponse.json({
-      sheets,
+      sheets: workbook.sheetNames,
       selectedSheet,
       headers,
       sampleRows,
-      totalRows: allDataRows.filter((r) => (r as string[]).some((c) => c !== "" && c != null)).length,
+      totalRows: allDataRows.filter((r) => r.some((c) => c !== "" && c != null)).length,
     });
   }
 
-  // Import phase
+  // Dry-run and import phases both need project + mapping
   if (!projectId || !columnMapping) {
     return NextResponse.json({ error: "projectId and columnMapping required" }, { status: 400 });
   }
@@ -65,23 +115,79 @@ export async function POST(req: NextRequest) {
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 
   const mapping: Record<string, string> = JSON.parse(columnMapping);
-  const selectedSheet = sheetName ?? wb.SheetNames[0];
-  const ws = wb.Sheets[selectedSheet];
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "" }) as unknown[][];
-
-  const headerRowIndex = raw.findIndex((row) =>
-    Array.isArray(row) && (row as unknown[]).some((c) => typeof c === "string" && (c as string).includes("Part Number"))
-  );
-  const headerIdx = headerRowIndex >= 0 ? headerRowIndex : 0;
-  const headers = raw[headerIdx] as string[];
+  const selectedSheet = sheetName ?? workbook.sheetNames[0];
+  const raw = workbook.getRows(selectedSheet);
+  const headerIdx = findHeaderRow(raw);
+  const headers = raw[headerIdx] ?? [];
   const dataRows = raw.slice(headerIdx + 1);
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: { categoryId: true },
-  });
-  const projectCategoryId = project?.categoryId ?? null;
+  const mappedRows = mapRows(dataRows, headers, mapping);
 
+  // Existing products keyed by Part Number → upsert instead of duplicating
+  const existingProducts = await prisma.productRecord.findMany({
+    where: { projectId, isArchived: false, partNumber: { not: null } },
+  });
+  const existingByPartNumber = new Map(
+    existingProducts.filter((p) => p.partNumber).map((p) => [p.partNumber as string, p])
+  );
+
+  // Resolve attribute definitions once for the whole file (not per row)
+  const allAttrKeys = [...new Set(mappedRows.flatMap((r) => r.attrValues.map((a) => a.key)))];
+  const attrDefs = allAttrKeys.length
+    ? await prisma.attributeDefinition.findMany({
+        where: { key: { in: allAttrKeys }, isActive: true },
+        select: { id: true, key: true },
+      })
+    : [];
+  const defByKey = Object.fromEntries(attrDefs.map((d) => [d.key, d.id]));
+
+  // ─── Dry run: report what WOULD happen, write nothing ──────────────────────
+  if (phase === "dryrun") {
+    const changes: {
+      row: number;
+      partNumber: string | null;
+      action: "create" | "update";
+      fieldChanges: { field: string; from: string; to: string }[];
+    }[] = [];
+    let wouldCreate = 0;
+    let wouldUpdate = 0;
+
+    for (const mr of mappedRows) {
+      const partNumber = mr.coreValues.partNumber?.trim() || null;
+      const existing = partNumber ? existingByPartNumber.get(partNumber) : undefined;
+      if (existing) {
+        wouldUpdate++;
+        const fieldChanges: { field: string; from: string; to: string }[] = [];
+        for (const [key, newVal] of Object.entries(mr.coreData)) {
+          const field = CORE_FIELD_BY_KEY[key];
+          const oldVal = (existing as unknown as Record<string, unknown>)[key];
+          const oldStr = oldVal === null || oldVal === undefined ? "" : String(oldVal);
+          const newStr = String(newVal);
+          if (oldStr !== newStr) {
+            fieldChanges.push({ field: field?.label ?? key, from: oldStr, to: newStr });
+          }
+        }
+        if (changes.length < 100) {
+          changes.push({ row: mr.rowNumber, partNumber, action: "update", fieldChanges });
+        }
+      } else {
+        wouldCreate++;
+        if (changes.length < 100) {
+          changes.push({ row: mr.rowNumber, partNumber, action: "create", fieldChanges: [] });
+        }
+      }
+    }
+
+    return NextResponse.json({
+      dryRun: true,
+      totalRows: mappedRows.length,
+      wouldCreate,
+      wouldUpdate,
+      changes,
+    });
+  }
+
+  // ─── Import phase ───────────────────────────────────────────────────────────
   let importRecord = await prisma.importHistory.create({
     data: {
       projectId,
@@ -104,65 +210,22 @@ export async function POST(req: NextRequest) {
   });
   let nextRowIndex = (maxRow._max.rowIndex ?? -1) + 1;
 
-  // Existing products in this project, keyed by Part Number, so re-importing
-  // the same sheet updates rows instead of creating duplicates.
-  const existingProducts = await prisma.productRecord.findMany({
-    where: { projectId, isArchived: false, partNumber: { not: null } },
-    select: { id: true, partNumber: true },
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { categoryId: true },
   });
-  const existingByPartNumber = new Map(
-    existingProducts.filter((p) => p.partNumber).map((p) => [p.partNumber as string, p.id])
-  );
+  const projectCategoryId = project?.categoryId ?? null;
 
-  for (let i = 0; i < dataRows.length; i++) {
-    const row = dataRows[i] as string[];
-    if (row.every((c) => !c)) continue; // skip empty rows
-
-    const rowData: Record<string, string> = {};
-    headers.forEach((h, j) => {
-      rowData[h] = row[j]?.toString() ?? "";
-    });
-
-    // Apply column mapping to build product data.
-    // Core fields map to a plain key ("partNumber"); custom attributes map to
-    // "attr:<attributeKey>:<valueIndex>" so multi-value attributes (which export
-    // as separate "Label 1", "Label 2", ... columns) don't collide onto the
-    // same slot and overwrite each other.
-    const coreValues: Record<string, string> = {};
-    const attrValues: { key: string; valueIndex: number; value: string }[] = [];
-    for (const [sourceCol, targetField] of Object.entries(mapping)) {
-      if (!targetField || rowData[sourceCol] === undefined) continue;
-      if (targetField.startsWith("attr:")) {
-        const [, attrKey, idxStr] = targetField.split(":");
-        attrValues.push({ key: attrKey, valueIndex: parseInt(idxStr, 10) || 0, value: rowData[sourceCol] });
-      } else {
-        coreValues[targetField] = rowData[sourceCol];
-      }
-    }
-
-    if (!coreValues.partNumber && !coreValues.itemName) {
-      continue; // skip if no meaningful data
-    }
-
-    // Coerce core field strings into the types Prisma expects, dropping blanks
-    // and unparseable numbers rather than writing bad data.
-    const coreData: Record<string, unknown> = {};
-    for (const [key, raw] of Object.entries(coreValues)) {
-      const field = CORE_FIELD_BY_KEY[key];
-      if (!field) continue;
-      const coerced = coerceCoreValue(field.type, raw);
-      if (coerced !== undefined) coreData[key] = coerced;
-    }
-
+  for (const mr of mappedRows) {
     try {
-      const partNumber = coreValues.partNumber?.trim() || undefined;
-      const existingId = partNumber ? existingByPartNumber.get(partNumber) : undefined;
+      const partNumber = mr.coreValues.partNumber?.trim() || undefined;
+      const existing = partNumber ? existingByPartNumber.get(partNumber) : undefined;
 
       let productId: string;
-      if (existingId) {
+      if (existing) {
         const updated = await prisma.productRecord.update({
-          where: { id: existingId },
-          data: { ...coreData, updatedById: session.user.id },
+          where: { id: existing.id },
+          data: { ...mr.coreData, updatedById: session.user.id },
         });
         productId = updated.id;
         updatedRows++;
@@ -174,45 +237,40 @@ export async function POST(req: NextRequest) {
             createdById: session.user.id,
             updatedById: session.user.id,
             rowIndex: nextRowIndex++,
-            ...coreData,
+            ...mr.coreData,
           },
         });
         productId = created.id;
-        if (partNumber) existingByPartNumber.set(partNumber, productId);
+        if (partNumber) existingByPartNumber.set(partNumber, created);
         createdRows++;
       }
 
-      if (attrValues.length > 0) {
-        const attrDefs = await prisma.attributeDefinition.findMany({
-          where: { key: { in: [...new Set(attrValues.map((a) => a.key))] }, isActive: true },
-          select: { id: true, key: true },
-        });
-        const defByKey = Object.fromEntries(attrDefs.map((d) => [d.key, d.id]));
-
-        for (const av of attrValues) {
-          const attributeDefinitionId = defByKey[av.key];
-          if (!attributeDefinitionId || !av.value) continue;
-          await prisma.productAttributeValue.upsert({
-            where: {
-              productId_attributeDefinitionId_valueIndex: {
-                productId,
-                attributeDefinitionId,
-                valueIndex: av.valueIndex,
-              },
-            },
-            update: { textValue: av.value },
-            create: {
+      for (const av of mr.attrValues) {
+        const attributeDefinitionId = defByKey[av.key];
+        if (!attributeDefinitionId || !av.value) continue;
+        await prisma.productAttributeValue.upsert({
+          where: {
+            productId_attributeDefinitionId_valueIndex: {
               productId,
               attributeDefinitionId,
               valueIndex: av.valueIndex,
-              textValue: av.value,
             },
-          });
-        }
+          },
+          update: { textValue: av.value },
+          create: {
+            productId,
+            attributeDefinitionId,
+            valueIndex: av.valueIndex,
+            textValue: av.value,
+          },
+        });
       }
-    } catch {
+    } catch (err) {
       errorRows++;
-      errors.push({ row: i + 1, errors: ["Failed to import row"] });
+      errors.push({
+        row: mr.rowNumber,
+        errors: [err instanceof Error ? err.message.slice(0, 200) : "Failed to import row"],
+      });
     }
   }
 

@@ -575,6 +575,23 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
 
   const canSync = userRole === "ADMIN" || userRole === "PRODUCT_MANAGER";
 
+  // % of REQUIRED attributes with a value — drives the completeness chip
+  const completeness = useMemo(() => {
+    const requiredCore = coreAttrDefs.filter((a) => a.requirement === "REQUIRED");
+    const requiredEav = [...globalAttrs, ...categoryAttrs].filter((a) => a.requirement === "REQUIRED");
+    const total = requiredCore.length + requiredEav.length;
+    if (total === 0) return null;
+    let filled = 0;
+    for (const attr of requiredCore) {
+      const v = core[attr.key];
+      if (v !== undefined && v !== null && v !== "") filled++;
+    }
+    for (const attr of requiredEav) {
+      if ((eav[attr.id] ?? "").trim() !== "") filled++;
+    }
+    return Math.round((filled / total) * 100);
+  }, [core, eav, coreAttrDefs, globalAttrs, categoryAttrs]);
+
   async function syncToSalsify(skipKeys: string[]) {
     setShowSalsifyModal(false);
     setSyncing(true);
@@ -725,6 +742,16 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
                 <Badge variant="secondary">{(product.category ?? projectCategory)!.name}</Badge>
               )}
               <ProjectStatusBadge status={product.project.status as never} />
+              {completeness !== null && (
+                <span
+                  className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    completeness >= 100 ? "bg-green-100 text-green-700" : completeness >= 50 ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-700"
+                  }`}
+                  title="Percentage of required fields filled in"
+                >
+                  {completeness}% complete
+                </span>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">

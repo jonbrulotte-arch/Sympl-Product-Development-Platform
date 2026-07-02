@@ -8,11 +8,18 @@ export async function GET() {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Full account details are admin-only; everyone else gets just what the
+  // member-picker and approver-picker UIs need (active users, basic identity).
+  const isUserAdmin = await can(session.user.role, "admin:users");
+
   const users = await prisma.user.findMany({
-    select: {
-      id: true, email: true, name: true, image: true, role: true,
-      isActive: true, createdAt: true, updatedAt: true,
-    },
+    where: isUserAdmin ? {} : { isActive: true },
+    select: isUserAdmin
+      ? {
+          id: true, email: true, name: true, image: true, role: true,
+          isActive: true, createdAt: true, updatedAt: true,
+        }
+      : { id: true, email: true, name: true, image: true, role: true },
     orderBy: { name: "asc" },
   });
 
