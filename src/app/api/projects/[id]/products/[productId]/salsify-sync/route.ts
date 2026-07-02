@@ -152,8 +152,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     );
   }
 
-  // Record sync time without touching updatedAt (drift detection compares the two)
-  await prisma.$executeRaw`UPDATE "ProductRecord" SET "salsifyLastSyncedAt" = NOW() WHERE id = ${product.id}`.catch(() => {});
+  // Record sync time without touching updatedAt (drift detection compares
+  // the two). Bind a JS Date (UTC) rather than NOW() — NOW() cast into a
+  // timestamp column uses the DB server's local timezone, skewing the
+  // comparison against Prisma's UTC-written updatedAt.
+  await prisma.$executeRaw`UPDATE "ProductRecord" SET "salsifyLastSyncedAt" = ${new Date()} WHERE id = ${product.id}`.catch(() => {});
 
   return NextResponse.json({ synced: true, salsifyId });
 }

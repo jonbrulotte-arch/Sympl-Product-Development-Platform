@@ -176,8 +176,11 @@ export async function POST(req: NextRequest, { params }: Params) {
       } else {
         synced++;
         // Record sync time WITHOUT touching updatedAt, so "changed since last
-        // sync" drift detection stays accurate
-        await prisma.$executeRaw`UPDATE "ProductRecord" SET "salsifyLastSyncedAt" = NOW() WHERE id = ${product.id}`.catch(() => {});
+        // sync" drift detection stays accurate. Bind a JS Date (UTC) rather
+        // than NOW() — NOW() cast into a timestamp column uses the DB
+        // server's local timezone, which skews the drift comparison against
+        // Prisma's UTC-written updatedAt.
+        await prisma.$executeRaw`UPDATE "ProductRecord" SET "salsifyLastSyncedAt" = ${new Date()} WHERE id = ${product.id}`.catch(() => {});
       }
     } catch (err) {
       errors.push(`Product ${product.partNumber ?? product.id}: ${String(err)}`);
