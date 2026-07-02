@@ -67,19 +67,56 @@ export async function POST(
     },
   });
 
-  // Notify the project owner and members (except the author) — fire and forget
+  // Notify the project owner and members (except the author) — fire and forget.
+  // Users called out with @Name or @email get a distinct "mentioned you"
+  // notification instead of the generic one.
   (async () => {
     const project = await prisma.project.findUnique({
       where: { id: projectId },
-      select: { name: true, ownerId: true, members: { select: { userId: true } } },
+      select: {
+        name: true,
+        ownerId: true,
+        members: { select: { user: { select: { id: true, name: true, email: true } } } },
+        owner: { select: { id: true, name: true, email: true } },
+      },
     });
     if (!project) return;
-    const recipients = [...new Set([project.ownerId, ...project.members.map((m) => m.userId)])]
-      .filter((uid) => uid !== session.user.id);
-    const preview = content.trim().replace(/<!--attachments:.*?-->/s, "").slice(0, 120);
+
+    const team = [project.owner, ...project.members.map((m) => m.user)];
+    const body = content.trim().replace(/<!--attachments:.*?-->/s, "");
+    const bodyLower = body.toLowerCase();
+
+    // A user counts as mentioned when the comment contains @ immediately
+    // followed by their full name, first name, or email prefix.
+    const mentionedIds = new Set<string>();
+    for (const u of team) {
+      if (u.id === session.user.id) continue;
+      const candidates = [
+        u.name?.toLowerCase(),
+        u.name?.toLowerCase().split(" ")[0],
+        u.email.toLowerCase().split("@")[0],
+      ].filter((c): c is string => !!c && c.length >= 2);
+      if (candidates.some((c) => bodyLower.includes(`@${c}`))) mentionedIds.add(u.id);
+    }
+
+    const preview = body.slice(0, 120);
+    const author = session.user.name ?? session.user.email;
+
+    if (mentionedIds.size > 0) {
+      await createNotificationForMany([...mentionedIds], {
+        title: `${author} mentioned you on ${project.name}`,
+        message: preview,
+        type: "info",
+        link: `/projects/${projectId}?tab=comments`,
+        projectId,
+      });
+    }
+
+    const recipients = [...new Set(team.map((u) => u.id))]
+      .filter((uid) => uid !== session.user.id && !mentionedIds.has(uid));
     await createNotificationForMany(recipients, {
       title: `New comment on ${project.name}`,
-      message: `${session.user.name ?? session.user.email}: ${preview}`,
+      message: `${author}: ${preview}`,
       type: "info",
       link: `/projects/${projectId}?tab=comments`,
       projectId,

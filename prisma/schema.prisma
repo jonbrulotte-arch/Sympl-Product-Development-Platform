@@ -539,6 +539,7 @@ model WorkflowStage {
   complianceEventId    String?
   psirId               String?
   dueDate              DateTime?
+  overdueNotifiedAt    DateTime?
   completedAt          DateTime?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
@@ -693,6 +694,7 @@ model ComplianceEvent {
   status      String    @default("OPEN")
   severity    String    @default("MEDIUM")
   dueDate     DateTime?
+  overdueNotifiedAt DateTime?
   resolvedAt  DateTime?
   createdById String
   updatedById String?

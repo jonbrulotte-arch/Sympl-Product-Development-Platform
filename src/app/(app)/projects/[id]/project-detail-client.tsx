@@ -10,7 +10,7 @@ import { formatDate } from "@/lib/utils";
 import {
   Package, Calendar, Download, ArrowLeft, Users,
   MessageSquare, Clock, CheckCircle, RefreshCw, Plus, Trash2, Settings, Pencil, X, Lock, ShieldCheck, ClipboardCheck,
-  ChevronUp, ChevronDown,
+  ChevronUp, ChevronDown, AlertTriangle,
 } from "lucide-react";
 import type { ProjectWithRelations, ProductWithAttributes } from "@/types";
 import { SalsifySyncModal } from "@/components/salsify/salsify-sync-modal";
@@ -116,6 +116,21 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-xl font-bold text-gray-900 truncate">{project.name}</h1>
                 <ProjectStatusBadge status={project.status} />
+                {(() => {
+                  const overdue = ((project.workflowStages ?? []) as unknown as Stage[]).filter(
+                    (s) => s.dueDate && !["APPROVED", "REJECTED", "SKIPPED"].includes(s.status) && new Date(s.dueDate) < new Date()
+                  ).length;
+                  return overdue > 0 ? (
+                    <button
+                      onClick={() => setActiveTab("workflow")}
+                      className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700 hover:bg-red-200"
+                      title="Workflow stages past their due date — click to view"
+                    >
+                      <AlertTriangle className="h-3 w-3" />
+                      {overdue} stage{overdue !== 1 ? "s" : ""} overdue
+                    </button>
+                  ) : null;
+                })()}
                 {project.brand && (
                   <Badge variant="secondary">{project.brand}</Badge>
                 )}

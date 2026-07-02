@@ -133,6 +133,20 @@ curl -s -X POST https://your-server/api/admin/backup/run \
 
 ---
 
+## Overdue Alerts (cron)
+
+Compliance events and workflow stages with a due date trigger in-app notifications (and email, when SMTP is configured) once they go overdue. Like backups, this relies on an external cron job — the same `sbk_` API token authorizes it:
+
+```bash
+# Every 30 minutes
+*/30 * * * * curl -s -X POST https://your-server/api/cron/overdue-check \
+  -H "Authorization: Bearer sbk_<your-token>"
+```
+
+Each item alerts once; changing its due date re-arms the alert. Overdue compliance notifies the event creator and affected project owners; overdue stages notify pending approvers and the project owner.
+
+---
+
 ## Salsify Integration
 
 1. Go to **Admin → Settings** and enter your Salsify API Key and Organization ID. Enable the **Enable Salsify Sync** toggle.

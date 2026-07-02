@@ -31,7 +31,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       ...(notes !== undefined && { notes }),
       ...(severity !== undefined && { severity }),
       ...(status !== undefined && { status }),
-      ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
+      ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null, overdueNotifiedAt: null }),
       ...(resolvedAt !== undefined && { resolvedAt: resolvedAt ? new Date(resolvedAt) : null }),
       updatedById: session.user.id,
       ...(addProductIds?.length && {

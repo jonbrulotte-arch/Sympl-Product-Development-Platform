@@ -363,7 +363,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (dependsOnStageId !== undefined) data.dependsOnStageId = dependsOnStageId || null;
   if (complianceEventId !== undefined) data.complianceEventId = complianceEventId || null;
   if (psirId !== undefined) data.psirId = psirId || null;
-  if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
+  if (dueDate !== undefined) {
+    data.dueDate = dueDate ? new Date(dueDate) : null;
+    // Re-arm the overdue alert when the due date changes
+    data.overdueNotifiedAt = null;
+  }
 
   // projectId ownership already verified above; update only by id (projectId is not unique)
   const stage = Object.keys(data).length > 0
