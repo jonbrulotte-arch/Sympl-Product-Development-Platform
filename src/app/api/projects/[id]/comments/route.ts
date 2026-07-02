@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { unlink } from "fs/promises";
-import path from "path";
+import { checkProjectAccess } from "@/lib/project-access";
+import { deleteUploadFile } from "@/lib/uploads";
+import { createNotificationForMany } from "@/lib/notifications";
 
 export async function GET(
   _req: NextRequest,
@@ -12,6 +13,8 @@ export async function GET(
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: projectId } = await params;
+  const access = await checkProjectAccess(projectId, session, "view");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 
   const comments = await prisma.comment.findMany({
     where: { projectId, parentId: null },
@@ -38,6 +41,10 @@ export async function POST(
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: projectId } = await params;
+  // Commenting requires view access — Reviewers can comment but not edit products
+  const access = await checkProjectAccess(projectId, session, "view");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
+
   const { content, productId, fieldKey, parentId } = await req.json();
 
   if (!content?.trim()) {
@@ -59,6 +66,62 @@ export async function POST(
       replies: { include: { author: { select: { id: true, name: true, email: true, image: true, role: true } } } },
     },
   });
+
+  // Notify the project owner and members (except the author) — fire and forget.
+  // Users called out with @Name or @email get a distinct "mentioned you"
+  // notification instead of the generic one.
+  (async () => {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: {
+        name: true,
+        ownerId: true,
+        members: { select: { user: { select: { id: true, name: true, email: true } } } },
+        owner: { select: { id: true, name: true, email: true } },
+      },
+    });
+    if (!project) return;
+
+    const team = [project.owner, ...project.members.map((m) => m.user)];
+    const body = content.trim().replace(/<!--attachments:.*?-->/s, "");
+    const bodyLower = body.toLowerCase();
+
+    // A user counts as mentioned when the comment contains @ immediately
+    // followed by their full name, first name, or email prefix.
+    const mentionedIds = new Set<string>();
+    for (const u of team) {
+      if (u.id === session.user.id) continue;
+      const candidates = [
+        u.name?.toLowerCase(),
+        u.name?.toLowerCase().split(" ")[0],
+        u.email.toLowerCase().split("@")[0],
+      ].filter((c): c is string => !!c && c.length >= 2);
+      if (candidates.some((c) => bodyLower.includes(`@${c}`))) mentionedIds.add(u.id);
+    }
+
+    const preview = body.slice(0, 120);
+    const author = session.user.name ?? session.user.email;
+
+    if (mentionedIds.size > 0) {
+      await createNotificationForMany([...mentionedIds], {
+        title: `${author} mentioned you on ${project.name}`,
+        message: preview,
+        type: "info",
+        link: `/projects/${projectId}?tab=comments`,
+        projectId,
+      });
+    }
+
+    const recipients = [...new Set(team.map((u) => u.id))]
+      .filter((uid) => uid !== session.user.id && !mentionedIds.has(uid));
+    await createNotificationForMany(recipients, {
+      title: `New comment on ${project.name}`,
+      message: `${author}: ${preview}`,
+      type: "info",
+      link: `/projects/${projectId}?tab=comments`,
+      projectId,
+    });
+  })().catch(() => {});
 
   return NextResponse.json(comment, { status: 201 });
 }
@@ -90,8 +153,7 @@ export async function DELETE(
       const attachments: { url: string }[] = JSON.parse(attachMatch[1]);
       for (const a of attachments) {
         if (a.url?.startsWith("/uploads/")) {
-          const filePath = path.join(process.cwd(), "public", a.url);
-          await unlink(filePath).catch(() => {});
+          await deleteUploadFile(a.url.slice(1)).catch(() => {});
         }
       }
     } catch { /* ignore parse errors */ }

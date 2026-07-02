@@ -10,7 +10,7 @@ import { formatDate } from "@/lib/utils";
 import {
   Package, Calendar, Download, ArrowLeft, Users,
   MessageSquare, Clock, CheckCircle, RefreshCw, Plus, Trash2, Settings, Pencil, X, Lock, ShieldCheck, ClipboardCheck,
-  ChevronUp, ChevronDown,
+  ChevronUp, ChevronDown, AlertTriangle,
 } from "lucide-react";
 import type { ProjectWithRelations, ProductWithAttributes } from "@/types";
 import { SalsifySyncModal } from "@/components/salsify/salsify-sync-modal";
@@ -51,6 +51,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
   const [salsifySyncResult, setSalsifySyncResult] = useState<string | null>(null);
   const [showSalsifyModal, setShowSalsifyModal] = useState(false);
   const [salsifySelectedIds, setSalsifySelectedIds] = useState<string[] | null>(null);
+  const [gridReloadKey, setGridReloadKey] = useState(0);
   const router = useRouter();
 
   const openSalsifyModal = (selectedIds?: string[]) => {
@@ -72,6 +73,8 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
       if (res.ok) {
         const errSummary = data.errors?.length ? ` — ${data.errors.length} error(s): ${data.errors[0]}` : "";
         setSalsifySyncResult(`Synced ${data.synced} of ${data.total} product(s) to Salsify${errSummary}`);
+        // Refresh grid rows so the Salsify drift column reflects the new sync timestamps
+        setGridReloadKey((k) => k + 1);
       } else {
         setSalsifySyncResult(data.error ?? "Sync failed");
       }
@@ -116,6 +119,21 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-xl font-bold text-gray-900 truncate">{project.name}</h1>
                 <ProjectStatusBadge status={project.status} />
+                {(() => {
+                  const overdue = ((project.workflowStages ?? []) as unknown as Stage[]).filter(
+                    (s) => s.dueDate && !["APPROVED", "REJECTED", "SKIPPED"].includes(s.status) && new Date(s.dueDate) < new Date()
+                  ).length;
+                  return overdue > 0 ? (
+                    <button
+                      onClick={() => setActiveTab("workflow")}
+                      className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700 hover:bg-red-200"
+                      title="Workflow stages past their due date — click to view"
+                    >
+                      <AlertTriangle className="h-3 w-3" />
+                      {overdue} stage{overdue !== 1 ? "s" : ""} overdue
+                    </button>
+                  ) : null;
+                })()}
                 {project.brand && (
                   <Badge variant="secondary">{project.brand}</Badge>
                 )}
@@ -218,6 +236,7 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
             onExport={handleExport}
             onImport={() => router.push(`/import?projectId=${project.id}`)}
             onSalsifySync={project.status === "EXPORT_READY" ? openSalsifyModal : undefined}
+            reloadKey={gridReloadKey}
           />
         </div>
 
@@ -271,6 +290,7 @@ type StageApproval = {
 type Stage = {
   id: string; name: string; description: string | null;
   status: string; sortOrder: number; completedAt: string | Date | null;
+  dueDate: string | null;
   onApproveSetStatus: string | null;
   onRejectSetStatus: string | null;
   dependsOnStageId: string | null;
@@ -737,6 +757,32 @@ function WorkflowView({
                         </span>
                       </div>
                     )}
+                    {/* Due date — inline editable, red when overdue */}
+                    <div className="flex items-center gap-1.5 mt-1">
+                      {(() => {
+                        const isDone = stage.status === "APPROVED" || stage.status === "REJECTED" || stage.status === "SKIPPED";
+                        const isOverdue = !!stage.dueDate && !isDone && new Date(stage.dueDate) < new Date();
+                        return (
+                          <>
+                            {stage.dueDate ? (
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${isOverdue ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-500"}`}>
+                                Due {formatDate(stage.dueDate)}{isOverdue && " — overdue"}
+                              </span>
+                            ) : null}
+                            {canEdit && !isDone && (
+                              <input
+                                type="date"
+                                className="text-xs border border-gray-200 rounded px-1 py-0.5 text-gray-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                value={stage.dueDate ? new Date(stage.dueDate).toISOString().slice(0, 10) : ""}
+                                onChange={(e) => patchStage(stage.id, { dueDate: e.target.value || null })}
+                                title="Stage due date"
+                              />
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+
                     {stage.completedAt && (
                       <p className="text-xs text-gray-400 mt-1">Completed: {formatDate(stage.completedAt as string)}</p>
                     )}

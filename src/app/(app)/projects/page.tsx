@@ -27,7 +27,7 @@ export default async function ProjectsPage() {
           user: { select: { id: true, name: true, email: true } },
         },
       },
-      _count: { select: { products: true } },
+      _count: { select: { products: { where: { isArchived: false } } } },
     },
     orderBy: { updatedAt: "desc" },
   });

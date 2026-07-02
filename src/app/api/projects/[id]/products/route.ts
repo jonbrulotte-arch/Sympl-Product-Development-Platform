@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validation";
 import { logActivity } from "@/lib/activity";
 import { findDuplicateForProduct, findDuplicatesForProducts } from "@/lib/duplicate-check";
+import { checkProjectAccess } from "@/lib/project-access";
 
 export async function GET(
   req: NextRequest,
@@ -13,6 +14,8 @@ export async function GET(
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: projectId } = await params;
+  const access = await checkProjectAccess(projectId, session, "view");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 
   const products = await prisma.productRecord.findMany({
     where: { projectId, isArchived: false },
@@ -25,7 +28,7 @@ export async function GET(
       updatedBy: { select: { id: true, name: true, email: true, image: true, role: true } },
       _count: { select: { comments: true } },
     },
-    orderBy: { rowIndex: "asc" },
+    orderBy: [{ rowIndex: "asc" }, { createdAt: "asc" }],
   });
 
   const dupes = await findDuplicatesForProducts(
@@ -42,6 +45,8 @@ export async function POST(
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: projectId } = await params;
+  const access = await checkProjectAccess(projectId, session, "edit");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 
   const body = await req.json();
   const { attributeValues: attrValues, ...coreData } = body;

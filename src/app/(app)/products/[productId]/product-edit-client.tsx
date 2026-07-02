@@ -14,6 +14,7 @@ import {
   FileText, CheckCircle, XCircle, AlertTriangle,
 } from "lucide-react";
 import { SalsifySyncModal } from "@/components/salsify/salsify-sync-modal";
+import { ShareLinkButton } from "@/components/share-link-button";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,13 @@ interface Product {
   updatedBy: { name: string | null; email: string } | null;
   attributeValues: AV[];
   duplicateOf: { productId: string; projectId: string; projectName: string } | null;
+  salsifyLastPulledAt: string | null;
+  salsifyData: {
+    updatedAt?: string | null;
+    version?: string | null;
+    propertyCount?: number;
+    digitalAssets?: { id?: string | null; name?: string | null; url?: string | null; format?: string | null }[];
+  } | null;
 }
 
 interface Props {
@@ -554,7 +562,7 @@ function PsirPanel({ productId }: { productId: string }) {
 
 // ─── Main Client ──────────────────────────────────────────────────────────────
 
-type Tab = "details" | "compliance" | "psir";
+type Tab = "details" | "compliance" | "psir" | "history";
 
 export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory, userRole }: Props) {
   const router = useRouter();
@@ -574,6 +582,42 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
   const [showSalsifyModal, setShowSalsifyModal] = useState(false);
 
   const canSync = userRole === "ADMIN" || userRole === "PRODUCT_MANAGER";
+
+  // % of REQUIRED attributes with a value — drives the completeness chip
+  const completeness = useMemo(() => {
+    const requiredCore = coreAttrDefs.filter((a) => a.requirement === "REQUIRED");
+    const requiredEav = [...globalAttrs, ...categoryAttrs].filter((a) => a.requirement === "REQUIRED");
+    const total = requiredCore.length + requiredEav.length;
+    if (total === 0) return null;
+    let filled = 0;
+    for (const attr of requiredCore) {
+      const v = core[attr.key];
+      if (v !== undefined && v !== null && v !== "") filled++;
+    }
+    for (const attr of requiredEav) {
+      if ((eav[attr.id] ?? "").trim() !== "") filled++;
+    }
+    return Math.round((filled / total) * 100);
+  }, [core, eav, coreAttrDefs, globalAttrs, categoryAttrs]);
+
+  const [pulling, setPulling] = useState(false);
+  const [pullError, setPullError] = useState<string | null>(null);
+
+  async function pullFromSalsify() {
+    setPulling(true);
+    setPullError(null);
+    const res = await fetch(
+      `/api/projects/${product.projectId}/products/${product.id}/salsify-pull`,
+      { method: "POST" }
+    );
+    if (res.ok) {
+      startTransition(() => router.refresh());
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setPullError(data.error ?? "Pull failed");
+    }
+    setPulling(false);
+  }
 
   async function syncToSalsify(skipKeys: string[]) {
     setShowSalsifyModal(false);
@@ -725,9 +769,20 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
                 <Badge variant="secondary">{(product.category ?? projectCategory)!.name}</Badge>
               )}
               <ProjectStatusBadge status={product.project.status as never} />
+              {completeness !== null && (
+                <span
+                  className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    completeness >= 100 ? "bg-green-100 text-green-700" : completeness >= 50 ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-700"
+                  }`}
+                  title="Percentage of required fields filled in"
+                >
+                  {completeness}% complete
+                </span>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {canSync && <ShareLinkButton entityType="PRODUCT" entityId={product.id} />}
             {canSync && (
               <div className="flex flex-col items-end gap-0.5">
                 <button
@@ -741,6 +796,20 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
                 {syncStatus === "error" && syncError && (
                   <p className="text-xs text-red-600 max-w-xs text-right">{syncError}</p>
                 )}
+              </div>
+            )}
+            {canSync && (
+              <div className="flex flex-col items-end gap-0.5">
+                <button
+                  onClick={pullFromSalsify}
+                  disabled={pulling}
+                  className="flex items-center gap-1.5 text-xs text-sky-700 hover:text-sky-900 border border-sky-300 bg-sky-50 hover:bg-sky-100 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-60"
+                  title="Fetch current digital assets and state from Salsify"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${pulling ? "animate-spin" : ""}`} />
+                  {pulling ? "Pulling…" : "Pull from Salsify"}
+                </button>
+                {pullError && <p className="text-xs text-red-600 max-w-xs text-right">{pullError}</p>}
               </div>
             )}
             <Link
@@ -759,6 +828,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
             { key: "details", label: "Details", icon: null },
             { key: "compliance", label: "Compliance", icon: <ShieldCheck className="h-3.5 w-3.5" /> },
             { key: "psir", label: "Inspections", icon: <ClipboardCheck className="h-3.5 w-3.5" /> },
+            { key: "history", label: "History", icon: <Clock className="h-3.5 w-3.5" /> },
           ] as { key: Tab; label: string; icon: React.ReactNode }[]).map((tab) => (
             <button
               key={tab.key}
@@ -797,6 +867,46 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
                 <span>Last updated by {product.updatedBy.name ?? product.updatedBy.email} · {formatDate(product.updatedAt)}</span>
               )}
             </div>
+
+            {/* Salsify pull-back panel */}
+            {product.salsifyData && (
+              <div className="bg-sky-50/60 border border-sky-200 rounded-lg p-4 space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <p className="text-sm font-semibold text-sky-900">In Salsify</p>
+                  <p className="text-xs text-sky-700">
+                    {product.salsifyData.updatedAt && `Salsify last updated ${formatDate(product.salsifyData.updatedAt)} · `}
+                    {typeof product.salsifyData.propertyCount === "number" && `${product.salsifyData.propertyCount} properties · `}
+                    Pulled {product.salsifyLastPulledAt ? formatDate(product.salsifyLastPulledAt) : "—"}
+                  </p>
+                </div>
+                {(product.salsifyData.digitalAssets?.length ?? 0) > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {product.salsifyData.digitalAssets!.map((a, i) => (
+                      <a
+                        key={i}
+                        href={a.url ?? "#"}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group border border-sky-200 rounded-lg overflow-hidden bg-white hover:border-sky-400 transition-colors"
+                        title={a.name ?? undefined}
+                      >
+                        {a.url && /\.(png|jpe?g|gif|webp)($|\?)/i.test(a.url) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={a.url} alt={a.name ?? ""} className="h-20 w-20 object-cover" />
+                        ) : (
+                          <div className="h-20 w-20 flex flex-col items-center justify-center text-sky-600 text-xs gap-1 px-1 text-center">
+                            <FileText className="h-5 w-5" />
+                            <span className="truncate w-full">{a.format ?? "asset"}</span>
+                          </div>
+                        )}
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-sky-700">No digital assets on the Salsify side.</p>
+                )}
+              </div>
+            )}
 
             {/* Core field sections */}
             {coreGroups.map((group) => (
@@ -858,6 +968,10 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
         {activeTab === "psir" && (
           <PsirPanel productId={product.id} />
         )}
+
+        {activeTab === "history" && (
+          <HistoryPanel projectId={product.projectId} productId={product.id} />
+        )}
       </div>
 
       {/* Sticky save bar — only shown on details tab */}
@@ -915,5 +1029,80 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
       />
     )}
     </>
+  );
+}
+
+// ─── History Panel ────────────────────────────────────────────────────────────
+// Field-level change log for this product, read from the project ActivityLog.
+
+function HistoryPanel({ projectId, productId }: { projectId: string; productId: string }) {
+  const [logs, setLogs] = useState<{
+    id: string; action: string; fieldKey: string | null;
+    oldValue: string | null; newValue: string | null; createdAt: string;
+    user: { name: string | null; email: string };
+  }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/projects/${projectId}/activity?productId=${productId}&page=${page}`)
+      .then((r) => r.json())
+      .then((d) => { setLogs(d.data ?? []); setTotal(d.total ?? 0); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [projectId, productId, page]);
+
+  return (
+    <div className="max-w-4xl mx-auto px-6 py-6">
+      {loading && <p className="text-sm text-gray-400 py-8 text-center">Loading history…</p>}
+      {!loading && logs.length === 0 && (
+        <p className="text-sm text-gray-400 py-8 text-center">No recorded changes for this product yet.</p>
+      )}
+      {!loading && logs.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100">
+          {logs.map((log) => (
+            <div key={log.id} className="px-4 py-3 flex items-start gap-3">
+              <Clock className="h-4 w-4 text-gray-300 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0 text-sm">
+                <p className="text-gray-800">
+                  <span className="font-medium">{log.user.name ?? log.user.email}</span>
+                  {" "}<span className="text-gray-500 lowercase">{log.action.replace(/_/g, " ")}</span>
+                  {log.fieldKey && <span className="text-gray-700"> · {log.fieldKey.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}</span>}
+                </p>
+                {(log.oldValue || log.newValue) && (
+                  <p className="text-xs mt-0.5 truncate">
+                    <span className="line-through text-red-400">{log.oldValue || "—"}</span>
+                    {" → "}
+                    <span className="text-green-700">{log.newValue || "—"}</span>
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-0.5">{formatDate(log.createdAt)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {total > 50 && (
+        <div className="flex items-center justify-between mt-4 text-sm">
+          <button
+            className="text-blue-600 hover:underline disabled:text-gray-300"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            ← Newer
+          </button>
+          <span className="text-gray-400">Page {page} of {Math.ceil(total / 50)}</span>
+          <button
+            className="text-blue-600 hover:underline disabled:text-gray-300"
+            disabled={page >= Math.ceil(total / 50)}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Older →
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

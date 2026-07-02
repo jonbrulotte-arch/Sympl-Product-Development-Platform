@@ -45,6 +45,10 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function isImageFile(name: string) {
+  return /\.(png|jpe?g|gif|webp|bmp)$/i.test(name);
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const RESULTS = ["PENDING", "PASS", "FAIL", "CONDITIONAL"];
@@ -235,7 +239,12 @@ function PsirCard({
                     rel="noreferrer"
                     className="flex items-center gap-2 text-xs bg-white border border-gray-100 rounded px-2 py-1.5 hover:bg-indigo-50 group"
                   >
-                    <FileText className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                    {isImageFile(d.originalName) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={`/${d.filePath}`} alt="" className="h-9 w-9 object-cover rounded shrink-0 border border-gray-200" />
+                    ) : (
+                      <FileText className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                    )}
                     <span className="text-indigo-600 group-hover:underline truncate flex-1">{d.originalName}</span>
                     {d.fileSize && <span className="text-gray-400 shrink-0">{formatBytes(d.fileSize)}</span>}
                     <ExternalLink className="h-3 w-3 text-gray-300 shrink-0" />

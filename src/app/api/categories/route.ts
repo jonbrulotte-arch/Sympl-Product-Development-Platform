@@ -16,7 +16,7 @@ export async function GET() {
         include: { lovItems: { where: { isActive: true }, orderBy: { sortOrder: "asc" } } },
         orderBy: { sortOrder: "asc" },
       },
-      _count: { select: { products: true } },
+      _count: { select: { products: { where: { isArchived: false } } } },
     },
     orderBy: { sortOrder: "asc" },
   });

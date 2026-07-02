@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { can } from "@/lib/permissions";
+import { checkProjectAccess } from "@/lib/project-access";
 import type { ProductRecord } from "@prisma/client";
 
 // Accessor for core fields stored directly on ProductRecord (not as EAV values)
@@ -61,7 +63,14 @@ export async function POST(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  if (!(await can(session.user.role, "products:sync_salsify"))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { id: projectId } = await params;
+  const access = await checkProjectAccess(projectId, session, "view");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
+
   const body = await req.json().catch(() => ({}));
   const skipAttributeKeys: string[] = Array.isArray(body.skipAttributeKeys) ? body.skipAttributeKeys : [];
   const productIds: string[] | null = Array.isArray(body.productIds) && body.productIds.length > 0 ? body.productIds : null;
@@ -166,6 +175,12 @@ export async function POST(req: NextRequest, { params }: Params) {
         errors.push(`Product ${product.partNumber ?? product.id}: ${res.status} ${text.slice(0, 200)}`);
       } else {
         synced++;
+        // Record sync time WITHOUT touching updatedAt, so "changed since last
+        // sync" drift detection stays accurate. Bind a JS Date (UTC) rather
+        // than NOW() — NOW() cast into a timestamp column uses the DB
+        // server's local timezone, which skews the drift comparison against
+        // Prisma's UTC-written updatedAt.
+        await prisma.$executeRaw`UPDATE "ProductRecord" SET "salsifyLastSyncedAt" = ${new Date()} WHERE id = ${product.id}`.catch(() => {});
       }
     } catch (err) {
       errors.push(`Product ${product.partNumber ?? product.id}: ${String(err)}`);

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { projectSchema } from "@/lib/validation";
 import { canEditProject, canDeleteProject } from "@/lib/permissions";
+import { checkProjectAccess } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
 import { sendMail, projectStatusEmail } from "@/lib/email";
 import { createNotificationForMany } from "@/lib/notifications";
@@ -28,7 +29,7 @@ async function getProject(id: string) {
         },
         orderBy: { sortOrder: "asc" },
       },
-      _count: { select: { products: true } },
+      _count: { select: { products: { where: { isArchived: false } } } },
     },
   });
 }
@@ -41,6 +42,9 @@ export async function GET(
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+  const access = await checkProjectAccess(id, session, "view");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
+
   const project = await getProject(id);
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -114,7 +118,7 @@ export async function PATCH(
           user: { select: { id: true, name: true, email: true, image: true, role: true } },
         },
       },
-      _count: { select: { products: true } },
+      _count: { select: { products: { where: { isArchived: false } } } },
     },
   });
 

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { formatDate } from "@/lib/utils";
-import { FolderKanban, Package, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { FolderKanban, Package, Clock, CheckCircle2, AlertCircle, ShieldAlert } from "lucide-react";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -25,7 +25,7 @@ export default async function DashboardPage() {
       include: {
         owner: { select: { id: true, name: true, email: true } },
         category: true,
-        _count: { select: { products: true } },
+        _count: { select: { products: { where: { isArchived: false } } } },
       },
       orderBy: { updatedAt: "desc" },
       take: 8,
@@ -41,7 +41,7 @@ export default async function DashboardPage() {
       },
       include: {
         owner: { select: { id: true, name: true, email: true } },
-        _count: { select: { products: true } },
+        _count: { select: { products: { where: { isArchived: false } } } },
       },
       take: 5,
     }),
@@ -73,6 +73,34 @@ export default async function DashboardPage() {
       take: 5,
     }),
   ]);
+
+  // Overdue compliance events on products in projects this user can see
+  const isAdmin = session.user.role === "ADMIN";
+  const overdueCompliance = await prisma.complianceEvent.findMany({
+    where: {
+      status: { in: ["OPEN", "IN_PROGRESS"] },
+      dueDate: { lt: new Date() },
+      ...(!isAdmin
+        ? {
+            products: {
+              some: {
+                product: {
+                  project: {
+                    OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+                  },
+                },
+              },
+            },
+          }
+        : {}),
+    },
+    include: {
+      type: { select: { name: true, color: true } },
+      _count: { select: { products: true } },
+    },
+    orderBy: { dueDate: "asc" },
+    take: 5,
+  });
 
   const [totalProjects, approvedProjects, needsReviewCount, exportReadyCount] = stats;
   const needsActionCount = needsReviewCount + pendingApprovalsData.length;
@@ -162,6 +190,35 @@ export default async function DashboardPage() {
 
         {/* Pending Approval + Needs Attention */}
         <div className="space-y-6">
+          {overdueCompliance.length > 0 && (
+            <Card className="border-red-300">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base text-red-800 flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4" /> Overdue Compliance
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-gray-100">
+                  {overdueCompliance.map((ev) => (
+                    <Link
+                      key={ev.id}
+                      href="/compliance"
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-red-50"
+                    >
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ev.type.color }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{ev.title}</p>
+                        <p className="text-xs text-red-600">
+                          Due {formatDate(ev.dueDate!)} · {ev._count.products} product{ev._count.products !== 1 ? "s" : ""} · {ev.severity}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {pendingApprovalsData.length > 0 && (
             <Card className="border-yellow-300">
               <CardHeader className="pb-3">
@@ -212,7 +269,7 @@ export default async function DashboardPage() {
             </Card>
           )}
 
-          {pendingApprovalsData.length === 0 && needsReview.length === 0 && (
+          {pendingApprovalsData.length === 0 && needsReview.length === 0 && overdueCompliance.length === 0 && (
             <Card>
               <CardContent className="p-6 text-center text-sm text-gray-400">
                 Nothing needs your attention right now.

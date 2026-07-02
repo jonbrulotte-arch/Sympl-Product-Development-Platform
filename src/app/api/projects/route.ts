@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
             user: { select: { id: true, name: true, email: true, image: true, role: true } },
           },
         },
-        _count: { select: { products: true } },
+        _count: { select: { products: { where: { isArchived: false } } } },
       },
       orderBy: { updatedAt: "desc" },
       skip: (page - 1) * pageSize,
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
     include: {
       owner: { select: { id: true, name: true, email: true, image: true, role: true } },
       category: true,
-      _count: { select: { products: true } },
+      _count: { select: { products: { where: { isArchived: false } } } },
     },
   });
 

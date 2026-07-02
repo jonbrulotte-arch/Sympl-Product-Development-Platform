@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import {
   HardDrive, Play, RotateCcw, CheckCircle, XCircle, Clock,
   RefreshCw, ShieldCheck, AlertTriangle, Key, Copy, Eye, EyeOff, Trash2,
@@ -315,7 +316,9 @@ export function BackupClient() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => { navigator.clipboard.writeText(newToken); }}
+                    onClick={async () => {
+                      if (!(await copyToClipboard(newToken))) window.prompt("Copy this token:", newToken);
+                    }}
                   >
                     <Copy className="h-3.5 w-3.5 mr-1" /> Copy
                   </Button>

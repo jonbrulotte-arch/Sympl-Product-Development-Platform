@@ -177,6 +177,7 @@ const sections: Section[] = [
           <LI>Use workflow templates (admin) to apply a pre-built set of stages in one click.</LI>
           <LI>Use the <strong>▲ / ▼</strong> buttons on each stage to reorder stages within the workflow.</LI>
           <LI>Set a <strong>Dependency</strong> on a stage to indicate it relies on another workflow stage, a compliance event, or a PSIR being resolved first. Dependencies are informational — they show a lock icon but do not prevent voting or advancing the stage.</LI>
+          <LI>Set a <strong>due date</strong> on any open stage using the date picker under its description. Stages past their date show a red <strong>overdue</strong> chip, the project header shows a red <em>&quot;N stages overdue&quot;</em> badge, and pending approvers are notified (in-app and email) when the overdue-check cron runs.</LI>
         </UL>
 
         <H3>Manual status override</H3>
@@ -185,6 +186,7 @@ const sections: Section[] = [
         <H3>Comments &amp; attachments</H3>
         <P>The <strong>Comments</strong> tab on any project lets team members leave notes and attach files. Click the paperclip icon or drag a file onto the comment box to attach it. Supported file types: images, PDFs, spreadsheets, and most document formats (up to 20 MB per file).</P>
         <P>Comment authors and Admins can delete their own comments using the trash icon that appears on hover. Deleting a comment also removes any attached files from the server.</P>
+        <P>New comments notify the project owner and members through the notification bell. Type <Code>@</Code> followed by a teammate&apos;s first name, full name, or email prefix (e.g. <Code>@jon</Code>) to send them a dedicated <em>&quot;mentioned you&quot;</em> notification instead.</P>
 
         <Callout type="tip">Column widths in the product grid are saved per project. Drag the resize handle on any column edge to adjust.</Callout>
       </>
@@ -216,13 +218,26 @@ const sections: Section[] = [
         <H3>Freezing columns</H3>
         <P>Hover over a column header and click the pin icon to freeze it to the left side of the grid. Frozen columns stay visible while scrolling horizontally.</P>
 
+        <H3>Saved views</H3>
+        <P>The <strong>Views</strong> menu in the toolbar saves the current sort, column visibility, pinning, and search as a named view (e.g. <em>&quot;Missing UPC&quot;</em>). Views are saved per project on your browser, alongside column widths. Apply or delete them from the same menu.</P>
+
+        <H3>Computed columns</H3>
+        <UL>
+          <LI><strong>Complete</strong> — the percentage of REQUIRED attributes filled in for each product, color-coded green / yellow / red. Requirement levels are set per attribute in <strong>Admin → Attributes</strong>.</LI>
+          <LI><strong>Salsify</strong> — <em>Synced</em> (green) when the product is unchanged since its last Salsify sync, <em>Changed</em> (yellow) when it has been edited since, or <em>—</em> if never synced.</LI>
+        </UL>
+
+        <H3>Duplicate part number alert</H3>
+        <P>If a product&apos;s Part Number is already used by a product in <em>another</em> project (system-wide), an amber warning triangle appears next to the Part Number cell — hover it to see which project. The same alert appears in the global Products browser and as a banner on the product record page.</P>
+
         <H3>Sync to Salsify from the grid</H3>
         <P>When one or more rows are selected, a green <strong>Sync to Salsify</strong> button appears in the selection toolbar (alongside Bulk Edit, Duplicate, and Delete). Clicking it opens the same attribute opt-out modal and syncs only the selected products. The button is only shown when the project is in <strong>Export Ready</strong> status and Salsify is enabled.</P>
 
         <H3>Import / Export</H3>
         <UL>
-          <LI><strong>Import</strong> — upload an Excel (<Code>.xlsx</Code>) file. Map source columns to Sympl fields on the next screen. The importer auto-detects columns by matching header names to known Sympl field labels.</LI>
-          <LI><strong>Export</strong> — downloads all products in the project as an Excel file with every core field and custom attribute as columns.</LI>
+          <LI><strong>Import</strong> — upload an Excel (<Code>.xlsx</Code>) file. Map source columns to Sympl fields on the next screen (auto-detected by header name), then review a <strong>Verify</strong> step showing exactly how many rows will be created vs. updated — including cell-level old → new diffs — before anything is written.</LI>
+          <LI>Rows are matched to existing products by <strong>Part Number</strong>: matches update in place, new part numbers create new rows. Re-importing the same sheet never creates duplicates.</LI>
+          <LI><strong>Export</strong> — downloads all products as Excel with every core field and custom attribute, columns ordered by attribute section (matching Admin → Attributes).</LI>
         </UL>
       </>
     ),
@@ -249,7 +264,8 @@ const sections: Section[] = [
         </UL>
 
         <H3>Full product edit page</H3>
-        <P>Click any row to open the full product edit page at <Code>/products/[id]</Code>. This page shows every core field and every EAV attribute organized by section, and includes tabs for <strong>Compliance</strong> events and <strong>Inspections</strong> (PSIRs) linked to that product.</P>
+        <P>Click any row to open the full product edit page at <Code>/products/[id]</Code>. This page shows every core field and every EAV attribute organized by section, plus tabs for <strong>Compliance</strong> events, <strong>Inspections</strong> (PSIRs), and <strong>History</strong> — the full field-level change log showing who changed what, when, and the old → new values.</P>
+        <P>The header shows a <strong>% complete</strong> chip (required fields filled in) and, for Admins and Product Managers, <strong>Share</strong>, <strong>Pull from Salsify</strong>, and <strong>Sync to Salsify</strong> buttons.</P>
       </>
     ),
   },
@@ -278,7 +294,7 @@ const sections: Section[] = [
         <UL>
           <LI>Go to <strong>Compliance</strong> in the sidebar and click <strong>New Event</strong>.</LI>
           <LI>Enter a title, select the event type and severity, and optionally set a due date.</LI>
-          <LI>Use <strong>Search</strong> to find individual products, or switch to <strong>Paste / Bulk</strong> to paste a list of part numbers (comma, semicolon, or newline separated) and resolve them all at once.</LI>
+          <LI>Use <strong>Search</strong> to find individual products, or switch to <strong>Paste / Bulk</strong> to paste a list of part numbers (comma, semicolon, or newline separated) — or click <strong>upload .xlsx</strong> to fill the list from a spreadsheet&apos;s Part Number column — and resolve them all at once.</LI>
         </UL>
 
         <H3>Statuses</H3>
@@ -296,7 +312,8 @@ const sections: Section[] = [
         <H3>Product tab on product edit page</H3>
         <P>When viewing a product at <Code>/products/[id]</Code>, switch to the <strong>Compliance</strong> tab to see all events linked to that product and log new ones without leaving the product view.</P>
 
-        <Callout type="tip">Overdue events (due date passed while still OPEN) are highlighted in red on the compliance list.</Callout>
+        <Callout type="tip">Overdue events (due date passed while still OPEN) are highlighted in red on the compliance list, surface on the Dashboard&apos;s <strong>Overdue Compliance</strong> card, and trigger a one-time notification to the event creator and affected project owners when the overdue-check cron runs. Changing the due date re-arms the alert.</Callout>
+        <P>Image attachments show as thumbnails in the expanded event card; PDFs open inline in a new tab.</P>
       </>
     ),
   },
@@ -349,7 +366,13 @@ const sections: Section[] = [
         <P>Drag and drop files directly onto the Documents section or click Upload File. Files are stored on the server and can be downloaded at any time. Deleting a document removes it from disk immediately.</P>
 
         <H3>Bulk Add products</H3>
-        <P>In the Products section of a PSIR, click <strong>Bulk Add</strong> to open a paste panel. Paste part numbers separated by commas, semicolons, or newlines, then click <strong>Look Up</strong>. Sympl resolves each part number and shows a green (found) or red (not found) preview. Click <strong>Add N Products</strong> to link all resolved products at once.</P>
+        <P>In the Products section of a PSIR, click <strong>Bulk Add</strong> to open a paste panel. Paste part numbers separated by commas, semicolons, or newlines — or click <strong>Upload .xlsx</strong> to fill the list from a spreadsheet&apos;s Part Number column — then click <strong>Look Up</strong>. Sympl resolves each part number and shows a green (found) or red (not found) preview. Click <strong>Add N Products</strong> to link all resolved products at once.</P>
+
+        <H3>Inspections list</H3>
+        <P>Reports on the Inspections page expand in place — click the chevron to see notes, linked products, and attachments (with image thumbnails), and change status with one click, without opening the full report. The pencil icon opens the full detail page.</P>
+
+        <H3>Sharing a report</H3>
+        <P>Admins and Product Managers can create an expiring read-only <strong>share link</strong> from the report detail page — see the <em>Notifications, Sharing &amp; Alerts</em> section below.</P>
 
         <H3>Product tab on product edit page</H3>
         <P>When viewing a product at <Code>/products/[id]</Code>, switch to the <strong>Inspections</strong> tab to see all PSIRs linked to that product.</P>
@@ -717,7 +740,40 @@ const sections: Section[] = [
         <H3>Debug mode</H3>
         <P>Admins can enable <strong>Salsify Debug</strong> in <strong>Admin → Settings</strong>. When enabled, two additional pages appear in the Admin sidebar: <strong>Salsify Log</strong> (sync history and payloads) and <strong>Salsify Debug</strong> (live API inspection). Disable debug mode to hide these pages for non-technical users.</P>
 
+        <H3>Drift detection</H3>
+        <P>Each successful sync records a per-product timestamp. The grid&apos;s <strong>Salsify</strong> column compares it against the product&apos;s last edit: <strong>Synced</strong> (green) means Salsify is current, <strong>Changed</strong> (yellow) means the product has been edited since its last sync and Salsify is stale.</P>
+
+        <H3>Pull from Salsify</H3>
+        <P>On the product edit page, Admins and Product Managers can click <strong>Pull from Salsify</strong> to fetch the product&apos;s current state from Salsify. An <strong>In Salsify</strong> panel then shows digital-asset thumbnails, Salsify&apos;s last-updated date, version, and property count — so you can see what retail has without leaving Sympl.</P>
+
         <Callout type="tip">After a project or row-selection sync, the result (how many products sent and any errors) appears next to the Sync button in the project header.</Callout>
+      </>
+    ),
+  },
+  {
+    id: "notifications",
+    icon: Zap,
+    title: "Notifications, Sharing & Alerts",
+    color: "text-amber-600 bg-amber-50",
+    content: (
+      <>
+        <H3>Notification bell</H3>
+        <P>The bell in the sidebar shows unread notifications: workflow votes needed, stage completions, new comments, @mentions, and overdue alerts. Click it to open the Notifications page and mark items read.</P>
+
+        <H3>@mentions</H3>
+        <P>In project comments, type <Code>@</Code> followed by a teammate&apos;s first name, full name, or email prefix to send them a dedicated <em>&quot;mentioned you&quot;</em> notification.</P>
+
+        <H3>Overdue alerts (cron)</H3>
+        <P>Compliance events and workflow stages with a due date trigger a one-time in-app notification (and email, when SMTP is configured) once they go overdue. This requires an external cron job hitting <Code>POST /api/cron/overdue-check</Code> with the backup API token — see the README for the exact crontab entry. Changing an item&apos;s due date re-arms its alert.</P>
+
+        <H3>Leadership digest</H3>
+        <P>A scheduled email summary for Admins and Product Managers: pipeline by status, open compliance events by severity with overdue count, and an approvals-aging table. Triggered by cron via <Code>POST /api/cron/digest</Code>; Admins can preview the HTML by opening <Code>/api/cron/digest</Code> in the browser.</P>
+
+        <H3>Read-only share links</H3>
+        <P>Admins and Product Managers can click <strong>Share</strong> on a product or inspection report to create an expiring link (7 / 30 / 90 days). Anyone with the URL sees a clean read-only view — no account, no attachments, no navigation into the app. Links can be copied and revoked from the same menu; expired or revoked links stop working immediately.</P>
+
+        <H3>API tokens for integrations</H3>
+        <P>From <strong>Admin → API Tokens</strong>, create scoped <Code>spt_</Code> tokens that let external tools (ERP, BI) call <Code>GET /api/products</Code> with a <Code>Bearer</Code> header — read-only access to product data with full search, filter, and pagination. Tokens are shown once at creation and can be revoked at any time; last-used time is tracked.</P>
       </>
     ),
   },

@@ -6,6 +6,7 @@ import { notFound, redirect } from "next/navigation";
 import { ProductEditClient } from "./product-edit-client";
 import { CORE_FIELD_KEYS } from "@/lib/core-fields";
 import { findDuplicateForProduct } from "@/lib/duplicate-check";
+import { checkProjectAccess } from "@/lib/project-access";
 
 const CORE_COLUMN_KEYS = new Set(CORE_FIELD_KEYS);
 
@@ -41,6 +42,9 @@ export default async function ProductEditPage({
   });
 
   if (!product) notFound();
+
+  const access = await checkProjectAccess(product.projectId, session, "view");
+  if (!access.ok) notFound();
 
   // Effective category: product's own override, else inherit from project
   const effectiveCategoryId = product.categoryId ?? product.project.categoryId ?? null;
