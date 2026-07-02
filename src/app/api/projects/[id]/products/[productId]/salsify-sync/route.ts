@@ -152,5 +152,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     );
   }
 
+  // Record sync time without touching updatedAt (drift detection compares the two)
+  await prisma.$executeRaw`UPDATE "ProductRecord" SET "salsifyLastSyncedAt" = NOW() WHERE id = ${product.id}`.catch(() => {});
+
   return NextResponse.json({ synced: true, salsifyId });
 }

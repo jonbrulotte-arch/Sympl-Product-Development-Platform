@@ -21,12 +21,14 @@ export async function GET(
   const entityType = searchParams.get("entityType") ?? undefined;
   const action = searchParams.get("action") ?? undefined;
   const userId = searchParams.get("userId") ?? undefined;
+  const productId = searchParams.get("productId") ?? undefined;
 
   const where = {
     projectId,
     ...(entityType ? { entityType } : {}),
     ...(action ? { action: action as never } : {}),
     ...(userId ? { userId } : {}),
+    ...(productId ? { productId } : {}),
   };
 
   const [logs, total] = await Promise.all([

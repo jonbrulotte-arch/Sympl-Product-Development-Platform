@@ -686,6 +686,21 @@ export function ProductGrid({
       }, 0);
     }
 
+    // Computed Salsify drift column: 2 = synced & unchanged, 1 = changed
+    // since last sync, 0 = never synced (numeric for sortability)
+    addToSection("Core Data", {
+      id: "salsifyState",
+      header: "Salsify",
+      size: 90,
+      enableSorting: true,
+      meta: { computed: true, computedKind: "salsify" },
+      accessorFn: (row: ProductRow) => {
+        const synced = (row as unknown as { salsifyLastSyncedAt?: string | Date | null }).salsifyLastSyncedAt;
+        if (!synced) return 0;
+        return new Date(row.updatedAt) > new Date(synced) ? 1 : 2;
+      },
+    }, 0);
+
     // 1. Core columns in attr-def order (section.sortOrder → attr.sortOrder)
     const seenCoreKeys = new Set<string>();
     for (const attr of coreAttrDefs) {
@@ -1278,19 +1293,33 @@ function GridRow({
         const isComputed = (cell.column.columnDef.meta as any)?.computed === true;
 
         if (isComputed) {
-          const pct = typeof value === "number" ? value : 0;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const kind = (cell.column.columnDef.meta as any)?.computedKind;
+          const n = typeof value === "number" ? value : 0;
+          let chip: React.ReactNode;
+          if (kind === "salsify") {
+            chip = n === 2
+              ? <span className="inline-flex items-center text-xs font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700" title="Synced — no changes since last sync">Synced</span>
+              : n === 1
+              ? <span className="inline-flex items-center text-xs font-medium px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800" title="Product changed since last Salsify sync">Changed</span>
+              : <span className="inline-flex items-center text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400" title="Never synced to Salsify">—</span>;
+          } else {
+            chip = (
+              <span className={cn(
+                "inline-flex items-center text-xs font-semibold px-1.5 py-0.5 rounded-full",
+                n >= 100 ? "bg-green-100 text-green-700" : n >= 50 ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-700"
+              )}>
+                {n}%
+              </span>
+            );
+          }
           return (
             <td
               key={cell.id}
               style={{ width: cell.column.getSize(), ...pinnedStyle }}
               className={cn("border-r border-gray-100 px-2 py-1", isPinned && "bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]")}
             >
-              <span className={cn(
-                "inline-flex items-center text-xs font-semibold px-1.5 py-0.5 rounded-full",
-                pct >= 100 ? "bg-green-100 text-green-700" : pct >= 50 ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-700"
-              )}>
-                {pct}%
-              </span>
+              {chip}
             </td>
           );
         }

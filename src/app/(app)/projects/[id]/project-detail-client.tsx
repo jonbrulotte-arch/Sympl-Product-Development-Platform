@@ -271,6 +271,7 @@ type StageApproval = {
 type Stage = {
   id: string; name: string; description: string | null;
   status: string; sortOrder: number; completedAt: string | Date | null;
+  dueDate: string | null;
   onApproveSetStatus: string | null;
   onRejectSetStatus: string | null;
   dependsOnStageId: string | null;
@@ -737,6 +738,32 @@ function WorkflowView({
                         </span>
                       </div>
                     )}
+                    {/* Due date — inline editable, red when overdue */}
+                    <div className="flex items-center gap-1.5 mt-1">
+                      {(() => {
+                        const isDone = stage.status === "APPROVED" || stage.status === "REJECTED" || stage.status === "SKIPPED";
+                        const isOverdue = !!stage.dueDate && !isDone && new Date(stage.dueDate) < new Date();
+                        return (
+                          <>
+                            {stage.dueDate ? (
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${isOverdue ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-500"}`}>
+                                Due {formatDate(stage.dueDate)}{isOverdue && " — overdue"}
+                              </span>
+                            ) : null}
+                            {canEdit && !isDone && (
+                              <input
+                                type="date"
+                                className="text-xs border border-gray-200 rounded px-1 py-0.5 text-gray-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                value={stage.dueDate ? new Date(stage.dueDate).toISOString().slice(0, 10) : ""}
+                                onChange={(e) => patchStage(stage.id, { dueDate: e.target.value || null })}
+                                title="Stage due date"
+                              />
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+
                     {stage.completedAt && (
                       <p className="text-xs text-gray-400 mt-1">Completed: {formatDate(stage.completedAt as string)}</p>
                     )}

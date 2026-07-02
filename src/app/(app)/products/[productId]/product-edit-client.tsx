@@ -554,7 +554,7 @@ function PsirPanel({ productId }: { productId: string }) {
 
 // ─── Main Client ──────────────────────────────────────────────────────────────
 
-type Tab = "details" | "compliance" | "psir";
+type Tab = "details" | "compliance" | "psir" | "history";
 
 export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory, userRole }: Props) {
   const router = useRouter();
@@ -786,6 +786,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
             { key: "details", label: "Details", icon: null },
             { key: "compliance", label: "Compliance", icon: <ShieldCheck className="h-3.5 w-3.5" /> },
             { key: "psir", label: "Inspections", icon: <ClipboardCheck className="h-3.5 w-3.5" /> },
+            { key: "history", label: "History", icon: <Clock className="h-3.5 w-3.5" /> },
           ] as { key: Tab; label: string; icon: React.ReactNode }[]).map((tab) => (
             <button
               key={tab.key}
@@ -885,6 +886,10 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
         {activeTab === "psir" && (
           <PsirPanel productId={product.id} />
         )}
+
+        {activeTab === "history" && (
+          <HistoryPanel projectId={product.projectId} productId={product.id} />
+        )}
       </div>
 
       {/* Sticky save bar — only shown on details tab */}
@@ -942,5 +947,80 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
       />
     )}
     </>
+  );
+}
+
+// ─── History Panel ────────────────────────────────────────────────────────────
+// Field-level change log for this product, read from the project ActivityLog.
+
+function HistoryPanel({ projectId, productId }: { projectId: string; productId: string }) {
+  const [logs, setLogs] = useState<{
+    id: string; action: string; fieldKey: string | null;
+    oldValue: string | null; newValue: string | null; createdAt: string;
+    user: { name: string | null; email: string };
+  }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/projects/${projectId}/activity?productId=${productId}&page=${page}`)
+      .then((r) => r.json())
+      .then((d) => { setLogs(d.data ?? []); setTotal(d.total ?? 0); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [projectId, productId, page]);
+
+  return (
+    <div className="max-w-4xl mx-auto px-6 py-6">
+      {loading && <p className="text-sm text-gray-400 py-8 text-center">Loading history…</p>}
+      {!loading && logs.length === 0 && (
+        <p className="text-sm text-gray-400 py-8 text-center">No recorded changes for this product yet.</p>
+      )}
+      {!loading && logs.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100">
+          {logs.map((log) => (
+            <div key={log.id} className="px-4 py-3 flex items-start gap-3">
+              <Clock className="h-4 w-4 text-gray-300 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0 text-sm">
+                <p className="text-gray-800">
+                  <span className="font-medium">{log.user.name ?? log.user.email}</span>
+                  {" "}<span className="text-gray-500 lowercase">{log.action.replace(/_/g, " ")}</span>
+                  {log.fieldKey && <span className="text-gray-700"> · {log.fieldKey.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}</span>}
+                </p>
+                {(log.oldValue || log.newValue) && (
+                  <p className="text-xs mt-0.5 truncate">
+                    <span className="line-through text-red-400">{log.oldValue || "—"}</span>
+                    {" → "}
+                    <span className="text-green-700">{log.newValue || "—"}</span>
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-0.5">{formatDate(log.createdAt)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {total > 50 && (
+        <div className="flex items-center justify-between mt-4 text-sm">
+          <button
+            className="text-blue-600 hover:underline disabled:text-gray-300"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            ← Newer
+          </button>
+          <span className="text-gray-400">Page {page} of {Math.ceil(total / 50)}</span>
+          <button
+            className="text-blue-600 hover:underline disabled:text-gray-300"
+            disabled={page >= Math.ceil(total / 50)}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Older →
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

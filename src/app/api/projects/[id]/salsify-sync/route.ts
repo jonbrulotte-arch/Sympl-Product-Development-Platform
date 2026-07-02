@@ -175,6 +175,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         errors.push(`Product ${product.partNumber ?? product.id}: ${res.status} ${text.slice(0, 200)}`);
       } else {
         synced++;
+        // Record sync time WITHOUT touching updatedAt, so "changed since last
+        // sync" drift detection stays accurate
+        await prisma.$executeRaw`UPDATE "ProductRecord" SET "salsifyLastSyncedAt" = NOW() WHERE id = ${product.id}`.catch(() => {});
       }
     } catch (err) {
       errors.push(`Product ${product.partNumber ?? product.id}: ${String(err)}`);

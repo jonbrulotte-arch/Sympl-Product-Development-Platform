@@ -70,7 +70,7 @@ export default async function ProjectDetailPage({
         createdBy: { select: { id: true, name: true, email: true, image: true, role: true } },
         updatedBy: { select: { id: true, name: true, email: true, image: true, role: true } },
       },
-      orderBy: { rowIndex: "asc" },
+      orderBy: [{ rowIndex: "asc" }, { createdAt: "asc" }],
     }),
     // Global EAV attrs (no category) — exclude keys already shown as typed columns
     prisma.attributeDefinition.findMany({

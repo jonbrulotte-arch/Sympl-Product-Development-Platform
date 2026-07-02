@@ -217,7 +217,28 @@ function ProductPicker({
                 )}
               </div>
             )}
-            <div className="flex gap-2 justify-end">
+            <div className="flex gap-2 justify-end items-center">
+              <label className="text-xs text-violet-600 hover:text-violet-800 cursor-pointer underline mr-auto">
+                Upload .xlsx
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    const fd = new FormData();
+                    fd.append("file", f);
+                    const res = await fetch("/api/parse-part-numbers", { method: "POST", body: fd });
+                    if (res.ok) {
+                      const { partNumbers } = await res.json();
+                      setBulkText((prev) => [prev.trim(), ...partNumbers].filter(Boolean).join("\n"));
+                      setBulkResolved(null);
+                    }
+                  }}
+                />
+              </label>
               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setBulkOpen(false); setBulkText(""); setBulkResolved(null); }}>Cancel</Button>
               {bulkResolved?.found.length ? (
                 <Button size="sm" className="h-7 text-xs bg-violet-600 hover:bg-violet-700" onClick={confirmBulk}>

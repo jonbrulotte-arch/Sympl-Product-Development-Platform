@@ -28,7 +28,7 @@ export async function GET(
       updatedBy: { select: { id: true, name: true, email: true, image: true, role: true } },
       _count: { select: { comments: true } },
     },
-    orderBy: { rowIndex: "asc" },
+    orderBy: [{ rowIndex: "asc" }, { createdAt: "asc" }],
   });
 
   const dupes = await findDuplicatesForProducts(

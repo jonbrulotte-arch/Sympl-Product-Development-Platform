@@ -46,7 +46,7 @@ export async function GET(
         attributeValues: { include: { attributeDefinition: true } },
         category: true,
       },
-      orderBy: { rowIndex: "asc" },
+      orderBy: [{ rowIndex: "asc" }, { createdAt: "asc" }],
     }),
     prisma.attributeDefinition.findMany({
       where: {

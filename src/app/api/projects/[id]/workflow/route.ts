@@ -130,7 +130,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json(stages, { status: 201 });
   }
 
-  const { name, description, sortOrder, onApproveSetStatus, onRejectSetStatus, dependsOnStageId, complianceEventId, psirId } = body;
+  const { name, description, sortOrder, onApproveSetStatus, onRejectSetStatus, dependsOnStageId, complianceEventId, psirId, dueDate } = body;
   if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
   const stage = await prisma.workflowStage.create({
@@ -144,6 +144,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       dependsOnStageId: dependsOnStageId || null,
       complianceEventId: complianceEventId || null,
       psirId: psirId || null,
+      dueDate: dueDate ? new Date(dueDate) : null,
     },
     include: STAGE_INCLUDE,
   });
@@ -175,7 +176,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ success: true });
   }
 
-  const { stageId, status, name, description, onApproveSetStatus, onRejectSetStatus, dependsOnStageId, complianceEventId, psirId, vote, voteComment, reset } = body;
+  const { stageId, status, name, description, onApproveSetStatus, onRejectSetStatus, dependsOnStageId, complianceEventId, psirId, dueDate, vote, voteComment, reset } = body;
   if (!stageId) return NextResponse.json({ error: "stageId required" }, { status: 400 });
 
   // Reset vote — clears stage back to PENDING and resets all approvals to PENDING
@@ -362,6 +363,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (dependsOnStageId !== undefined) data.dependsOnStageId = dependsOnStageId || null;
   if (complianceEventId !== undefined) data.complianceEventId = complianceEventId || null;
   if (psirId !== undefined) data.psirId = psirId || null;
+  if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
 
   // projectId ownership already verified above; update only by id (projectId is not unique)
   const stage = Object.keys(data).length > 0
