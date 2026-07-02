@@ -45,6 +45,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.role = (user as { role: UserRole }).role;
         token.id = user.id;
+      } else if (token.id) {
+        // Re-fetch role from DB on every token refresh so role changes
+        // (including new ADMIN accounts) take effect without requiring sign-out.
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { role: true, isActive: true },
+        });
+        if (dbUser?.isActive) {
+          token.role = dbUser.role;
+        }
       }
       return token;
     },

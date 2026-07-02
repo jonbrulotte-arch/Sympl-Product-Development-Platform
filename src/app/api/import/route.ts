@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
+import { CORE_FIELDS, coerceCoreValue } from "@/lib/core-fields";
+
+const CORE_FIELD_BY_KEY = Object.fromEntries(CORE_FIELDS.map((f) => [f.key, f]));
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -86,7 +89,8 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  let importedRows = 0;
+  let createdRows = 0;
+  let updatedRows = 0;
   let errorRows = 0;
   const errors: { row: number; errors: string[] }[] = [];
 
@@ -95,6 +99,16 @@ export async function POST(req: NextRequest) {
     _max: { rowIndex: true },
   });
   let nextRowIndex = (maxRow._max.rowIndex ?? -1) + 1;
+
+  // Existing products in this project, keyed by Part Number, so re-importing
+  // the same sheet updates rows instead of creating duplicates.
+  const existingProducts = await prisma.productRecord.findMany({
+    where: { projectId, isArchived: false, partNumber: { not: null } },
+    select: { id: true, partNumber: true },
+  });
+  const existingByPartNumber = new Map(
+    existingProducts.filter((p) => p.partNumber).map((p) => [p.partNumber as string, p.id])
+  );
 
   for (let i = 0; i < dataRows.length; i++) {
     const row = dataRows[i] as string[];
@@ -105,81 +119,100 @@ export async function POST(req: NextRequest) {
       rowData[h] = row[j]?.toString() ?? "";
     });
 
-    // Apply column mapping to build product data
-    const productData: Record<string, unknown> = {};
+    // Apply column mapping to build product data.
+    // Core fields map to a plain key ("partNumber"); custom attributes map to
+    // "attr:<attributeKey>:<valueIndex>" so multi-value attributes (which export
+    // as separate "Label 1", "Label 2", ... columns) don't collide onto the
+    // same slot and overwrite each other.
+    const coreValues: Record<string, string> = {};
+    const attrValues: { key: string; valueIndex: number; value: string }[] = [];
     for (const [sourceCol, targetField] of Object.entries(mapping)) {
-      if (targetField && rowData[sourceCol] !== undefined) {
-        productData[targetField] = rowData[sourceCol];
+      if (!targetField || rowData[sourceCol] === undefined) continue;
+      if (targetField.startsWith("attr:")) {
+        const [, attrKey, idxStr] = targetField.split(":");
+        attrValues.push({ key: attrKey, valueIndex: parseInt(idxStr, 10) || 0, value: rowData[sourceCol] });
+      } else {
+        coreValues[targetField] = rowData[sourceCol];
       }
     }
 
-    if (!productData.partNumber && !productData.itemName) {
+    if (!coreValues.partNumber && !coreValues.itemName) {
       continue; // skip if no meaningful data
     }
 
-    // Separate core fields from custom attribute values (attr:KEY prefix)
+    // Coerce core field strings into the types Prisma expects, dropping blanks
+    // and unparseable numbers rather than writing bad data.
     const coreData: Record<string, unknown> = {};
-    const attrValues: { key: string; value: string }[] = [];
-    for (const [field, value] of Object.entries(productData)) {
-      if (field.startsWith("attr:")) {
-        attrValues.push({ key: field.slice(5), value: value as string });
-      } else {
-        coreData[field] = value;
-      }
+    for (const [key, raw] of Object.entries(coreValues)) {
+      const field = CORE_FIELD_BY_KEY[key];
+      if (!field) continue;
+      const coerced = coerceCoreValue(field.type, raw);
+      if (coerced !== undefined) coreData[key] = coerced;
     }
 
     try {
-      const product = await prisma.productRecord.create({
-        data: {
-          projectId,
-          categoryId: projectCategoryId,
-          createdById: session.user.id,
-          updatedById: session.user.id,
-          rowIndex: nextRowIndex++,
-          partNumber: coreData.partNumber as string | undefined,
-          modelNumber: coreData.modelNumber as string | undefined,
-          itemName: coreData.itemName as string | undefined,
-          brand: coreData.brand as string | undefined,
-          upc: coreData.upc as string | undefined,
-          inventoryStatus: coreData.inventoryStatus as string | undefined,
-          warrantyInfo: coreData.warrantyInfo as string | undefined,
-          htsCode: coreData.htsCode as string | undefined,
-          htsCodeCanada: coreData.htsCodeCanada as string | undefined,
-          productComposition: coreData.productComposition as string | undefined,
-          packagingType: coreData.packagingType as string | undefined,
-          packSize: coreData.packSize as string | undefined,
-          material: coreData.material as string | undefined,
-          size: coreData.size as string | undefined,
-          jspCategory: coreData.jspCategory as string | undefined,
-          masterCartonGtin: coreData.masterCartonGtin as string | undefined,
-          palletGtin: coreData.palletGtin as string | undefined,
-        },
-      });
+      const partNumber = coreValues.partNumber?.trim() || undefined;
+      const existingId = partNumber ? existingByPartNumber.get(partNumber) : undefined;
+
+      let productId: string;
+      if (existingId) {
+        const updated = await prisma.productRecord.update({
+          where: { id: existingId },
+          data: { ...coreData, updatedById: session.user.id },
+        });
+        productId = updated.id;
+        updatedRows++;
+      } else {
+        const created = await prisma.productRecord.create({
+          data: {
+            projectId,
+            categoryId: projectCategoryId,
+            createdById: session.user.id,
+            updatedById: session.user.id,
+            rowIndex: nextRowIndex++,
+            ...coreData,
+          },
+        });
+        productId = created.id;
+        if (partNumber) existingByPartNumber.set(partNumber, productId);
+        createdRows++;
+      }
 
       if (attrValues.length > 0) {
         const attrDefs = await prisma.attributeDefinition.findMany({
-          where: { key: { in: attrValues.map((a) => a.key) }, isActive: true },
+          where: { key: { in: [...new Set(attrValues.map((a) => a.key))] }, isActive: true },
           select: { id: true, key: true },
         });
         const defByKey = Object.fromEntries(attrDefs.map((d) => [d.key, d.id]));
-        await prisma.productAttributeValue.createMany({
-          data: attrValues
-            .filter((a) => defByKey[a.key] && a.value)
-            .map((a) => ({
-              productId: product.id,
-              attributeDefinitionId: defByKey[a.key],
-              textValue: a.value,
-            })),
-          skipDuplicates: true,
-        });
-      }
 
-      importedRows++;
+        for (const av of attrValues) {
+          const attributeDefinitionId = defByKey[av.key];
+          if (!attributeDefinitionId || !av.value) continue;
+          await prisma.productAttributeValue.upsert({
+            where: {
+              productId_attributeDefinitionId_valueIndex: {
+                productId,
+                attributeDefinitionId,
+                valueIndex: av.valueIndex,
+              },
+            },
+            update: { textValue: av.value },
+            create: {
+              productId,
+              attributeDefinitionId,
+              valueIndex: av.valueIndex,
+              textValue: av.value,
+            },
+          });
+        }
+      }
     } catch {
       errorRows++;
       errors.push({ row: i + 1, errors: ["Failed to import row"] });
     }
   }
+
+  const importedRows = createdRows + updatedRows;
 
   importRecord = await prisma.importHistory.update({
     where: { id: importRecord.id },
@@ -198,6 +231,8 @@ export async function POST(req: NextRequest) {
     importId: importRecord.id,
     totalRows: dataRows.length,
     importedRows,
+    createdRows,
+    updatedRows,
     errorRows,
     errors,
   });

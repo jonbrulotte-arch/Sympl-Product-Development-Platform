@@ -3,20 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { ProjectDetailClient } from "./project-detail-client";
 import { canEditProject } from "@/lib/permissions";
+import { CORE_FIELD_KEYS } from "@/lib/core-fields";
+import { findDuplicatesForProducts } from "@/lib/duplicate-check";
 
 // Keys already rendered as typed columns in the grid — exclude from EAV query
-const CORE_COLUMN_KEYS = new Set([
-  "partNumber", "modelNumber", "itemName", "brand", "upc",
-  "inventoryStatus", "warrantyInfo",
-  "htsCode", "htsCodeCanada", "productComposition", "needsProp65",
-  "packagingType", "packSize", "numberOfPieces", "individualOrSet", "material", "size",
-  "jspCategory", "userManual", "cutSheets",
-  "upcHeight", "upcWidth", "upcLength", "upcWeight",
-  "itemHeight", "itemWidth", "itemLength", "itemWeight",
-  "innerCartonGtin", "innerCartonHeight", "innerCartonWidth", "innerCartonLength", "innerCartonWeight", "innerCartonQty",
-  "masterCartonGtin", "masterCartonHeight", "masterCartonWidth", "masterCartonLength", "masterCartonWeight", "masterCartonQty",
-  "palletGtin", "palletHeight", "palletWidth", "palletLength", "palletWeight", "palletStackable", "layersPerPallet", "palletQty",
-]);
+const CORE_COLUMN_KEYS = new Set(CORE_FIELD_KEYS);
 
 export default async function ProjectDetailPage({
   params,
@@ -110,9 +101,14 @@ export default async function ProjectDetailPage({
     project
   );
 
+  const dupes = await findDuplicatesForProducts(
+    products.map((p) => ({ id: p.id, partNumber: p.partNumber, projectId: p.projectId }))
+  );
+  const productsWithDupes = products.map((p) => ({ ...p, duplicateOf: dupes.get(p.id) ?? null }));
+
   // Serialize through JSON to convert Prisma Decimal/Date objects to plain primitives
   // before crossing the server→client boundary
-  const serialized = JSON.parse(JSON.stringify({ project, products, globalAttrs, categoryAttrs, coreAttrDefs, allCategories }));
+  const serialized = JSON.parse(JSON.stringify({ project, products: productsWithDupes, globalAttrs, categoryAttrs, coreAttrDefs, allCategories }));
 
   return (
     <ProjectDetailClient

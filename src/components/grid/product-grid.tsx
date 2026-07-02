@@ -17,7 +17,7 @@ import {
   type Row,
   type Column,
 } from "@tanstack/react-table";
-import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw } from "lucide-react";
+import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -49,6 +49,7 @@ type ProductRow = ProductRecord & {
   _saveStatus?: "idle" | "saving" | "saved" | "error";
   _eavValues?: EavMap;
   _eavArrays?: EavArrayMap;
+  duplicateOf?: { productId: string; projectId: string; projectName: string } | null;
 };
 
 // Portal tooltip that escapes overflow-auto scroll containers
@@ -139,6 +140,30 @@ const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
     meta: { section: "Status" },
   },
   {
+    accessorKey: "inventoryStatusErp",
+    header: "Inventory Status (ERP)",
+    size: 160,
+    meta: { section: "Status" },
+  },
+  {
+    accessorKey: "projectFolder",
+    header: "Project Folder",
+    size: 160,
+    meta: { section: "Status" },
+  },
+  {
+    accessorKey: "wrikeUrl",
+    header: "Wrike URL",
+    size: 160,
+    meta: { section: "Status" },
+  },
+  {
+    accessorKey: "psir",
+    header: "PSIR",
+    size: 140,
+    meta: { section: "Status" },
+  },
+  {
     accessorKey: "warrantyInfo",
     header: "Warranty",
     size: 160,
@@ -169,9 +194,21 @@ const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
     meta: { section: "Regulatory", fieldType: "boolean" },
   },
   {
+    accessorKey: "batteriesRequired",
+    header: "Batteries Required",
+    size: 140,
+    meta: { section: "Regulatory" },
+  },
+  {
     accessorKey: "packagingType",
     header: "Packaging Type",
     size: 140,
+    meta: { section: "Product" },
+  },
+  {
+    accessorKey: "packagingLangType",
+    header: "Packaging Language Type",
+    size: 160,
     meta: { section: "Product" },
   },
   {
@@ -343,6 +380,48 @@ const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
     meta: { section: "Master Carton" },
   },
   {
+    accessorKey: "altCartonGtin",
+    header: "Alt Carton GTIN",
+    size: 130,
+    meta: { section: "Alt Carton" },
+  },
+  {
+    accessorKey: "altCartonType",
+    header: "Alt Carton Type",
+    size: 130,
+    meta: { section: "Alt Carton" },
+  },
+  {
+    accessorKey: "altCartonHeight",
+    header: "Alt C. H (in)",
+    size: 100,
+    meta: { section: "Alt Carton" },
+  },
+  {
+    accessorKey: "altCartonWidth",
+    header: "Alt C. W (in)",
+    size: 100,
+    meta: { section: "Alt Carton" },
+  },
+  {
+    accessorKey: "altCartonLength",
+    header: "Alt C. L (in)",
+    size: 100,
+    meta: { section: "Alt Carton" },
+  },
+  {
+    accessorKey: "altCartonWeight",
+    header: "Alt C. Wt (lbs)",
+    size: 110,
+    meta: { section: "Alt Carton" },
+  },
+  {
+    accessorKey: "altCartonQty",
+    header: "Alt C. Qty",
+    size: 90,
+    meta: { section: "Alt Carton" },
+  },
+  {
     accessorKey: "palletGtin",
     header: "Pallet GTIN",
     size: 120,
@@ -488,8 +567,11 @@ export function ProductGrid({
             body: JSON.stringify(body),
           });
           if (!res.ok) throw new Error("Save failed");
+          const updated = await res.json().catch(() => null);
           setProducts((prev) =>
-            prev.map((p) => (p.id === productId ? { ...p, _saveStatus: "saved" } : p))
+            prev.map((p) => (p.id === productId
+              ? { ...p, _saveStatus: "saved", duplicateOf: updated?.duplicateOf ?? null }
+              : p))
           );
           setTimeout(() => {
             setProducts((prev) =>
@@ -1285,6 +1367,14 @@ function GridRow({
               );
             })() : (
               <div className={cn("px-2 py-1 text-sm truncate min-h-[32px] flex items-center gap-1 flex-wrap", isEav ? "text-amber-900" : "text-gray-700")}>
+                {colId === "partNumber" && (row.original as ProductRow).duplicateOf && (
+                  <span
+                    title={`Duplicate Part Number — also used in project "${(row.original as ProductRow).duplicateOf!.projectName}"`}
+                    className="shrink-0"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                  </span>
+                )}
                 {value != null && String(value) !== "" ? (() => {
                   if (attrDef && isMultiValueAttr(attrDef)) {
                     const vals = isEav

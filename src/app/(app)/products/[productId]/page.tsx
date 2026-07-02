@@ -4,19 +4,10 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
 import { ProductEditClient } from "./product-edit-client";
+import { CORE_FIELD_KEYS } from "@/lib/core-fields";
+import { findDuplicateForProduct } from "@/lib/duplicate-check";
 
-const CORE_COLUMN_KEYS = new Set([
-  "partNumber", "modelNumber", "itemName", "brand", "upc",
-  "inventoryStatus", "warrantyInfo",
-  "htsCode", "htsCodeCanada", "productComposition", "needsProp65",
-  "packagingType", "packSize", "numberOfPieces", "individualOrSet", "material", "size",
-  "jspCategory", "userManual", "cutSheets",
-  "upcHeight", "upcWidth", "upcLength", "upcWeight",
-  "itemHeight", "itemWidth", "itemLength", "itemWeight",
-  "innerCartonGtin", "innerCartonHeight", "innerCartonWidth", "innerCartonLength", "innerCartonWeight", "innerCartonQty",
-  "masterCartonGtin", "masterCartonHeight", "masterCartonWidth", "masterCartonLength", "masterCartonWeight", "masterCartonQty",
-  "palletGtin", "palletHeight", "palletWidth", "palletLength", "palletWeight", "palletStackable", "layersPerPallet", "palletQty",
-]);
+const CORE_COLUMN_KEYS = new Set(CORE_FIELD_KEYS);
 
 const attrInclude = {
   include: {
@@ -74,8 +65,10 @@ export default async function ProductEditPage({
     }),
   ]);
 
+  const duplicateOf = await findDuplicateForProduct(product.partNumber, product.projectId, product.id);
+
   const serialized = JSON.parse(
-    JSON.stringify({ product, globalAttrs, categoryAttrs, coreAttrDefs })
+    JSON.stringify({ product: { ...product, duplicateOf }, globalAttrs, categoryAttrs, coreAttrDefs })
   );
 
   return (

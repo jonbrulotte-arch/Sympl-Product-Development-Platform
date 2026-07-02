@@ -52,6 +52,7 @@ interface Product {
   createdBy: { name: string | null; email: string };
   updatedBy: { name: string | null; email: string } | null;
   attributeValues: AV[];
+  duplicateOf: { productId: string; projectId: string; projectName: string } | null;
 }
 
 interface Props {
@@ -778,6 +779,17 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
       <div className="flex-1 overflow-y-auto">
         {activeTab === "details" && (
           <div className="max-w-6xl mx-auto px-6 py-6 space-y-5">
+            {product.duplicateOf && (
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-lg p-3 text-sm text-amber-800">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>
+                  Duplicate Part Number — <span className="font-mono font-medium">{product.partNumber}</span> is also used in project{" "}
+                  <Link href={`/projects/${product.duplicateOf.projectId}`} className="underline font-medium hover:text-amber-900">
+                    {product.duplicateOf.projectName}
+                  </Link>.
+                </span>
+              </div>
+            )}
             {/* Product meta */}
             <div className="text-xs text-gray-400 flex flex-wrap gap-4">
               <span>Created by {product.createdBy.name ?? product.createdBy.email} · {formatDate(product.createdAt)}</span>
