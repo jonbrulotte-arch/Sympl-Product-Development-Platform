@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import type { ProjectWithRelations, ProductWithAttributes } from "@/types";
 import { SalsifySyncModal } from "@/components/salsify/salsify-sync-modal";
+import { EventCard, type ComplianceEventCardData } from "@/components/compliance/event-card";
+import { PsirCard, type PsirCardData } from "@/components/psir/psir-card";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 
@@ -2165,31 +2167,38 @@ type ComplianceEvent = {
 };
 
 function ProjectComplianceView({ projectId }: { projectId: string }) {
-  const [events, setEvents] = useState<ComplianceEvent[]>([]);
+  const router = useRouter();
+  const [events, setEvents] = useState<ComplianceEventCardData[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = () => {
     setLoading(true);
     fetch(`/api/compliance/events?projectId=${projectId}`)
       .then((r) => r.json())
       .then((d) => { setEvents(d.events ?? []); setTotal(d.total ?? 0); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [projectId]);
-
-  const severityColor: Record<string, string> = {
-    CRITICAL: "bg-red-100 text-red-700",
-    HIGH: "bg-orange-100 text-orange-700",
-    MEDIUM: "bg-yellow-100 text-yellow-700",
-    LOW: "bg-gray-100 text-gray-600",
   };
-  const statusColor: Record<string, string> = {
-    OPEN: "bg-red-100 text-red-700",
-    IN_PROGRESS: "bg-blue-100 text-blue-700",
-    RESOLVED: "bg-green-100 text-green-700",
-    CLOSED: "bg-gray-100 text-gray-600",
-    WAIVED: "bg-purple-100 text-purple-700",
+  useEffect(load, [projectId]);
+
+  const deleteEvent = async (id: string) => {
+    if (!confirm("Delete this compliance event? This cannot be undone.")) return;
+    await fetch(`/api/compliance/events/${id}`, { method: "DELETE" });
+    setEvents((prev) => prev.filter((e) => e.id !== id));
+    setTotal((t) => Math.max(0, t - 1));
+  };
+
+  const changeStatus = async (id: string, status: string) => {
+    const res = await fetch(`/api/compliance/events/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setEvents((prev) => prev.map((e) => (e.id === id ? updated : e)));
+    }
   };
 
   return (
@@ -2207,24 +2216,13 @@ function ProjectComplianceView({ projectId }: { projectId: string }) {
       )}
       <div className="space-y-2">
         {events.map((ev) => (
-          <div key={ev.id} className="border border-gray-200 rounded-lg px-4 py-3">
-            <div className="flex items-start gap-3">
-              <span className="mt-1 h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: ev.type.color ?? "#6b7280" }} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-medium text-gray-900">{ev.title}</p>
-                  <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-600">{ev.type.name}</span>
-                  {ev.severity && <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${severityColor[ev.severity] ?? "bg-gray-100 text-gray-600"}`}>{ev.severity}</span>}
-                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${statusColor[ev.status] ?? "bg-gray-100 text-gray-600"}`}>{ev.status.replace("_", " ")}</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  {ev.products.length} product{ev.products.length !== 1 ? "s" : ""}
-                  {ev.dueDate && ` · Due ${formatDate(new Date(ev.dueDate))}`}
-                  {` · by ${ev.createdBy.name ?? ev.createdBy.email}`}
-                </p>
-              </div>
-            </div>
-          </div>
+          <EventCard
+            key={ev.id}
+            event={ev}
+            onEdit={() => router.push(`/compliance/${ev.id}`)}
+            onDelete={() => deleteEvent(ev.id)}
+            onStatusChange={(s) => changeStatus(ev.id, s)}
+          />
         ))}
       </div>
     </div>
@@ -2233,38 +2231,39 @@ function ProjectComplianceView({ projectId }: { projectId: string }) {
 
 // ─── Project Inspections View ──────────────────────────────────────────────────
 
-type PsirRow = {
-  id: string; title: string; referenceNumber: string | null;
-  inspectionDate: string | null; inspector: string | null;
-  result: string; status: string;
-  products: { product: { id: string; partNumber: string; itemName: string | null } }[];
-};
-
 function ProjectInspectionsView({ projectId }: { projectId: string }) {
-  const [psirs, setPsirs] = useState<PsirRow[]>([]);
+  const router = useRouter();
+  const [psirs, setPsirs] = useState<PsirCardData[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = () => {
     setLoading(true);
     fetch(`/api/psir?projectId=${projectId}`)
       .then((r) => r.json())
       .then((d) => { setPsirs(d.psirs ?? []); setTotal(d.total ?? 0); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [projectId]);
-
-  const resultColor: Record<string, string> = {
-    PASS: "bg-green-100 text-green-700",
-    FAIL: "bg-red-100 text-red-700",
-    CONDITIONAL: "bg-yellow-100 text-yellow-700",
-    PENDING: "bg-gray-100 text-gray-600",
   };
-  const statusColor: Record<string, string> = {
-    DRAFT: "bg-gray-100 text-gray-600",
-    SUBMITTED: "bg-blue-100 text-blue-700",
-    APPROVED: "bg-green-100 text-green-700",
-    REJECTED: "bg-red-100 text-red-700",
+  useEffect(load, [projectId]);
+
+  const deletePsir = async (id: string) => {
+    if (!confirm("Delete this inspection report? This cannot be undone.")) return;
+    await fetch(`/api/psir/${id}`, { method: "DELETE" });
+    setPsirs((prev) => prev.filter((p) => p.id !== id));
+    setTotal((t) => Math.max(0, t - 1));
+  };
+
+  const changeStatus = async (id: string, status: string) => {
+    const res = await fetch(`/api/psir/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setPsirs((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    }
   };
 
   return (
@@ -2282,24 +2281,13 @@ function ProjectInspectionsView({ projectId }: { projectId: string }) {
       )}
       <div className="space-y-2">
         {psirs.map((psir) => (
-          <Link key={psir.id} href={`/psir/${psir.id}`} className="block border border-gray-200 rounded-lg px-4 py-3 hover:bg-gray-50 transition-colors">
-            <div className="flex items-start gap-3">
-              <ClipboardCheck className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-medium text-gray-900">{psir.title}</p>
-                  {psir.referenceNumber && <span className="text-xs text-gray-400">#{psir.referenceNumber}</span>}
-                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${resultColor[psir.result] ?? "bg-gray-100 text-gray-600"}`}>{psir.result}</span>
-                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${statusColor[psir.status] ?? "bg-gray-100 text-gray-600"}`}>{psir.status}</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  {psir.products.length} product{psir.products.length !== 1 ? "s" : ""}
-                  {psir.inspector && ` · ${psir.inspector}`}
-                  {psir.inspectionDate && ` · ${formatDate(new Date(psir.inspectionDate))}`}
-                </p>
-              </div>
-            </div>
-          </Link>
+          <PsirCard
+            key={psir.id}
+            psir={psir}
+            onEdit={() => router.push(`/psir/${psir.id}`)}
+            onDelete={() => deletePsir(psir.id)}
+            onStatusChange={(s) => changeStatus(psir.id, s)}
+          />
         ))}
       </div>
     </div>
