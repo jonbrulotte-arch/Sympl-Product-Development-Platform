@@ -169,6 +169,7 @@ model UserPreferences {
   lastOpenedProjectId String?
   recentProjectIds    String[] @default([])
   theme               String   @default("light")
+  notificationPrefs   Json?    // { [category]: { inbox: boolean, email: boolean } } — missing keys default to on
   updatedAt           DateTime @updatedAt
 
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -544,6 +545,7 @@ model WorkflowStage {
   psirId               String?
   dueDate              DateTime?
   overdueNotifiedAt    DateTime?
+  dueSoonNotifiedAt    DateTime?
   completedAt          DateTime?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
@@ -664,6 +666,7 @@ model Notification {
   title     String
   message   String
   type      String   @default("info")
+  category  String   @default("GENERAL") // ASSIGNMENT | WORKFLOW | COMMENT | MENTION | COMPLIANCE | INSPECTION | GENERAL
   isRead    Boolean  @default(false)
   link      String?
   createdAt DateTime @default(now())
@@ -699,6 +702,7 @@ model ComplianceEvent {
   severity    String    @default("MEDIUM")
   dueDate     DateTime?
   overdueNotifiedAt DateTime?
+  dueSoonNotifiedAt DateTime?
   resolvedAt  DateTime?
   createdById String
   updatedById String?

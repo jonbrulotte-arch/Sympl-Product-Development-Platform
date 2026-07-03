@@ -45,6 +45,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     title: `You've been assigned as an approver`,
     message: `Stage "${stageName?.name ?? "a workflow stage"}" in project ${project.name}`,
     type: "info",
+    category: "ASSIGNMENT",
     link: `/projects/${projectId}`,
     projectId,
   });

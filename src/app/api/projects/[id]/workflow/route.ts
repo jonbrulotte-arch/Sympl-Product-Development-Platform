@@ -288,6 +288,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         title: `${voterName} ${vote === "APPROVED" ? "approved" : "rejected"} "${stage.name}"`,
         message: `In project ${project.name}${voteComment ? `: "${voteComment}"` : ""}`,
         type: vote === "APPROVED" ? "success" : "error",
+        category: "WORKFLOW",
         link: `/projects/${projectId}`,
         projectId,
       });
@@ -311,6 +312,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         title: `Stage ${newStageStatus === "APPROVED" ? "approved" : "rejected"}: ${stage.name}`,
         message: `All approvers have voted in project ${project.name}`,
         type: newStageStatus === "APPROVED" ? "success" : "error",
+        category: "WORKFLOW",
         link: `/projects/${projectId}`,
         projectId,
       });
@@ -365,8 +367,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (psirId !== undefined) data.psirId = psirId || null;
   if (dueDate !== undefined) {
     data.dueDate = dueDate ? new Date(dueDate) : null;
-    // Re-arm the overdue alert when the due date changes
+    // Re-arm the overdue/due-soon alerts when the due date changes
     data.overdueNotifiedAt = null;
+    data.dueSoonNotifiedAt = null;
   }
 
   // projectId ownership already verified above; update only by id (projectId is not unique)

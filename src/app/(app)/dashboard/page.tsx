@@ -102,6 +102,20 @@ export default async function DashboardPage() {
     take: 5,
   });
 
+  // Overdue workflow stages on projects this user can see
+  const overdueStages = await prisma.workflowStage.findMany({
+    where: {
+      status: { in: ["PENDING", "IN_REVIEW"] },
+      dueDate: { lt: new Date() },
+      ...(!isAdmin
+        ? { project: { OR: [{ ownerId: userId }, { members: { some: { userId } } }] } }
+        : {}),
+    },
+    include: { project: { select: { id: true, name: true } } },
+    orderBy: { dueDate: "asc" },
+    take: 5,
+  });
+
   const [totalProjects, approvedProjects, needsReviewCount, exportReadyCount] = stats;
   const needsActionCount = needsReviewCount + pendingApprovalsData.length;
 
@@ -219,6 +233,35 @@ export default async function DashboardPage() {
             </Card>
           )}
 
+          {overdueStages.length > 0 && (
+            <Card className="border-red-300">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base text-red-800 flex items-center gap-2">
+                  <Clock className="h-4 w-4" /> Overdue Stages
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-gray-100">
+                  {overdueStages.map((stage) => (
+                    <Link
+                      key={stage.id}
+                      href={`/projects/${stage.project.id}?tab=workflow`}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-red-50"
+                    >
+                      <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{stage.name}</p>
+                        <p className="text-xs text-red-600">
+                          {stage.project.name} · due {formatDate(stage.dueDate!)}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {pendingApprovalsData.length > 0 && (
             <Card className="border-yellow-300">
               <CardHeader className="pb-3">
@@ -269,7 +312,7 @@ export default async function DashboardPage() {
             </Card>
           )}
 
-          {pendingApprovalsData.length === 0 && needsReview.length === 0 && overdueCompliance.length === 0 && (
+          {pendingApprovalsData.length === 0 && needsReview.length === 0 && overdueCompliance.length === 0 && overdueStages.length === 0 && (
             <Card>
               <CardContent className="p-6 text-center text-sm text-gray-400">
                 Nothing needs your attention right now.

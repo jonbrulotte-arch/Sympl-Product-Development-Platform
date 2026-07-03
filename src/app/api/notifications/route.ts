@@ -8,14 +8,16 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const unreadOnly = searchParams.get("unread") === "true";
+  const category = searchParams.get("category");
 
   const notifications = await prisma.notification.findMany({
     where: {
       userId: session.user.id,
       ...(unreadOnly ? { isRead: false } : {}),
+      ...(category ? { category } : {}),
     },
     orderBy: { createdAt: "desc" },
-    take: 50,
+    take: 100,
   });
 
   return NextResponse.json(notifications);

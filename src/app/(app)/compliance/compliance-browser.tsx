@@ -890,7 +890,7 @@ export function ComplianceBrowser() {
             <EventRow
               key={event.id}
               event={event}
-              onEdit={() => { setEditEvent(event); setShowModal(true); }}
+              onEdit={() => { window.location.href = `/compliance/${event.id}`; }}
               onDelete={() => deleteEvent(event.id)}
               onStatusChange={(s) => changeStatus(event.id, s)}
             />

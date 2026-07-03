@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { canMutateQaRecords } from "@/lib/project-access";
+import { createNotificationForMany, getOwnerIdsForProducts } from "@/lib/notifications";
 
 export const PSIR_INCLUDE = {
   createdBy: { select: { id: true, name: true, email: true } },
@@ -112,6 +113,21 @@ export async function POST(req: Request) {
     },
     include: PSIR_INCLUDE,
   });
+
+  // Notify owners of projects whose products this inspection covers
+  if (productIds?.length) {
+    (async () => {
+      const ownerIds = (await getOwnerIdsForProducts(productIds as string[]))
+        .filter((uid) => uid !== session.user.id);
+      await createNotificationForMany(ownerIds, {
+        title: `New inspection report: ${psir.title}`,
+        message: `${session.user.name ?? session.user.email} created an inspection covering products in your project.`,
+        type: "info",
+        category: "INSPECTION",
+        link: `/psir/${psir.id}`,
+      });
+    })().catch(() => {});
+  }
 
   return NextResponse.json(psir, { status: 201 });
 }

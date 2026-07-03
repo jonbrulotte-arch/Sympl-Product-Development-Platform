@@ -253,7 +253,15 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
         )}
 
         {activeTab === "comments" && (
-          <CommentsView projectId={project.id} currentUserId={currentUserId} userRole={userRole} />
+          <CommentsView
+            projectId={project.id}
+            currentUserId={currentUserId}
+            userRole={userRole}
+            team={[
+              { id: project.owner.id, name: project.owner.name, email: project.owner.email },
+              ...(project.members ?? []).map((m: { user: { id: string; name: string | null; email: string } }) => m.user),
+            ]}
+          />
         )}
 
         {activeTab === "activity" && (
@@ -1185,7 +1193,36 @@ function fileIcon(type: string) {
 
 // ─── Comments View ─────────────────────────────────────────────────────────────
 
-function CommentsView({ projectId, currentUserId, userRole }: { projectId: string; currentUserId: string; userRole?: string }) {
+type TeamMember = { id: string; name: string | null; email: string };
+
+// Renders comment text with @mentions of team members shown as styled chips
+function renderWithMentions(text: string, team: TeamMember[]): React.ReactNode {
+  const names = team
+    .flatMap((u) => [u.name, u.name?.split(" ")[0], u.email.split("@")[0]])
+    .filter((n): n is string => !!n && n.length >= 2)
+    .sort((a, b) => b.length - a.length)
+    .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (names.length === 0) return text;
+
+  const re = new RegExp(`@(${names.join("|")})`, "gi");
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let key = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    parts.push(
+      <span key={key++} className="inline-block bg-blue-100 text-blue-800 rounded px-1 py-0.5 text-xs font-medium align-baseline">
+        @{m[1]}
+      </span>
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
+function CommentsView({ projectId, currentUserId, userRole, team = [] }: { projectId: string; currentUserId: string; userRole?: string; team?: TeamMember[] }) {
   const [comments, setComments] = useState<Array<{
     id: string; content: string; createdAt: string;
     author: { id: string; name: string | null; email: string };
@@ -1197,6 +1234,50 @@ function CommentsView({ projectId, currentUserId, userRole }: { projectId: strin
   const [posting, setPosting] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // @mention typeahead state
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionStart, setMentionStart] = useState(0);
+  const [mentionIndex, setMentionIndex] = useState(0);
+
+  const mentionMatches = mentionQuery !== null
+    ? team.filter((u) => {
+        if (u.id === currentUserId) return false;
+        const q = mentionQuery.toLowerCase();
+        return (u.name?.toLowerCase().includes(q) ?? false) || u.email.toLowerCase().startsWith(q);
+      }).slice(0, 6)
+    : [];
+
+  const detectMention = (value: string, caret: number) => {
+    // Look backwards from the caret for an "@word" token being typed
+    const before = value.slice(0, caret);
+    const m = before.match(/(^|\s)@([a-zA-Z0-9._-]{0,30})$/);
+    if (m) {
+      setMentionQuery(m[2]);
+      setMentionStart(caret - m[2].length - 1); // position of the "@"
+      setMentionIndex(0);
+    } else {
+      setMentionQuery(null);
+    }
+  };
+
+  const insertMention = (user: TeamMember) => {
+    const display = user.name ?? user.email.split("@")[0];
+    const caret = textareaRef.current?.selectionStart ?? newComment.length;
+    const next = `${newComment.slice(0, mentionStart)}@${display} ${newComment.slice(caret)}`;
+    setNewComment(next);
+    setMentionQuery(null);
+    // Restore focus and place the caret after the inserted mention
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        const pos = mentionStart + display.length + 2;
+        el.setSelectionRange(pos, pos);
+      }
+    });
+  };
 
   useEffect(() => {
     fetch(`/api/projects/${projectId}/comments`)
@@ -1259,14 +1340,49 @@ function CommentsView({ projectId, currentUserId, userRole }: { projectId: strin
   return (
     <div className="p-6 max-w-2xl space-y-4">
       {/* Compose box */}
-      <div className="border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 bg-white">
+      <div className="relative border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 bg-white">
+        {/* @mention typeahead */}
+        {mentionQuery !== null && mentionMatches.length > 0 && (
+          <div className="absolute bottom-full left-3 mb-1 z-40 w-72 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+            {mentionMatches.map((u, i) => (
+              <button
+                key={u.id}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); insertMention(u); }}
+                onMouseEnter={() => setMentionIndex(i)}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-left ${i === mentionIndex ? "bg-blue-50" : ""}`}
+              >
+                <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-bold shrink-0">
+                  {(u.name ?? u.email)[0]?.toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{u.name ?? u.email}</p>
+                  <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
         <textarea
-          className="w-full p-3 text-sm text-gray-900 resize-none focus:outline-none"
+          ref={textareaRef}
+          className="w-full p-3 text-sm text-gray-900 resize-none focus:outline-none rounded-t-lg"
           rows={3}
-          placeholder="Add a comment..."
+          placeholder="Add a comment... Use @ to mention a teammate"
           value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) postComment(); }}
+          onChange={(e) => {
+            setNewComment(e.target.value);
+            detectMention(e.target.value, e.target.selectionStart ?? e.target.value.length);
+          }}
+          onKeyDown={(e) => {
+            if (mentionQuery !== null && mentionMatches.length > 0) {
+              if (e.key === "ArrowDown") { e.preventDefault(); setMentionIndex((i) => (i + 1) % mentionMatches.length); return; }
+              if (e.key === "ArrowUp") { e.preventDefault(); setMentionIndex((i) => (i - 1 + mentionMatches.length) % mentionMatches.length); return; }
+              if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); insertMention(mentionMatches[mentionIndex]); return; }
+              if (e.key === "Escape") { setMentionQuery(null); return; }
+            }
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) postComment();
+          }}
+          onBlur={() => setTimeout(() => setMentionQuery(null), 150)}
         />
         {pendingAttachments.length > 0 && (
           <div className="px-3 pb-2 flex flex-wrap gap-1.5">
@@ -1320,7 +1436,7 @@ function CommentsView({ projectId, currentUserId, userRole }: { projectId: strin
                   </button>
                 )}
               </div>
-              {text && <p className="text-sm text-gray-700 whitespace-pre-wrap">{text}</p>}
+              {text && <p className="text-sm text-gray-700 whitespace-pre-wrap">{renderWithMentions(text, team)}</p>}
               {attachments.length > 0 && (
                 <div className="mt-2 space-y-1.5">
                   {attachments.map((a, i) => (

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { EVENT_INCLUDE } from "../route";
 import { canMutateQaRecords } from "@/lib/project-access";
+import { createNotificationForMany, getOwnerIdsForProducts } from "@/lib/notifications";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -23,6 +24,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const body = await req.json();
   const { title, description, notes, severity, status, dueDate, resolvedAt, addProductIds, removeProductIds } = body;
 
+  const previous = status !== undefined
+    ? await prisma.complianceEvent.findUnique({ where: { id }, select: { status: true, title: true } })
+    : null;
+
   const event = await prisma.complianceEvent.update({
     where: { id },
     data: {
@@ -31,7 +36,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       ...(notes !== undefined && { notes }),
       ...(severity !== undefined && { severity }),
       ...(status !== undefined && { status }),
-      ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null, overdueNotifiedAt: null }),
+      ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null, overdueNotifiedAt: null, dueSoonNotifiedAt: null }),
       ...(resolvedAt !== undefined && { resolvedAt: resolvedAt ? new Date(resolvedAt) : null }),
       updatedById: session.user.id,
       ...(addProductIds?.length && {
@@ -50,6 +55,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     },
     include: EVENT_INCLUDE,
   });
+
+  // Notify affected project owners on status changes
+  if (previous && status !== undefined && previous.status !== status) {
+    (async () => {
+      const ownerIds = (await getOwnerIdsForProducts(event.products.map((p) => p.product.id)))
+        .filter((uid) => uid !== session.user.id);
+      await createNotificationForMany(ownerIds, {
+        title: `Compliance event ${String(status).toLowerCase().replace("_", " ")}: ${event.title}`,
+        message: `${session.user.name ?? session.user.email} changed the status from ${previous.status.replace("_", " ")} to ${String(status).replace("_", " ")}.`,
+        type: ["RESOLVED", "CLOSED"].includes(String(status)) ? "success" : "info",
+        category: "COMPLIANCE",
+        link: "/compliance",
+      });
+    })().catch(() => {});
+  }
 
   return NextResponse.json(event);
 }

@@ -9,7 +9,7 @@ type ActiveLink = { id: string; url: string; expiresAt: string };
 
 // Creates and manages expiring read-only share links for a product or PSIR.
 // Rendered only for ADMIN / PRODUCT_MANAGER (the API enforces it regardless).
-export function ShareLinkButton({ entityType, entityId }: { entityType: "PRODUCT" | "PSIR"; entityId: string }) {
+export function ShareLinkButton({ entityType, entityId }: { entityType: "PRODUCT" | "PSIR" | "COMPLIANCE"; entityId: string }) {
   const [open, setOpen] = useState(false);
   const [links, setLinks] = useState<ActiveLink[]>([]);
   const [days, setDays] = useState(7);
@@ -74,7 +74,7 @@ export function ShareLinkButton({ entityType, entityId }: { entityType: "PRODUCT
               </button>
             </div>
             <p className="text-xs text-gray-500">
-              Anyone with the link can view this {entityType === "PRODUCT" ? "product" : "inspection report"} — no account needed. Links expire automatically.
+              Anyone with the link can view this {entityType === "PRODUCT" ? "product" : entityType === "PSIR" ? "inspection report" : "compliance event"} — no account needed. Links expire automatically.
             </p>
 
             {links.length > 0 && (

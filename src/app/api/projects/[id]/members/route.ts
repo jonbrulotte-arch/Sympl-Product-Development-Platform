@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canEditProject } from "@/lib/permissions";
+import { createNotification } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -37,6 +38,18 @@ export async function POST(req: NextRequest, { params }: Params) {
       user: { select: { id: true, name: true, email: true, image: true, role: true } },
     },
   });
+
+  if (userId !== session.user.id) {
+    createNotification({
+      userId,
+      title: `You were added to ${project.name}`,
+      message: `${session.user.name ?? session.user.email} added you as ${role ?? "VIEWER"}${canEdit ? " with edit access" : ""}.`,
+      type: "info",
+      category: "ASSIGNMENT",
+      link: `/projects/${projectId}`,
+      projectId,
+    });
+  }
 
   return NextResponse.json(member, { status: 201 });
 }

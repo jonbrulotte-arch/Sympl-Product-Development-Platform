@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { randomBytes } from "crypto";
 
-const SHAREABLE_TYPES = new Set(["PRODUCT", "PSIR"]);
+const SHAREABLE_TYPES = new Set(["PRODUCT", "PSIR", "COMPLIANCE"]);
 const CAN_SHARE_ROLES = new Set(["ADMIN", "PRODUCT_MANAGER"]);
 
 // Create an expiring read-only share link for a product or PSIR.
@@ -23,7 +23,9 @@ export async function POST(req: NextRequest) {
   const exists =
     entityType === "PRODUCT"
       ? await prisma.productRecord.findUnique({ where: { id: entityId }, select: { id: true } })
-      : await prisma.psir.findUnique({ where: { id: entityId }, select: { id: true } });
+      : entityType === "PSIR"
+      ? await prisma.psir.findUnique({ where: { id: entityId }, select: { id: true } })
+      : await prisma.complianceEvent.findUnique({ where: { id: entityId }, select: { id: true } });
   if (!exists) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const days = Math.min(Math.max(parseInt(String(expiresInDays)) || 7, 1), 90);

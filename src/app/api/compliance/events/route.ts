@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { canMutateQaRecords } from "@/lib/project-access";
+import { createNotificationForMany, getOwnerIdsForProducts } from "@/lib/notifications";
 
 export const EVENT_INCLUDE = {
   type: true,
@@ -97,6 +98,19 @@ export async function POST(req: Request) {
     },
     include: EVENT_INCLUDE,
   });
+
+  // Notify owners of the projects whose products this event covers
+  (async () => {
+    const ownerIds = (await getOwnerIdsForProducts(productIds as string[]))
+      .filter((id) => id !== session.user.id);
+    await createNotificationForMany(ownerIds, {
+      title: `New compliance event: ${event.title}`,
+      message: `${session.user.name ?? session.user.email} logged a ${event.severity} severity event covering products in your project.`,
+      type: event.severity === "CRITICAL" ? "error" : "warning",
+      category: "COMPLIANCE",
+      link: "/compliance",
+    });
+  })().catch(() => {});
 
   return NextResponse.json(event, { status: 201 });
 }
