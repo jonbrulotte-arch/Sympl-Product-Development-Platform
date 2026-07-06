@@ -818,7 +818,10 @@ export function ProductGrid({
       setEditingCell((current) => {
         if (!current) return current;
         const rows = table.getRowModel().rows;
-        const leafCols = table.getVisibleLeafColumns().filter((c) => c.id !== "rowActions");
+        // Pinned-aware order (frozen columns first) so Tab moves through cells
+        // in the same order they are displayed
+        const leafCols = [...table.getLeftVisibleLeafColumns(), ...table.getCenterVisibleLeafColumns()]
+          .filter((c) => c.id !== "rowActions");
         const rowIdx = rows.findIndex((r) => r.id === current.rowId);
         const colIdx = leafCols.findIndex((c) => c.id === current.columnId);
         if (rowIdx === -1 || colIdx === -1) return null;
@@ -839,7 +842,21 @@ export function ProductGrid({
     return () => { timeouts.forEach(clearTimeout); };
   }, []);
 
-  const headerGroups = table.getHeaderGroups();
+  // Use the pinned-aware split header APIs: the combined getHeaderGroups()
+  // reorders leaf headers pinned-first but leaves group-row colSpans (and the
+  // visible-leaf-column order used for <colgroup>) untouched, which misaligns
+  // headers, widths, and resize handles whenever columns are frozen out of
+  // display order. Left + center groups concatenated are always consistent.
+  const leftHeaderGroups = table.getLeftHeaderGroups();
+  const centerHeaderGroups = table.getCenterHeaderGroups();
+  const headerRows = centerHeaderGroups.map((chg, i) => ({
+    id: chg.id,
+    left: leftHeaderGroups[i]?.headers.filter((h) => h.column.id !== "rowActions") ?? [],
+    center: chg.headers.filter((h) => h.column.id !== "rowActions"),
+  }));
+  // Leaf columns in display order (frozen first) — drives <colgroup> widths
+  const orderedLeafColumns = [...table.getLeftVisibleLeafColumns(), ...table.getCenterVisibleLeafColumns()]
+    .filter((c) => c.id !== "rowActions");
 
   return (
     <div className="flex flex-col h-full">
@@ -925,19 +942,26 @@ export function ProductGrid({
               without it, grouped header colSpans confuse the browser's width distribution */}
           <colgroup>
             <col style={{ width: CHECKBOX_COL_WIDTH }} />
-            {table.getVisibleLeafColumns()
-              .filter((c) => c.id !== "rowActions")
-              .map((col) => (
-                <col key={col.id} style={{ width: col.getSize() }} />
-              ))}
+            {orderedLeafColumns.map((col) => (
+              <col key={col.id} style={{ width: col.getSize() }} />
+            ))}
           </colgroup>
           <thead className="sticky top-0 z-20 bg-gray-50">
-            {headerGroups.map((headerGroup, groupIdx) => (
-              <tr key={headerGroup.id}>
+            {headerRows.map((headerRow, groupIdx) => {
+              // Sticky offsets for the frozen (left-pinned) section: headers are
+              // contiguous from the table's left edge, so accumulate widths.
+              let leftOffset = CHECKBOX_COL_WIDTH;
+              const leftWithOffsets = headerRow.left.map((header) => {
+                const offset = leftOffset;
+                leftOffset += header.getSize();
+                return { header, offset };
+              });
+              return (
+              <tr key={headerRow.id}>
                 {/* Checkbox — sticky, spans all header rows */}
                 {groupIdx === 0 && (
                   <th
-                    rowSpan={headerGroups.length}
+                    rowSpan={headerRows.length}
                     className="w-9 border-b border-r border-gray-200 bg-gray-50 px-2 sticky left-0 z-20"
                     style={{ width: CHECKBOX_COL_WIDTH }}
                   >
@@ -951,17 +975,19 @@ export function ProductGrid({
                     />
                   </th>
                 )}
-                {headerGroup.headers
-                  .filter((h) => h.column.id !== "rowActions")
-                  .map((header) => {
+                {[
+                  ...leftWithOffsets.map((x) => ({ ...x, inLeft: true })),
+                  ...headerRow.center.map((header) => ({ header, offset: 0, inLeft: false })),
+                ].map(({ header, offset, inLeft }) => {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const meta = header.column.columnDef.meta as any;
                   const isEav = !!meta?.eav;
                   const isGroup = !!meta?.isGroup;
                   const isLeaf = header.subHeaders.length === 0;
-                  // Only leaf columns can be pinned; group headers span multiple cols and can't be sticky
-                  const isPinned = isLeaf && header.column.getIsPinned() === "left";
-                  const pinnedStyle = isPinned ? getPinnedStyle(header.column) : {};
+                  const isPinned = inLeft;
+                  const pinnedStyle: React.CSSProperties = inLeft
+                    ? { position: "sticky", left: offset, zIndex: 2 }
+                    : {};
 
                   // Placeholder cells must render an empty <th> to keep colspans correct;
                   // returning null removes the cell and shifts section headers left.
@@ -970,6 +996,7 @@ export function ProductGrid({
                       <th
                         key={header.id}
                         colSpan={header.colSpan}
+                        style={pinnedStyle}
                         className="border-b border-r border-gray-200 bg-gray-50"
                       />
                     );
@@ -1029,7 +1056,8 @@ export function ProductGrid({
                   );
                 })}
               </tr>
-            ))}
+              );
+            })}
           </thead>
           <tbody>
             {table.getRowModel().rows.map((row) => (
