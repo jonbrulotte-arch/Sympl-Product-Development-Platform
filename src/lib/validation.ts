@@ -10,18 +10,26 @@ const optInt = z.preprocess(
   z.number().int().optional()
 );
 
+// Optional foreign-key field: an empty string from a "— none —" <select>
+// option must become undefined, never "" — otherwise Prisma tries to satisfy
+// the FK against a row whose id is "" and throws P2003.
+const optionalFk = z.preprocess(
+  (v) => (v === "" || v === null ? undefined : v),
+  z.string().optional()
+);
+
 export const projectSchema = z.object({
   name: z.string().min(1, "Project name is required").max(200),
   description: z.string().optional(),
   brand: z.string().optional(),
-  categoryId: z.string().optional(),
+  categoryId: optionalFk,
   productFamilyName: z.string().optional(),
   targetLaunchDate: z.string().optional(),
   retailer: z.string().optional(),
   channel: z.string().optional(),
   tags: z.array(z.string()).optional().default([]),
   status: z.enum(["DRAFT","IN_PROGRESS","NEEDS_REVIEW","CHANGES_REQUESTED","APPROVED","EXPORT_READY","ARCHIVED"]).optional(),
-  ownerId: z.string().optional(),
+  ownerId: optionalFk,
 });
 
 export const productSchema = z.object({
@@ -36,7 +44,7 @@ export const productSchema = z.object({
       (v) => !v || /^\d{8,14}$/.test(v),
       "UPC must be 8–14 digits"
     ),
-  categoryId: z.string().nullish(),
+  categoryId: optionalFk,
   inventoryStatus: z.string().nullish(),
   inventoryStatusErp: z.string().nullish(),
   projectFolder: z.string().nullish(),
