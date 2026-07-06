@@ -56,6 +56,17 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
   const [gridReloadKey, setGridReloadKey] = useState(0);
   const router = useRouter();
 
+  // Pick up attribute-definition changes (e.g. a new attribute added to this
+  // project's category in Admin → Attributes) when the user returns to the
+  // tab. router.refresh() re-runs the server component's live attribute
+  // queries and updates the grid's columns; product rows stay in the grid's
+  // local state, so in-progress cell edits are preserved.
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") router.refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [router]);
+
   const openSalsifyModal = (selectedIds?: string[]) => {
     setSalsifySelectedIds(selectedIds && selectedIds.length > 0 ? selectedIds : null);
     setShowSalsifyModal(true);
