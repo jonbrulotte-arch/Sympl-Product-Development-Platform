@@ -6,6 +6,7 @@ import { canEditProject } from "@/lib/permissions";
 import { CORE_FIELD_KEYS } from "@/lib/core-fields";
 import { findDuplicatesForProducts } from "@/lib/duplicate-check";
 import { checkProjectAccess } from "@/lib/project-access";
+import { getCategoryAndAncestorIds } from "@/lib/category-tree";
 
 // Keys already rendered as typed columns in the grid — exclude from EAV query
 const CORE_COLUMN_KEYS = new Set(CORE_FIELD_KEYS);
@@ -52,6 +53,10 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound();
 
+  // Include attributes scoped to the project's category AND any ancestor
+  // categories, so nested categories inherit their parents' attributes.
+  const categoryIds = await getCategoryAndAncestorIds(project.categoryId);
+
   const attrInclude = {
     include: {
       lovItems: { orderBy: { sortOrder: "asc" as const } },
@@ -82,10 +87,10 @@ export default async function ProjectDetailPage({
       ...attrInclude,
       orderBy: { sortOrder: "asc" },
     }),
-    // Category-specific attrs (if project has a category)
-    project.categoryId
+    // Category-specific attrs — the project's category and its ancestors
+    categoryIds.length > 0
       ? prisma.attributeDefinition.findMany({
-          where: { categoryId: project.categoryId, isActive: true },
+          where: { categoryId: { in: categoryIds }, isActive: true },
           ...attrInclude,
           orderBy: { sortOrder: "asc" },
         })
