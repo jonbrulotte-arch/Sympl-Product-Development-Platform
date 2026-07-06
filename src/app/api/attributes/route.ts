@@ -1,5 +1,6 @@
 import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -59,6 +60,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const attribute = await prisma.attributeDefinition.create({ data: { ...body, key, isCore: false } });
+    // Attribute definitions shape project grids and product edit forms —
+    // invalidate cached pages so in-app navigation picks up the new column.
+    revalidatePath("/", "layout");
     return NextResponse.json(attribute, { status: 201 });
   } catch (e) {
     if (e && typeof e === "object" && "code" in e && (e as { code: string }).code === "P2002") {

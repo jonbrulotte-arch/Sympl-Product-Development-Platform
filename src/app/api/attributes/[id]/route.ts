@@ -1,5 +1,6 @@
 import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -49,6 +50,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     include: { lovItems: { orderBy: { sortOrder: "asc" } }, section: true },
   });
 
+  // Attribute definitions shape project grids and product edit forms —
+  // invalidate cached pages so in-app navigation picks up the change.
+  revalidatePath("/", "layout");
+
   return NextResponse.json(updated);
 }
 
@@ -77,5 +82,6 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   }
 
   await prisma.attributeDefinition.delete({ where: { id } });
+  revalidatePath("/", "layout");
   return NextResponse.json({ success: true });
 }
