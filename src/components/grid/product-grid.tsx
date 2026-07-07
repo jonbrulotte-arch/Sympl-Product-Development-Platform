@@ -740,14 +740,19 @@ export function ProductGrid({
         seenCoreKeys.add(attr.key);
       }
     }
-    // Append any CORE_COLUMNS not covered by an attr def
-    for (const col of CORE_COLUMNS) {
-      const key = (col as { accessorKey?: string }).accessorKey;
-      if (key && !seenCoreKeys.has(key) && (col as { id?: string }).id !== "rowActions") {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const fallbackSection = ((col.meta as any)?.section as string | undefined) ?? "General";
-        addToSection(fallbackSection, col);
-        seenCoreKeys.add(key);
+    // Fallback for unseeded installs only: if no core attribute definitions
+    // exist yet, show every hardcoded core column. Once definitions exist they
+    // are authoritative — a core column whose definition was hidden
+    // (deactivated) must stay gone instead of being resurrected from this list.
+    if (coreAttrDefs.length === 0) {
+      for (const col of CORE_COLUMNS) {
+        const key = (col as { accessorKey?: string }).accessorKey;
+        if (key && !seenCoreKeys.has(key) && (col as { id?: string }).id !== "rowActions") {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const fallbackSection = ((col.meta as any)?.section as string | undefined) ?? "General";
+          addToSection(fallbackSection, col);
+          seenCoreKeys.add(key);
+        }
       }
     }
 

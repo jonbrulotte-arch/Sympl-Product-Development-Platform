@@ -62,8 +62,10 @@ export async function GET(
     }),
   ]);
 
-  // Core fields with no AttributeDefinition row at all (never seeded/admin-visible)
-  // are appended at the end since they have no section to sort by.
+  // Active attribute definitions are authoritative for which columns exist —
+  // a core field hidden (deactivated) in the attributes admin stays out of the
+  // export. The hardcoded list is only a fallback for unseeded installs with
+  // no core definitions at all.
   const seenCoreKeys = new Set(attrDefs.filter((a) => CORE_FIELD_BY_KEY[a.key]).map((a) => a.key));
   const orderedColumns: { key: string; label: string; maxValues: number; isCoreField: boolean }[] = [
     ...attrDefs.map((a) => ({
@@ -72,12 +74,14 @@ export async function GET(
       maxValues: a.maxValues,
       isCoreField: !!CORE_FIELD_BY_KEY[a.key],
     })),
-    ...CORE_FIELD_KEYS.filter((k) => !seenCoreKeys.has(k)).map((k) => ({
-      key: k,
-      label: CORE_FIELD_BY_KEY[k].label,
-      maxValues: 1,
-      isCoreField: true,
-    })),
+    ...(seenCoreKeys.size === 0
+      ? CORE_FIELD_KEYS.map((k) => ({
+          key: k,
+          label: CORE_FIELD_BY_KEY[k].label,
+          maxValues: 1,
+          isCoreField: true,
+        }))
+      : []),
   ];
 
   const rows = products.map((p) => {

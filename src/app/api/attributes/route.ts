@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { CORE_FIELD_KEYS } from "@/lib/core-fields";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -59,7 +60,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const attribute = await prisma.attributeDefinition.create({ data: { ...body, key, isCore: false } });
+    // A definition whose key matches a core product field IS that field's
+    // definition — flag it so it can't be deleted out from under the column
+    const attribute = await prisma.attributeDefinition.create({
+      data: { ...body, key, isCore: CORE_FIELD_KEYS.includes(key) },
+    });
     // Attribute definitions shape project grids and product edit forms —
     // invalidate cached pages so in-app navigation picks up the new column.
     revalidatePath("/", "layout");

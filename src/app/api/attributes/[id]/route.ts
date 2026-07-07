@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { CORE_FIELD_KEYS } from "@/lib/core-fields";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -67,8 +68,14 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   const attr = await prisma.attributeDefinition.findUnique({ where: { id } });
   if (!attr) return NextResponse.json({ error: "Attribute not found" }, { status: 404 });
-  if (attr.isCore) {
-    return NextResponse.json({ error: "Core attributes cannot be deleted." }, { status: 409 });
+  // Check the key against CORE_FIELD_KEYS, not just the isCore flag — the flag
+  // has historically been unreliable, and deleting a core field's definition
+  // leaves its grid/export column behind (the data lives in a real DB column).
+  if (attr.isCore || CORE_FIELD_KEYS.includes(attr.key)) {
+    return NextResponse.json(
+      { error: `"${attr.label}" is a core product field stored in the product table and cannot be deleted. Hide it instead (eye icon) to remove it from grids, forms, and exports.` },
+      { status: 409 }
+    );
   }
 
   // Count only non-empty values — empty strings written by the grid are not real data
