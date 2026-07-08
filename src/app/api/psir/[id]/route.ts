@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { PSIR_INCLUDE } from "../route";
 import { canMutateQaRecords } from "@/lib/project-access";
+import { createNotificationForMany, getOwnerIdsForProducts } from "@/lib/notifications";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -27,6 +28,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     factory, countryOfOrigin, result, status, notes,
     addProductIds, removeProductIds, attributeValues,
   } = body;
+
+  const previous = (status !== undefined || result !== undefined)
+    ? await prisma.psir.findUnique({ where: { id }, select: { status: true, result: true, title: true } })
+    : null;
 
   await prisma.psir.update({
     where: { id },
@@ -70,6 +75,28 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   const updated = await prisma.psir.findUnique({ where: { id }, include: PSIR_INCLUDE });
+
+  // Notify affected project owners on status or result changes
+  if (updated && previous && (
+    (status !== undefined && previous.status !== status) ||
+    (result !== undefined && previous.result !== result)
+  )) {
+    (async () => {
+      const ownerIds = (await getOwnerIdsForProducts(updated.products.map((p) => p.product.id)))
+        .filter((uid) => uid !== session.user.id);
+      const changes: string[] = [];
+      if (status !== undefined && previous.status !== status) changes.push(`status ${previous.status} → ${status}`);
+      if (result !== undefined && previous.result !== result) changes.push(`result ${previous.result} → ${result}`);
+      await createNotificationForMany(ownerIds, {
+        title: `Inspection updated: ${updated.title}`,
+        message: `${session.user.name ?? session.user.email} changed ${changes.join(", ")}.`,
+        type: result === "FAIL" || status === "REJECTED" ? "error" : "info",
+        category: "INSPECTION",
+        link: `/psir/${id}`,
+      });
+    })().catch(() => {});
+  }
+
   return NextResponse.json(updated);
 }
 

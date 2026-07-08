@@ -133,6 +133,42 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
           }]
         : []),
     ];
+  } else if (link.entityType === "COMPLIANCE") {
+    const event = await prisma.complianceEvent.findUnique({
+      where: { id: link.entityId },
+      include: {
+        type: { select: { name: true } },
+        products: { include: { product: { select: { partNumber: true, itemName: true } } } },
+      },
+    });
+    if (!event) notFound();
+
+    title = event.title;
+    subtitle = [event.type.name, event.severity, event.status.replace("_", " ")].filter(Boolean).join(" · ");
+
+    sections = [
+      {
+        title: "Compliance Event",
+        fields: [
+          { label: "Type", value: event.type.name },
+          { label: "Severity", value: event.severity },
+          { label: "Status", value: event.status.replace("_", " ") },
+          { label: "Due Date", value: event.dueDate ? event.dueDate.toLocaleDateString() : "" },
+          { label: "Resolved", value: event.resolvedAt ? event.resolvedAt.toLocaleDateString() : "" },
+          { label: "Description", value: event.description ?? "" },
+          { label: "Notes", value: event.notes ?? "" },
+        ].filter((f) => f.value),
+      },
+      ...(event.products.length
+        ? [{
+            title: "Affected Products",
+            fields: event.products.map(({ product }) => ({
+              label: product.partNumber ?? "—",
+              value: product.itemName ?? "",
+            })),
+          }]
+        : []),
+    ];
   } else {
     notFound();
   }

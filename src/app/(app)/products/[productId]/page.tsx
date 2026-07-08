@@ -7,6 +7,7 @@ import { ProductEditClient } from "./product-edit-client";
 import { CORE_FIELD_KEYS } from "@/lib/core-fields";
 import { findDuplicateForProduct } from "@/lib/duplicate-check";
 import { checkProjectAccess } from "@/lib/project-access";
+import { getCategoryAndAncestorIds } from "@/lib/category-tree";
 
 const CORE_COLUMN_KEYS = new Set(CORE_FIELD_KEYS);
 
@@ -49,15 +50,19 @@ export default async function ProductEditPage({
   // Effective category: product's own override, else inherit from project
   const effectiveCategoryId = product.categoryId ?? product.project.categoryId ?? null;
 
+  // Include attributes scoped to the effective category AND any ancestor
+  // categories, so nested categories inherit their parents' attributes.
+  const categoryIds = await getCategoryAndAncestorIds(effectiveCategoryId);
+
   const [globalAttrs, categoryAttrs, coreAttrDefs] = await Promise.all([
     prisma.attributeDefinition.findMany({
       where: { categoryId: null, isActive: true, key: { notIn: Array.from(CORE_COLUMN_KEYS) } },
       ...attrInclude,
       orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
     }),
-    effectiveCategoryId
+    categoryIds.length > 0
       ? prisma.attributeDefinition.findMany({
-          where: { categoryId: effectiveCategoryId, isActive: true },
+          where: { categoryId: { in: categoryIds }, isActive: true },
           ...attrInclude,
           orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
         })

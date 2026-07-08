@@ -7,6 +7,7 @@ import {
   Plus, X, Pencil, ChevronDown, ChevronRight, Download, Upload,
   Type, AlignLeft, Hash, ToggleLeft, CalendarDays, List, Link2,
   Mail, Barcode, GripVertical, Layers, Zap, Settings2, Trash2, Check,
+  Eye, EyeOff,
 } from "lucide-react";
 
 interface Section {
@@ -32,6 +33,7 @@ interface AttributeDef {
   requirement: string;
   maxValues: number;
   isCore: boolean;
+  isActive: boolean;
   salsifyEnabled: boolean;
   salsifyPropertyId: string | null;
   categoryId: string | null;
@@ -125,6 +127,23 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
     } else {
       const err = await res.json().catch(() => ({}));
       alert(err.error ?? "Delete failed");
+    }
+  };
+
+  // Hide/show an attribute everywhere (grids, forms, exports) without deleting
+  // it — the only way to remove a core column, whose data lives in a real
+  // ProductRecord column.
+  const toggleActive = async (attr: AttributeDef) => {
+    const res = await fetch(`/api/attributes/${attr.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: !attr.isActive }),
+    });
+    if (res.ok) {
+      setAttributes((prev) => prev.map((a) => (a.id === attr.id ? { ...a, isActive: !attr.isActive } : a)));
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error ?? "Update failed");
     }
   };
 
@@ -428,11 +447,14 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
                         </div>
 
                         {/* Main info */}
-                        <div className="flex-1 min-w-0">
+                        <div className={`flex-1 min-w-0 ${!attr.isActive ? "opacity-50" : ""}`}>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-semibold text-gray-900">{attr.label}</span>
                             <code className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded font-mono">{attr.key}</code>
                             {attr.isCore && <span className="text-xs text-blue-500 font-medium">core</span>}
+                            {!attr.isActive && (
+                              <span className="text-xs text-gray-500 font-medium bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded">hidden</span>
+                            )}
                           </div>
                           {attr.description && (
                             <p className="text-xs text-gray-400 mt-0.5 truncate max-w-lg">{attr.description}</p>
@@ -468,8 +490,15 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
                             </span>
                           )}
                           <button
+                            onClick={() => toggleActive(attr)}
+                            className={`ml-1 p-1.5 rounded transition-colors ${attr.isActive ? "text-gray-300 hover:text-gray-600 hover:bg-gray-100" : "text-amber-500 hover:text-amber-600 hover:bg-amber-50"}`}
+                            title={attr.isActive ? "Hide from grids, forms, and exports" : "Hidden — click to show again"}
+                          >
+                            {attr.isActive ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                          </button>
+                          <button
                             onClick={() => setEditTarget(attr)}
-                            className="ml-1 p-1.5 rounded text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            className="p-1.5 rounded text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                             title="Edit"
                           >
                             <Pencil className="h-3.5 w-3.5" />

@@ -107,6 +107,7 @@ export async function POST(
         title: `${author} mentioned you on ${project.name}`,
         message: preview,
         type: "info",
+        category: "MENTION",
         link: `/projects/${projectId}?tab=comments`,
         projectId,
       });
@@ -118,6 +119,7 @@ export async function POST(
       title: `New comment on ${project.name}`,
       message: `${author}: ${preview}`,
       type: "info",
+      category: "COMMENT",
       link: `/projects/${projectId}?tab=comments`,
       projectId,
     });

@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
       title: "Compliance event overdue",
       message: `"${ev.title}" was due ${ev.dueDate!.toLocaleDateString()} and is still ${ev.status.toLowerCase().replace("_", " ")}.`,
       type: "error",
+      category: "COMPLIANCE",
       link: "/compliance",
     });
 
@@ -111,6 +112,7 @@ export async function POST(req: NextRequest) {
       title: "Workflow stage overdue",
       message: `"${stage.name}" in ${stage.project.name} was due ${stage.dueDate!.toLocaleDateString()} and is still awaiting approval.`,
       type: "warning",
+      category: "WORKFLOW",
       link: `/projects/${stage.project.id}?tab=workflow`,
       projectId: stage.project.id,
     });
@@ -132,9 +134,64 @@ export async function POST(req: NextRequest) {
     stagesNotified++;
   }
 
+  // ─── Due soon (within 3 days) ───────────────────────────────────────────────
+  const soonCutoff = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+  let dueSoonNotified = 0;
+
+  const dueSoonStages = await prisma.workflowStage.findMany({
+    where: {
+      status: { in: ["PENDING", "IN_REVIEW"] },
+      dueDate: { gt: now, lte: soonCutoff },
+      dueSoonNotifiedAt: null,
+    },
+    include: {
+      project: { select: { id: true, name: true, ownerId: true } },
+      approvals: { where: { status: "PENDING" }, select: { approverId: true } },
+    },
+  });
+
+  for (const stage of dueSoonStages) {
+    const recipients = [...new Set([stage.project.ownerId, ...stage.approvals.map((a) => a.approverId)])];
+    await createNotificationForMany(recipients, {
+      title: "Workflow stage due soon",
+      message: `"${stage.name}" in ${stage.project.name} is due ${stage.dueDate!.toLocaleDateString()}.`,
+      type: "warning",
+      category: "WORKFLOW",
+      link: `/projects/${stage.project.id}?tab=workflow`,
+      projectId: stage.project.id,
+    });
+    await prisma.workflowStage.update({ where: { id: stage.id }, data: { dueSoonNotifiedAt: now } });
+    dueSoonNotified++;
+  }
+
+  const dueSoonEvents = await prisma.complianceEvent.findMany({
+    where: {
+      status: { in: ["OPEN", "IN_PROGRESS"] },
+      dueDate: { gt: now, lte: soonCutoff },
+      dueSoonNotifiedAt: null,
+    },
+    include: {
+      products: { select: { product: { select: { project: { select: { ownerId: true } } } } } },
+    },
+  });
+
+  for (const ev of dueSoonEvents) {
+    const recipients = [...new Set([ev.createdById, ...ev.products.map((p) => p.product.project.ownerId)])];
+    await createNotificationForMany(recipients, {
+      title: "Compliance event due soon",
+      message: `"${ev.title}" is due ${ev.dueDate!.toLocaleDateString()} and is still ${ev.status.toLowerCase().replace("_", " ")}.`,
+      type: "warning",
+      category: "COMPLIANCE",
+      link: "/compliance",
+    });
+    await prisma.complianceEvent.update({ where: { id: ev.id }, data: { dueSoonNotifiedAt: now } });
+    dueSoonNotified++;
+  }
+
   return NextResponse.json({
     checkedAt: now.toISOString(),
     complianceEventsNotified: complianceNotified,
     workflowStagesNotified: stagesNotified,
+    dueSoonNotified,
   });
 }

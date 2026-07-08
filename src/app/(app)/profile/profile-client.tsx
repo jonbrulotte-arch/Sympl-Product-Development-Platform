@@ -1,11 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CheckCircle, User, Lock, Shield } from "lucide-react";
+import { CheckCircle, User, Lock, Shield, Bell } from "lucide-react";
 import { getInitials } from "@/lib/utils";
+
+const PREF_CATEGORIES: { key: string; label: string; description: string }[] = [
+  { key: "ASSIGNMENT", label: "Assignments",  description: "Added to a project or assigned as an approver" },
+  { key: "WORKFLOW",   label: "Workflow",     description: "Votes, stage completions, status changes, due dates" },
+  { key: "MENTION",    label: "Mentions",     description: "Someone @mentions you in a comment" },
+  { key: "COMMENT",    label: "Comments",     description: "New comments on your projects" },
+  { key: "COMPLIANCE", label: "Compliance",   description: "Compliance events on your projects (created, changed, due)" },
+  { key: "INSPECTION", label: "Inspections",  description: "Inspection reports covering your projects" },
+  { key: "GENERAL",    label: "Everything else", description: "System and miscellaneous notifications" },
+];
+
+type PrefMatrix = Record<string, { inbox: boolean; email: boolean }>;
 
 type ProfileUser = {
   id: string;
@@ -31,6 +43,37 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwMsg, setPwMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [savingPw, setSavingPw] = useState(false);
+
+  const [prefs, setPrefs] = useState<PrefMatrix | null>(null);
+  const [prefsMsg, setPrefsMsg] = useState<string | null>(null);
+  const [savingPrefs, setSavingPrefs] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/users/me/notification-prefs")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setPrefs(d); })
+      .catch(() => {});
+  }, []);
+
+  const togglePref = (category: string, channel: "inbox" | "email") => {
+    setPrefs((prev) => prev ? {
+      ...prev,
+      [category]: { ...prev[category], [channel]: !prev[category]?.[channel] },
+    } : prev);
+    setPrefsMsg(null);
+  };
+
+  async function savePrefs() {
+    if (!prefs) return;
+    setSavingPrefs(true);
+    const res = await fetch("/api/users/me/notification-prefs", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(prefs),
+    });
+    setPrefsMsg(res.ok ? "Preferences saved." : "Failed to save preferences.");
+    setSavingPrefs(false);
+  }
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -126,6 +169,60 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
             </Button>
           </div>
         </form>
+      </div>
+
+      {/* Notification preferences */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-1">
+          <Bell className="h-4 w-4 text-gray-400" /> Notification Preferences
+        </h2>
+        <p className="text-xs text-gray-400 mb-4">Choose what lands in your Inbox and what is also emailed to you.</p>
+        {!prefs ? (
+          <p className="text-sm text-gray-400 py-4">Loading…</p>
+        ) : (
+          <>
+            <div className="divide-y divide-gray-100">
+              <div className="grid grid-cols-[1fr_64px_64px] gap-2 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <span>Category</span>
+                <span className="text-center">Inbox</span>
+                <span className="text-center">Email</span>
+              </div>
+              {PREF_CATEGORIES.map(({ key, label, description }) => (
+                <div key={key} className="grid grid-cols-[1fr_64px_64px] gap-2 py-2.5 items-center">
+                  <div>
+                    <p className="text-sm text-gray-800 font-medium">{label}</p>
+                    <p className="text-xs text-gray-400">{description}</p>
+                  </div>
+                  <div className="text-center">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded accent-blue-600 cursor-pointer"
+                      checked={prefs[key]?.inbox ?? true}
+                      onChange={() => togglePref(key, "inbox")}
+                    />
+                  </div>
+                  <div className="text-center">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded accent-blue-600 cursor-pointer"
+                      checked={prefs[key]?.email ?? false}
+                      onChange={() => togglePref(key, "email")}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-end gap-3 mt-4">
+              {prefsMsg && (
+                <span className={`text-xs ${prefsMsg.includes("Failed") ? "text-red-600" : "text-green-600"}`}>{prefsMsg}</span>
+              )}
+              <Button size="sm" onClick={savePrefs} disabled={savingPrefs}>
+                {savingPrefs ? "Saving…" : "Save Preferences"}
+              </Button>
+            </div>
+            <p className="text-xs text-gray-400 mt-3">Email requires the server to have SMTP configured. Urgent overdue alerts may still email approvers directly.</p>
+          </>
+        )}
       </div>
 
       {/* Change password */}

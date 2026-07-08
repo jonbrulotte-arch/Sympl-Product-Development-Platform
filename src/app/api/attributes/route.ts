@@ -1,7 +1,9 @@
 import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { CORE_FIELD_KEYS } from "@/lib/core-fields";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -36,6 +38,41 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const attribute = await prisma.attributeDefinition.create({ data: { ...body, isCore: false } });
-  return NextResponse.json(attribute, { status: 201 });
+
+  const key = String(body.key ?? "").trim();
+  if (!key) {
+    return NextResponse.json({ error: "A key is required" }, { status: 400 });
+  }
+  if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(key)) {
+    return NextResponse.json(
+      { error: "Key must start with a letter and contain only letters, numbers, and underscores" },
+      { status: 400 }
+    );
+  }
+
+  // Pre-check for a clear message; the catch below still guards the race.
+  const existing = await prisma.attributeDefinition.findUnique({ where: { key }, select: { id: true, label: true } });
+  if (existing) {
+    return NextResponse.json(
+      { error: `An attribute with the key "${key}" already exists${existing.label ? ` (${existing.label})` : ""}. Choose a different key.` },
+      { status: 409 }
+    );
+  }
+
+  try {
+    // A definition whose key matches a core product field IS that field's
+    // definition — flag it so it can't be deleted out from under the column
+    const attribute = await prisma.attributeDefinition.create({
+      data: { ...body, key, isCore: CORE_FIELD_KEYS.includes(key) },
+    });
+    // Attribute definitions shape project grids and product edit forms —
+    // invalidate cached pages so in-app navigation picks up the new column.
+    revalidatePath("/", "layout");
+    return NextResponse.json(attribute, { status: 201 });
+  } catch (e) {
+    if (e && typeof e === "object" && "code" in e && (e as { code: string }).code === "P2002") {
+      return NextResponse.json({ error: `An attribute with the key "${key}" already exists. Choose a different key.` }, { status: 409 });
+    }
+    throw e;
+  }
 }

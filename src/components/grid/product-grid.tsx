@@ -740,14 +740,19 @@ export function ProductGrid({
         seenCoreKeys.add(attr.key);
       }
     }
-    // Append any CORE_COLUMNS not covered by an attr def
-    for (const col of CORE_COLUMNS) {
-      const key = (col as { accessorKey?: string }).accessorKey;
-      if (key && !seenCoreKeys.has(key) && (col as { id?: string }).id !== "rowActions") {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const fallbackSection = ((col.meta as any)?.section as string | undefined) ?? "General";
-        addToSection(fallbackSection, col);
-        seenCoreKeys.add(key);
+    // Fallback for unseeded installs only: if no core attribute definitions
+    // exist yet, show every hardcoded core column. Once definitions exist they
+    // are authoritative — a core column whose definition was hidden
+    // (deactivated) must stay gone instead of being resurrected from this list.
+    if (coreAttrDefs.length === 0) {
+      for (const col of CORE_COLUMNS) {
+        const key = (col as { accessorKey?: string }).accessorKey;
+        if (key && !seenCoreKeys.has(key) && (col as { id?: string }).id !== "rowActions") {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const fallbackSection = ((col.meta as any)?.section as string | undefined) ?? "General";
+          addToSection(fallbackSection, col);
+          seenCoreKeys.add(key);
+        }
       }
     }
 
@@ -818,7 +823,10 @@ export function ProductGrid({
       setEditingCell((current) => {
         if (!current) return current;
         const rows = table.getRowModel().rows;
-        const leafCols = table.getVisibleLeafColumns().filter((c) => c.id !== "rowActions");
+        // Pinned-aware order (frozen columns first) so Tab moves through cells
+        // in the same order they are displayed
+        const leafCols = [...table.getLeftVisibleLeafColumns(), ...table.getCenterVisibleLeafColumns()]
+          .filter((c) => c.id !== "rowActions");
         const rowIdx = rows.findIndex((r) => r.id === current.rowId);
         const colIdx = leafCols.findIndex((c) => c.id === current.columnId);
         if (rowIdx === -1 || colIdx === -1) return null;
@@ -839,7 +847,21 @@ export function ProductGrid({
     return () => { timeouts.forEach(clearTimeout); };
   }, []);
 
-  const headerGroups = table.getHeaderGroups();
+  // Use the pinned-aware split header APIs: the combined getHeaderGroups()
+  // reorders leaf headers pinned-first but leaves group-row colSpans (and the
+  // visible-leaf-column order used for <colgroup>) untouched, which misaligns
+  // headers, widths, and resize handles whenever columns are frozen out of
+  // display order. Left + center groups concatenated are always consistent.
+  const leftHeaderGroups = table.getLeftHeaderGroups();
+  const centerHeaderGroups = table.getCenterHeaderGroups();
+  const headerRows = centerHeaderGroups.map((chg, i) => ({
+    id: chg.id,
+    left: leftHeaderGroups[i]?.headers.filter((h) => h.column.id !== "rowActions") ?? [],
+    center: chg.headers.filter((h) => h.column.id !== "rowActions"),
+  }));
+  // Leaf columns in display order (frozen first) — drives <colgroup> widths
+  const orderedLeafColumns = [...table.getLeftVisibleLeafColumns(), ...table.getCenterVisibleLeafColumns()]
+    .filter((c) => c.id !== "rowActions");
 
   return (
     <div className="flex flex-col h-full">
@@ -925,19 +947,26 @@ export function ProductGrid({
               without it, grouped header colSpans confuse the browser's width distribution */}
           <colgroup>
             <col style={{ width: CHECKBOX_COL_WIDTH }} />
-            {table.getVisibleLeafColumns()
-              .filter((c) => c.id !== "rowActions")
-              .map((col) => (
-                <col key={col.id} style={{ width: col.getSize() }} />
-              ))}
+            {orderedLeafColumns.map((col) => (
+              <col key={col.id} style={{ width: col.getSize() }} />
+            ))}
           </colgroup>
           <thead className="sticky top-0 z-20 bg-gray-50">
-            {headerGroups.map((headerGroup, groupIdx) => (
-              <tr key={headerGroup.id}>
+            {headerRows.map((headerRow, groupIdx) => {
+              // Sticky offsets for the frozen (left-pinned) section: headers are
+              // contiguous from the table's left edge, so accumulate widths.
+              let leftOffset = CHECKBOX_COL_WIDTH;
+              const leftWithOffsets = headerRow.left.map((header) => {
+                const offset = leftOffset;
+                leftOffset += header.getSize();
+                return { header, offset };
+              });
+              return (
+              <tr key={headerRow.id}>
                 {/* Checkbox — sticky, spans all header rows */}
                 {groupIdx === 0 && (
                   <th
-                    rowSpan={headerGroups.length}
+                    rowSpan={headerRows.length}
                     className="w-9 border-b border-r border-gray-200 bg-gray-50 px-2 sticky left-0 z-20"
                     style={{ width: CHECKBOX_COL_WIDTH }}
                   >
@@ -951,17 +980,19 @@ export function ProductGrid({
                     />
                   </th>
                 )}
-                {headerGroup.headers
-                  .filter((h) => h.column.id !== "rowActions")
-                  .map((header) => {
+                {[
+                  ...leftWithOffsets.map((x) => ({ ...x, inLeft: true })),
+                  ...headerRow.center.map((header) => ({ header, offset: 0, inLeft: false })),
+                ].map(({ header, offset, inLeft }) => {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const meta = header.column.columnDef.meta as any;
                   const isEav = !!meta?.eav;
                   const isGroup = !!meta?.isGroup;
                   const isLeaf = header.subHeaders.length === 0;
-                  // Only leaf columns can be pinned; group headers span multiple cols and can't be sticky
-                  const isPinned = isLeaf && header.column.getIsPinned() === "left";
-                  const pinnedStyle = isPinned ? getPinnedStyle(header.column) : {};
+                  const isPinned = inLeft;
+                  const pinnedStyle: React.CSSProperties = inLeft
+                    ? { position: "sticky", left: offset, zIndex: 2 }
+                    : {};
 
                   // Placeholder cells must render an empty <th> to keep colspans correct;
                   // returning null removes the cell and shifts section headers left.
@@ -970,6 +1001,7 @@ export function ProductGrid({
                       <th
                         key={header.id}
                         colSpan={header.colSpan}
+                        style={pinnedStyle}
                         className="border-b border-r border-gray-200 bg-gray-50"
                       />
                     );
@@ -1029,7 +1061,8 @@ export function ProductGrid({
                   );
                 })}
               </tr>
-            ))}
+              );
+            })}
           </thead>
           <tbody>
             {table.getRowModel().rows.map((row) => (
@@ -1316,7 +1349,10 @@ function GridRow({
         const pinnedStyle = getPinnedStyle(cell.column);
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const isBoolean = (cell.column.columnDef.meta as any)?.fieldType === "boolean";
+        const isBoolean = (cell.column.columnDef.meta as any)?.fieldType === "boolean" || attrDef?.attributeType === "BOOLEAN";
+        // Core boolean columns hold a real boolean; EAV boolean values are
+        // stored as the string "true"/"false" in _eavValues.
+        const boolValue = isEav ? String(value) === "true" : !!value;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isComputed = (cell.column.columnDef.meta as any)?.computed === true;
 
@@ -1384,7 +1420,11 @@ function GridRow({
             )}
             onClick={() => {
               if (isBoolean && canEdit) {
-                onCellChange(colId, !value);
+                if (isEav) {
+                  onCellChange(colId, (!boolValue).toString(), attrDef);
+                } else {
+                  onCellChange(colId, !boolValue);
+                }
               } else {
                 canEdit && onCellEdit(colId);
               }
@@ -1392,8 +1432,26 @@ function GridRow({
           >
             {isBoolean ? (
               <div className="px-2 py-1 text-sm min-h-[32px] flex items-center">
-                <span className={cn("text-xs font-medium", value ? "text-green-600" : "text-gray-400")}>
-                  {value ? "Yes" : "No"}
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={boolValue}
+                  disabled={!canEdit}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
+                    boolValue ? "bg-green-500" : "bg-gray-300",
+                    !canEdit && "opacity-60 cursor-default"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
+                      boolValue ? "translate-x-4" : "translate-x-0.5"
+                    )}
+                  />
+                </button>
+                <span className={cn("ml-2 text-xs font-medium", boolValue ? "text-green-600" : "text-gray-400")}>
+                  {boolValue ? "Yes" : "No"}
                 </span>
               </div>
             ) : editing ? (() => {
@@ -1719,6 +1777,16 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
                     );
                   })}
                 </div>
+              ) : selectedAnyAttr?.attributeType === "BOOLEAN" ? (
+                <select
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                >
+                  <option value="">—</option>
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </select>
               ) : selectedAnyAttr?.lovItems?.length ? (
                 <select
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900"

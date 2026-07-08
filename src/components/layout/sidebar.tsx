@@ -170,7 +170,7 @@ export function Sidebar({ user, grantedPermissions }: SidebarProps) {
         </div>
         {!collapsed && (
           <div className="mt-3 flex items-center gap-2">
-            <Link href="/notifications" className="relative p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800" title="Notifications">
+            <Link href="/inbox" className="relative p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800" title="Inbox">
               <Bell className="h-4 w-4" />
               {unreadCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">

@@ -6,6 +6,7 @@ import { canEditProject } from "@/lib/permissions";
 import { CORE_FIELD_KEYS } from "@/lib/core-fields";
 import { findDuplicatesForProducts } from "@/lib/duplicate-check";
 import { checkProjectAccess } from "@/lib/project-access";
+import { expandWithAncestors } from "@/lib/category-tree";
 
 // Keys already rendered as typed columns in the grid — exclude from EAV query
 const CORE_COLUMN_KEYS = new Set(CORE_FIELD_KEYS);
@@ -59,19 +60,28 @@ export default async function ProjectDetailPage({
     },
   };
 
-  const [products, globalAttrs, categoryAttrs, coreAttrDefs, allCategories] = await Promise.all([
-    prisma.productRecord.findMany({
-      where: { projectId: id, isArchived: false },
-      include: {
-        attributeValues: {
-          include: { attributeDefinition: true },
-        },
-        category: true,
-        createdBy: { select: { id: true, name: true, email: true, image: true, role: true } },
-        updatedBy: { select: { id: true, name: true, email: true, image: true, role: true } },
+  const products = await prisma.productRecord.findMany({
+    where: { projectId: id, isArchived: false },
+    include: {
+      attributeValues: {
+        include: { attributeDefinition: true },
       },
-      orderBy: [{ rowIndex: "asc" }, { createdAt: "asc" }],
-    }),
+      category: true,
+      createdBy: { select: { id: true, name: true, email: true, image: true, role: true } },
+      updatedBy: { select: { id: true, name: true, email: true, image: true, role: true } },
+    },
+    orderBy: [{ rowIndex: "asc" }, { createdAt: "asc" }],
+  });
+
+  // Category attrs must cover the project's category, every product's own
+  // category (products can override the project category), and all of their
+  // ancestors so nested categories inherit their parents' attributes.
+  const categoryIds = await expandWithAncestors([
+    project.categoryId,
+    ...products.map((p) => p.categoryId),
+  ]);
+
+  const [globalAttrs, categoryAttrs, coreAttrDefs, allCategories] = await Promise.all([
     // Global EAV attrs (no category) — exclude keys already shown as typed columns
     prisma.attributeDefinition.findMany({
       where: {
@@ -82,10 +92,10 @@ export default async function ProjectDetailPage({
       ...attrInclude,
       orderBy: { sortOrder: "asc" },
     }),
-    // Category-specific attrs (if project has a category)
-    project.categoryId
+    // Category-specific attrs — project + product categories and their ancestors
+    categoryIds.length > 0
       ? prisma.attributeDefinition.findMany({
-          where: { categoryId: project.categoryId, isActive: true },
+          where: { categoryId: { in: categoryIds }, isActive: true },
           ...attrInclude,
           orderBy: { sortOrder: "asc" },
         })

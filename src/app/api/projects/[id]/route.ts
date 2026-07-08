@@ -150,6 +150,7 @@ export async function PATCH(
       title: `${updated.name} status changed`,
       message: `${changedBy} changed the status from ${fmtStatus(project.status)} to ${fmtStatus(rest.status)}`,
       type: "info",
+      category: "WORKFLOW",
       link: `/projects/${id}`,
       projectId: id,
     });
