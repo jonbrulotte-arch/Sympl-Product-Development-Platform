@@ -1354,9 +1354,10 @@ function CommentsView({ projectId, currentUserId, userRole, team = [] }: { proje
     <div className="p-6 max-w-2xl space-y-4">
       {/* Compose box */}
       <div className="relative border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 bg-white">
-        {/* @mention typeahead */}
+        {/* @mention typeahead — opens downward: the compose box sits directly
+            under the sticky tab bar, so opening upward hid it behind the tabs */}
         {mentionQuery !== null && mentionMatches.length > 0 && (
-          <div className="absolute bottom-full left-3 mb-1 z-40 w-72 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+          <div className="absolute top-full left-3 mt-1 z-40 w-72 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
             {mentionMatches.map((u, i) => (
               <button
                 key={u.id}
