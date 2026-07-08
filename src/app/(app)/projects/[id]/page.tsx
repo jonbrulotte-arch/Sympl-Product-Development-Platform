@@ -3,13 +3,15 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { ProjectDetailClient } from "./project-detail-client";
 import { canEditProject } from "@/lib/permissions";
-import { CORE_FIELD_KEYS } from "@/lib/core-fields";
+import { CORE_FIELD_KEYS, REMOVED_CORE_KEYS } from "@/lib/core-fields";
 import { findDuplicatesForProducts } from "@/lib/duplicate-check";
 import { checkProjectAccess } from "@/lib/project-access";
 import { expandWithAncestors } from "@/lib/category-tree";
 
-// Keys already rendered as typed columns in the grid — exclude from EAV query
+// Keys already rendered as typed columns in the grid, plus keys of removed core
+// fields whose stale definitions must not resurface — excluded from the EAV query
 const CORE_COLUMN_KEYS = new Set(CORE_FIELD_KEYS);
+const EXCLUDED_GLOBAL_KEYS = [...CORE_FIELD_KEYS, ...REMOVED_CORE_KEYS];
 
 export default async function ProjectDetailPage({
   params,
@@ -87,7 +89,7 @@ export default async function ProjectDetailPage({
       where: {
         categoryId: null,
         isActive: true,
-        key: { notIn: Array.from(CORE_COLUMN_KEYS) },
+        key: { notIn: EXCLUDED_GLOBAL_KEYS },
       },
       ...attrInclude,
       orderBy: { sortOrder: "asc" },

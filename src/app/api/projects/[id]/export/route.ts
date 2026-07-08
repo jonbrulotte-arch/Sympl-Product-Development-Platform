@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import type { ProductRecord } from "@prisma/client";
-import { CORE_FIELDS, CORE_FIELD_KEYS } from "@/lib/core-fields";
+import { CORE_FIELDS, CORE_FIELD_KEYS, REMOVED_CORE_KEYS } from "@/lib/core-fields";
 import { checkProjectAccess } from "@/lib/project-access";
 
 const CORE_FIELD_BY_KEY = Object.fromEntries(CORE_FIELDS.map((f) => [f.key, f]));
@@ -51,6 +51,7 @@ export async function GET(
     prisma.attributeDefinition.findMany({
       where: {
         isActive: true,
+        key: { notIn: REMOVED_CORE_KEYS },
         OR: [
           { key: { in: CORE_FIELD_KEYS } },
           { categoryId: null },

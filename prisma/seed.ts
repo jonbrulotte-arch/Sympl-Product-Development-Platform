@@ -108,7 +108,6 @@ async function main() {
     { key: "vendor", label: "Vendor", sectionSlug: "status-project-info", type: "TEXT", req: "CONDITIONAL", maxValues: 4 },
     { key: "projectFolder", label: "Project Folder", sectionSlug: "status-project-info", type: "URL", req: "REQUIRED" },
     { key: "wrikeUrl", label: "Wrike URL", sectionSlug: "status-project-info", type: "URL", req: "REQUIRED" },
-    { key: "psir", label: "PSIR", sectionSlug: "status-project-info", type: "TEXT", req: "CONDITIONAL" },
     { key: "productLabels", label: "Product Labels", sectionSlug: "status-project-info", type: "TEXT", req: "CONDITIONAL" },
     { key: "engineeringDrawings", label: "Engineering Drawings", sectionSlug: "status-project-info", type: "URL", req: "CONDITIONAL" },
     { key: "packagingArtwork", label: "Packaging Artwork", sectionSlug: "status-project-info", type: "URL", req: "CONDITIONAL" },

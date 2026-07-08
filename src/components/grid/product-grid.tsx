@@ -178,12 +178,6 @@ const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
     meta: { section: "Status" },
   },
   {
-    accessorKey: "psir",
-    header: "PSIR",
-    size: 140,
-    meta: { section: "Status" },
-  },
-  {
     accessorKey: "warrantyInfo",
     header: "Warranty",
     size: 160,

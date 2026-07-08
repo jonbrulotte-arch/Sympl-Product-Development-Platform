@@ -4,12 +4,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
 import { ProductEditClient } from "./product-edit-client";
-import { CORE_FIELD_KEYS } from "@/lib/core-fields";
+import { CORE_FIELD_KEYS, REMOVED_CORE_KEYS } from "@/lib/core-fields";
 import { findDuplicateForProduct } from "@/lib/duplicate-check";
 import { checkProjectAccess } from "@/lib/project-access";
 import { getCategoryAndAncestorIds } from "@/lib/category-tree";
 
 const CORE_COLUMN_KEYS = new Set(CORE_FIELD_KEYS);
+const EXCLUDED_GLOBAL_KEYS = [...CORE_FIELD_KEYS, ...REMOVED_CORE_KEYS];
 
 const attrInclude = {
   include: {
@@ -56,7 +57,7 @@ export default async function ProductEditPage({
 
   const [globalAttrs, categoryAttrs, coreAttrDefs] = await Promise.all([
     prisma.attributeDefinition.findMany({
-      where: { categoryId: null, isActive: true, key: { notIn: Array.from(CORE_COLUMN_KEYS) } },
+      where: { categoryId: null, isActive: true, key: { notIn: EXCLUDED_GLOBAL_KEYS } },
       ...attrInclude,
       orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
     }),

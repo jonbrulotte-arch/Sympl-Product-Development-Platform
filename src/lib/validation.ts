@@ -49,7 +49,6 @@ export const productSchema = z.object({
   inventoryStatusErp: z.string().nullish(),
   projectFolder: z.string().nullish(),
   wrikeUrl: z.string().nullish(),
-  psir: z.string().nullish(),
   warrantyInfo: z.string().nullish(),
   htsCode: z.string().nullish(),
   htsCodeCanada: z.string().nullish(),
