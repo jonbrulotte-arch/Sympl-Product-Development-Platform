@@ -110,7 +110,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (coreAccessor) {
       rawValue = coreAccessor(product);
       if (rawValue === null || rawValue === undefined || rawValue === "") {
-        rawValue = "";
+        rawValue = null;
       } else if (typeof rawValue === "string" && rawValue.includes("\n") && (attr.attributeType === "MULTI_SELECT" || attr.maxValues > 1)) {
         rawValue = rawValue.split("\n").map((s) => s.trim()).filter(Boolean);
       }
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         .filter((v) => v.attributeDefinitionId === attr.id)
         .sort((a, b) => a.valueIndex - b.valueIndex);
       if (avs.length === 0) {
-        rawValue = "";
+        rawValue = null;
       } else {
         const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
         rawValue = values.length > 1 ? values : values[0];
