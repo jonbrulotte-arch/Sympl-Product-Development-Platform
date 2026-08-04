@@ -8,10 +8,7 @@ import { findDuplicatesForProducts } from "@/lib/duplicate-check";
 import { checkProjectAccess } from "@/lib/project-access";
 import { expandWithAncestors } from "@/lib/category-tree";
 
-// Keys already rendered as typed columns in the grid, plus keys of removed core
-// fields whose stale definitions must not resurface — excluded from the EAV query
 const CORE_COLUMN_KEYS = new Set(CORE_FIELD_KEYS);
-const EXCLUDED_GLOBAL_KEYS = [...CORE_FIELD_KEYS, ...REMOVED_CORE_KEYS];
 
 export default async function ProjectDetailPage({
   params,
@@ -83,33 +80,30 @@ export default async function ProjectDetailPage({
     ...products.map((p) => p.categoryId),
   ]);
 
-  const [globalAttrs, categoryAttrs, coreAttrDefs, allCategories] = await Promise.all([
-    // Global EAV attrs (no category) — exclude keys already shown as typed columns
+  // Single unified attribute query — the same ordering the export uses
+  // (section.sortOrder → attr.sortOrder) so grid columns and spreadsheet
+  // columns always appear in the same sequence.
+  const [allAttrDefs, allCategories] = await Promise.all([
     prisma.attributeDefinition.findMany({
       where: {
-        categoryId: null,
         isActive: true,
-        key: { notIn: EXCLUDED_GLOBAL_KEYS },
+        key: { notIn: REMOVED_CORE_KEYS },
+        OR: [
+          { key: { in: Array.from(CORE_COLUMN_KEYS) } },
+          { categoryId: null },
+          ...(categoryIds.length > 0 ? [{ categoryId: { in: categoryIds } }] : []),
+        ],
       },
-      ...attrInclude,
-      orderBy: { sortOrder: "asc" },
-    }),
-    // Category-specific attrs — project + product categories and their ancestors
-    categoryIds.length > 0
-      ? prisma.attributeDefinition.findMany({
-          where: { categoryId: { in: categoryIds }, isActive: true },
-          ...attrInclude,
-          orderBy: { sortOrder: "asc" },
-        })
-      : Promise.resolve([]),
-    // Core column attribute definitions (for LOV support + column ordering)
-    prisma.attributeDefinition.findMany({
-      where: { key: { in: Array.from(CORE_COLUMN_KEYS) }, isActive: true },
       ...attrInclude,
       orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
     }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
+
+  // Split into core (ProductRecord-backed columns) and EAV for the grid,
+  // preserving the unified sort order within each group.
+  const coreAttrDefs = allAttrDefs.filter((a) => CORE_COLUMN_KEYS.has(a.key));
+  const eavAttrDefs = allAttrDefs.filter((a) => !CORE_COLUMN_KEYS.has(a.key));
 
   const canEdit = canEditProject(
     session.user.role as never,
@@ -124,15 +118,15 @@ export default async function ProjectDetailPage({
 
   // Serialize through JSON to convert Prisma Decimal/Date objects to plain primitives
   // before crossing the server→client boundary
-  const serialized = JSON.parse(JSON.stringify({ project, products: productsWithDupes, globalAttrs, categoryAttrs, coreAttrDefs, allCategories }));
+  const serialized = JSON.parse(JSON.stringify({ project, products: productsWithDupes, allAttrDefs, coreAttrDefs, eavAttrDefs, allCategories }));
 
   return (
     <ProjectDetailClient
       project={serialized.project}
       initialProducts={serialized.products}
-      globalAttrs={serialized.globalAttrs}
-      categoryAttrs={serialized.categoryAttrs}
+      allAttrDefs={serialized.allAttrDefs}
       coreAttrDefs={serialized.coreAttrDefs}
+      eavAttrDefs={serialized.eavAttrDefs}
       allCategories={serialized.allCategories}
       canEdit={canEdit}
       currentUserId={session.user.id}

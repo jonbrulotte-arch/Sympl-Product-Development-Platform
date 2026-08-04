@@ -38,16 +38,16 @@ interface CategoryOption { id: string; name: string; }
 interface Props {
   project: ProjectWithRelations;
   initialProducts: ProductWithAttributes[];
-  globalAttrs?: AttributeDef[];
-  categoryAttrs?: AttributeDef[];
+  allAttrDefs?: AttributeDef[];
   coreAttrDefs?: AttributeDef[];
+  eavAttrDefs?: AttributeDef[];
   allCategories?: CategoryOption[];
   canEdit: boolean;
   currentUserId: string;
   userRole?: string;
 }
 
-export function ProjectDetailClient({ project, initialProducts, globalAttrs = [], categoryAttrs = [], coreAttrDefs = [], allCategories = [], canEdit, currentUserId, userRole }: Props) {
+export function ProjectDetailClient({ project, initialProducts, allAttrDefs = [], coreAttrDefs = [], eavAttrDefs = [], allCategories = [], canEdit, currentUserId, userRole }: Props) {
   const [activeTab, setActiveTab] = useState("grid");
   const [salsifySyncing, setSalsifySyncing] = useState(false);
   const [salsifySyncResult, setSalsifySyncResult] = useState<string | null>(null);
@@ -242,9 +242,9 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
           <ProductGrid
             projectId={project.id}
             initialProducts={initialProducts as never}
-            globalAttrs={globalAttrs as never}
-            categoryAttrs={categoryAttrs as never}
+            allAttrDefs={allAttrDefs as never}
             coreAttrDefs={coreAttrDefs as never}
+            eavAttrDefs={eavAttrDefs as never}
             canEdit={canEdit}
             onExport={handleExport}
             onImport={() => router.push(`/import?projectId=${project.id}`)}

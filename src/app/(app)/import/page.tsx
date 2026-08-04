@@ -9,37 +9,52 @@ import { cn } from "@/lib/utils";
 import { Suspense } from "react";
 import { CORE_FIELDS, CORE_FIELD_KEYS } from "@/lib/core-fields";
 
-// Core field mappings — single source of truth shared with export & import route
-const SYMPL_FIELDS = CORE_FIELDS.map((f) => ({ key: f.key, label: f.label }));
+// Hardcoded core field labels as fallback for unseeded installs
+const SYMPL_FIELDS_FALLBACK = CORE_FIELDS.map((f) => ({ key: f.key, label: f.label }));
 const CORE_FIELD_KEY_SET = new Set(CORE_FIELD_KEYS);
 
 type AttrOption = { key: string; label: string };
 
-// Auto-detect mappings from Excel column headers
-// Prefers exact match, then falls back to substring — checks longer (more specific) labels first
-function autoDetect(headers: string[], extraFields: AttrOption[]): Record<string, string> {
+// Auto-detect mappings from Excel column headers.
+// Uses DB attribute labels (which the export also uses) so round-tripping
+// always works. Falls back to hardcoded CORE_FIELDS labels only when no
+// DB definitions exist (unseeded install).
+function autoDetect(
+  headers: string[],
+  coreFields: AttrOption[],
+  extraFields: AttrOption[]
+): Record<string, string> {
   const mapping: Record<string, string> = {};
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-  const allFields = [...SYMPL_FIELDS, ...extraFields].sort(
+  // Prefer DB labels; fall back to hardcoded list if no core defs exist
+  const effectiveCore = coreFields.length > 0 ? coreFields : SYMPL_FIELDS_FALLBACK;
+  const allFields = [...effectiveCore, ...extraFields].sort(
     (a, b) => normalize(b.label).length - normalize(a.label).length
   );
+
+  // Track which target keys have been claimed so two headers can't map to the same field
+  const usedKeys = new Set<string>();
 
   for (const header of headers) {
     const norm = normalize(header);
     // Exact match pass
     for (const field of allFields) {
+      if (usedKeys.has(field.key)) continue;
       if (norm === normalize(field.label)) {
         mapping[header] = field.key;
+        usedKeys.add(field.key);
         break;
       }
     }
     if (mapping[header]) continue;
     // Partial match pass (longer fields checked first thanks to sort above)
     for (const field of allFields) {
+      if (usedKeys.has(field.key)) continue;
       const fieldNorm = normalize(field.label);
       if (norm.includes(fieldNorm) || fieldNorm.includes(norm)) {
         mapping[header] = field.key;
+        usedKeys.add(field.key);
         break;
       }
     }
@@ -96,6 +111,7 @@ function ImportWizardContent() {
   const [newProjectName, setNewProjectName] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
   const [attrFields, setAttrFields] = useState<AttrOption[]>([]);
+  const [coreFieldsFromDb, setCoreFieldsFromDb] = useState<AttrOption[]>([]);
 
   const projectId = selectedProjectId || initialProjectId;
 
@@ -114,22 +130,22 @@ function ImportWizardContent() {
       .then((r) => r.json())
       .then((data: { key: string; label: string; isCore: boolean; maxValues: number }[]) => {
         if (!Array.isArray(data)) return;
-        // Exclude only attributes that are backed by a real ProductRecord column
-        // (already covered by SYMPL_FIELDS) — including them again here would
-        // create two identically-labeled options and the auto-mapper could pick
-        // the wrong one, sending the value to an EAV row instead of the real
-        // column. Many "core" (isCore=true) attributes — Product Series, Product
-        // Sub-Series, Project Engineer, Vendor, etc. — have no ProductRecord
-        // column at all and are EAV-only, so isCore alone can't be the filter.
+
+        // Core fields backed by real ProductRecord columns — use their DB
+        // labels for auto-mapping so export→import round-trips perfectly
+        // even if labels were customized in the admin.
+        const coreFromDb: AttrOption[] = data
+          .filter((a) => CORE_FIELD_KEY_SET.has(a.key))
+          .map((a) => ({ key: a.key, label: a.label }));
+        setCoreFieldsFromDb(coreFromDb);
+
+        // Non-core (EAV) attributes
         const custom = data.filter((a) => !CORE_FIELD_KEY_SET.has(a.key));
         const options: AttrOption[] = [];
         for (const a of custom) {
           if (a.maxValues > 1) {
-            // Multi-value attrs export as separate "Label 1", "Label 2", ... columns.
-            // Offer one mapping target per index so re-importing them doesn't
-            // collapse all values onto a single valueIndex and overwrite each other.
             for (let i = 1; i <= a.maxValues; i++) {
-              options.push({ key: `attr:${a.key}:${i - 1}`, label: `${a.label} (${i})` });
+              options.push({ key: `attr:${a.key}:${i - 1}`, label: `${a.label} ${i}` });
             }
           } else {
             options.push({ key: `attr:${a.key}:0`, label: a.label });
@@ -177,7 +193,7 @@ function ImportWizardContent() {
       if (!res.ok) throw new Error("Failed to parse file");
       const data = await res.json();
       setPreview(data);
-      setMapping(autoDetect(data.headers, attrFields));
+      setMapping(autoDetect(data.headers, coreFieldsFromDb, attrFields));
       setStep("preview");
     } catch {
       setError("Failed to parse the file. Please ensure it is a valid Excel (.xlsx) file.");
@@ -391,7 +407,7 @@ function ImportWizardContent() {
                     >
                       <option value="">— Skip —</option>
                       <optgroup label="Core Fields">
-                        {SYMPL_FIELDS.map((f) => (
+                        {(coreFieldsFromDb.length > 0 ? coreFieldsFromDb : SYMPL_FIELDS_FALLBACK).map((f) => (
                           <option key={f.key} value={f.key}>{f.label}</option>
                         ))}
                       </optgroup>
