@@ -143,15 +143,12 @@ export async function POST(req: NextRequest, { params }: Params) {
         rawValue = values.length > 1 ? values : values[0];
       }
 
-      // Salsify localizable properties must be sent as an array of
-      // { locale_id, value } objects. Multi-value properties send the
-      // values as an array inside a single locale entry.
+      // Salsify localizable properties: the v1 API expects a map keyed
+      // by locale, e.g. { "en-US": "value" } or { "en-US": ["v1","v2"] }
       if (attr.salsifyLocale) {
-        const vals = Array.isArray(rawValue) ? rawValue : [rawValue];
-        salsifyProduct[attr.salsifyPropertyId] = [{
-          locale_id: attr.salsifyLocale,
-          value: vals.length === 1 ? vals[0] : vals,
-        }];
+        salsifyProduct[attr.salsifyPropertyId] = {
+          [attr.salsifyLocale]: rawValue,
+        };
       } else {
         salsifyProduct[attr.salsifyPropertyId] = rawValue;
       }
