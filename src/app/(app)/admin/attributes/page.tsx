@@ -117,7 +117,7 @@ async function seedCoreAttributes() {
     const section = await prisma.attributeSection.upsert({
       where: { slug },
       create: { name, slug, sortOrder: i, isCore: true },
-      update: {},
+      update: { sortOrder: i },
     });
     sectionMap.set(name, section.id);
   }
