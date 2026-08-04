@@ -146,12 +146,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
 
       // Salsify localizable properties: the v1 API expects a map keyed
-      // by locale, e.g. { "en-US": "value" } or { "en-US": ["v1","v2"] }
+      // by locale, e.g. { "en-US": "value" } or { "en-US": ["v1","v2"] }.
+      // Skip blank values for attributes without locale — Salsify rejects
+      // unwrapped nulls on localizable properties.
       if (attr.salsifyLocale) {
         salsifyProduct[attr.salsifyPropertyId] = {
           [attr.salsifyLocale]: rawValue,
         };
-      } else {
+      } else if (rawValue !== null) {
         salsifyProduct[attr.salsifyPropertyId] = rawValue;
       }
     }
