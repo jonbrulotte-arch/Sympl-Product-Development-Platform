@@ -107,10 +107,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     const coreAccessor = CORE_FIELD_ACCESSOR[attr.key];
     let rawValue: unknown;
 
+    const isNumericType = ["NUMBER", "DECIMAL"].includes(attr.attributeType);
+
     if (coreAccessor) {
       rawValue = coreAccessor(product);
       if (rawValue === null || rawValue === undefined || rawValue === "") {
-        rawValue = null;
+        rawValue = isNumericType ? null : "";
       } else if (typeof rawValue === "string" && rawValue.includes("\n") && (attr.attributeType === "MULTI_SELECT" || attr.maxValues > 1)) {
         rawValue = rawValue.split("\n").map((s) => s.trim()).filter(Boolean);
       }
@@ -119,17 +121,19 @@ export async function POST(req: NextRequest, { params }: Params) {
         .filter((v) => v.attributeDefinitionId === attr.id)
         .sort((a, b) => a.valueIndex - b.valueIndex);
       if (avs.length === 0) {
-        rawValue = null;
+        rawValue = isNumericType ? null : "";
       } else {
         const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
         rawValue = values.length > 1 ? values : values[0];
       }
     }
 
+    // Skip numeric nulls — Salsify has no way to clear number properties
+    // via the v1 PUT API. Text/string blanks are sent as "" to clear.
+    if (rawValue === null) continue;
+
     // Salsify localizable properties: the v1 API expects a map keyed
-    // by locale, e.g. { "en-US": "value" } or { "en-US": ["v1","v2"] }.
-    // Skip blank values for attributes without locale — Salsify rejects
-    // unwrapped nulls on localizable properties.
+    // by locale, e.g. { "en-US": "value" } or { "en-US": ["v1","v2"] }
     if (attr.salsifyLocale) {
       salsifyProduct[attr.salsifyPropertyId] = {
         [attr.salsifyLocale]: rawValue,
