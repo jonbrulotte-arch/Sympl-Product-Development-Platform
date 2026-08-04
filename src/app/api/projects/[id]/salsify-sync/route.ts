@@ -176,10 +176,12 @@ export async function POST(req: NextRequest, { params }: Params) {
         const text = await res.text();
         let hint = "";
         if (res.status === 422 && text.includes("locale")) {
-          const localeAttrs = salsifyAttrs
-            .filter((a) => a.salsifyPropertyId && !a.salsifyLocale && salsifyProduct[a.salsifyPropertyId] !== undefined)
-            .map((a) => `"${a.label}" (${a.salsifyPropertyId})`);
-          if (localeAttrs.length > 0) hint = ` — check Locale setting on: ${localeAttrs.join(", ")}`;
+          const propMatch = text.match(/localizable property (.+?)"/);
+          const faultyProp = propMatch?.[1];
+          const matchingAttrs = salsifyAttrs
+            .filter((a) => a.salsifyPropertyId === faultyProp || (!faultyProp && a.salsifyPropertyId))
+            .map((a) => `"${a.label}" key=${a.key} prop=${a.salsifyPropertyId} locale=${a.salsifyLocale ?? "NULL"} sent=${JSON.stringify(salsifyProduct[a.salsifyPropertyId!])?.slice(0, 100)}`);
+          if (matchingAttrs.length > 0) hint = ` — attrs: ${matchingAttrs.join("; ")}`;
         }
         errors.push(`Product ${product.partNumber ?? product.id}: ${res.status} ${text.slice(0, 200)}${hint}`);
       } else {
