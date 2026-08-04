@@ -1,13 +1,15 @@
 import { z } from "zod";
 
-// Coerce string inputs from grid cells to numbers; empty string → undefined
+// Coerce string inputs from grid cells to numbers; empty string → null so
+// Prisma clears the column (undefined would be stripped by .partial() and
+// leave the old value intact).
 const optNum = z.preprocess(
-  (v) => (v === "" || v == null ? undefined : Number(v)),
-  z.number().optional()
+  (v) => (v === "" || v == null ? null : Number(v)),
+  z.number().nullable().optional()
 );
 const optInt = z.preprocess(
-  (v) => (v === "" || v == null ? undefined : Math.round(Number(v))),
-  z.number().int().optional()
+  (v) => (v === "" || v == null ? null : Math.round(Number(v))),
+  z.number().int().nullable().optional()
 );
 
 // Optional foreign-key field: an empty string from a "— none —" <select>

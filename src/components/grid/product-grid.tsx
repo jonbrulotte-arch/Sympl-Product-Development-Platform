@@ -565,6 +565,7 @@ export function ProductGrid({
               ? raw.split("\n").map((s) => s.trim()).filter(Boolean)
               : raw.trim() ? [raw.trim()] : [];
             body = {
+              clearAttributeIds: [attrDef.id],
               attributeValues: vals.map((textValue, valueIndex) => ({
                 attributeDefinitionId: attrDef.id,
                 valueIndex,
@@ -1386,7 +1387,12 @@ function GridRow({
           if (isEav) {
             onCellChange(colId, raw, attrDef);
           } else {
-            const parsed = typeof value === "number" ? parseFloat(raw) || 0 : raw;
+            let parsed: unknown = raw;
+            if (typeof value === "number" || (value == null && raw !== "" && !isNaN(Number(raw)))) {
+              parsed = raw.trim() === "" ? null : parseFloat(raw);
+            } else if (raw === "") {
+              parsed = null;
+            }
             onCellChange(colId, parsed);
           }
           if (navigate !== undefined) {
@@ -1648,6 +1654,7 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
               : [value];
           }
           body = {
+            clearAttributeIds: [selectedEavAttr.id],
             attributeValues: vals.map((textValue, valueIndex) => ({
               attributeDefinitionId: selectedEavAttr.id,
               valueIndex,
