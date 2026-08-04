@@ -95,7 +95,7 @@ export default async function ProjectDetailPage({
         ],
       },
       ...attrInclude,
-      orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+      orderBy: [{ section: { sortOrder: "asc" } }, { sectionId: "asc" }, { sortOrder: "asc" }],
     }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);

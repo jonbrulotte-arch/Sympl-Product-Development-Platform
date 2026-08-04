@@ -59,19 +59,19 @@ export default async function ProductEditPage({
     prisma.attributeDefinition.findMany({
       where: { categoryId: null, isActive: true, key: { notIn: EXCLUDED_GLOBAL_KEYS } },
       ...attrInclude,
-      orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+      orderBy: [{ section: { sortOrder: "asc" } }, { sectionId: "asc" }, { sortOrder: "asc" }],
     }),
     categoryIds.length > 0
       ? prisma.attributeDefinition.findMany({
           where: { categoryId: { in: categoryIds }, isActive: true },
           ...attrInclude,
-          orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+          orderBy: [{ section: { sortOrder: "asc" } }, { sectionId: "asc" }, { sortOrder: "asc" }],
         })
       : Promise.resolve([]),
     prisma.attributeDefinition.findMany({
       where: { key: { in: Array.from(CORE_COLUMN_KEYS) }, isActive: true },
       ...attrInclude,
-      orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+      orderBy: [{ section: { sortOrder: "asc" } }, { sectionId: "asc" }, { sortOrder: "asc" }],
     }),
   ]);
 

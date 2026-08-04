@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest) {
       category: true,
       lovItems: { where: { isActive: true }, orderBy: { sortOrder: "asc" } },
     },
-    orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+    orderBy: [{ section: { sortOrder: "asc" } }, { sectionId: "asc" }, { sortOrder: "asc" }],
   });
 
   const rows = attrs.map((a) => ({

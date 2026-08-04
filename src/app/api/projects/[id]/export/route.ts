@@ -61,7 +61,7 @@ export async function GET(
       ],
     },
     include: { section: true },
-    orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+    orderBy: [{ section: { sortOrder: "asc" } }, { sectionId: "asc" }, { sortOrder: "asc" }],
   });
 
   // Active attribute definitions are authoritative for which columns exist —

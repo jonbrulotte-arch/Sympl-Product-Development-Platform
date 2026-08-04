@@ -58,7 +58,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
     const coreDefs = await prisma.attributeDefinition.findMany({
       where: { key: { in: Object.keys(CORE_FIELD_BY_KEY) }, isActive: true },
       include: { section: true },
-      orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+      orderBy: [{ section: { sortOrder: "asc" } }, { sectionId: "asc" }, { sortOrder: "asc" }],
     });
 
     const bySection = new Map<string, { label: string; value: string }[]>();

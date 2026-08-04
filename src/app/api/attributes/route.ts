@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       section: true,
       lovItems: { where: { isActive: true }, orderBy: { sortOrder: "asc" } },
     },
-    orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+    orderBy: [{ section: { sortOrder: "asc" } }, { sectionId: "asc" }, { sortOrder: "asc" }],
   });
 
   return NextResponse.json(attributes);

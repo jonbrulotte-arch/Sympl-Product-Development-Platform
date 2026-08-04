@@ -184,7 +184,7 @@ export default async function AttributesPage() {
         category: true,
         lovItems: { orderBy: { sortOrder: "asc" } },
       },
-      orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+      orderBy: [{ section: { sortOrder: "asc" } }, { sectionId: "asc" }, { sortOrder: "asc" }],
     }),
     prisma.attributeSection.findMany({ orderBy: { sortOrder: "asc" } }),
     prisma.category.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
