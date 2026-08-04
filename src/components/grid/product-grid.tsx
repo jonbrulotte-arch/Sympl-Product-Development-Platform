@@ -18,6 +18,7 @@ import {
   type Column,
 } from "@tanstack/react-table";
 import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw, AlertTriangle, Bookmark, X } from "lucide-react";
+import { CORE_FIELDS } from "@/lib/core-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -1338,9 +1339,11 @@ function GridRow({
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isBoolean = (cell.column.columnDef.meta as any)?.fieldType === "boolean" || attrDef?.attributeType === "BOOLEAN";
-        // Core boolean columns hold a real boolean; EAV boolean values are
-        // stored as the string "true"/"false" in _eavValues.
-        const boolValue = isEav ? String(value) === "true" : !!value;
+        // Core boolean columns hold a real boolean; string-backed booleans
+        // (e.g. batteriesRequired) and EAV booleans are stored as "true"/"false".
+        const boolValue = isEav
+          ? String(value) === "true"
+          : typeof value === "string" ? value === "true" : !!value;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isComputed = (cell.column.columnDef.meta as any)?.computed === true;
 
@@ -1413,10 +1416,12 @@ function GridRow({
             )}
             onClick={() => {
               if (isBoolean && canEdit) {
+                const toggled = !boolValue;
                 if (isEav) {
-                  onCellChange(colId, (!boolValue).toString(), attrDef);
+                  onCellChange(colId, toggled.toString(), attrDef);
                 } else {
-                  onCellChange(colId, !boolValue);
+                  const coreType = CORE_FIELDS.find((f) => f.key === colId)?.type;
+                  onCellChange(colId, coreType === "boolean" ? toggled : toggled.toString());
                 }
               } else {
                 canEdit && onCellEdit(colId);
