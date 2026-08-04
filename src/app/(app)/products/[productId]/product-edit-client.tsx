@@ -649,34 +649,25 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
     setSaveStatus("idle");
   }, []);
 
-  // Group core attrs by section
-  const coreGroups = useMemo(() => {
-    const groups = new Map<string, { order: number; attrs: AttrDef[] }>();
-    for (const attr of coreAttrDefs) {
-      const name = attr.section?.name ?? "General";
-      const order = attr.section?.sortOrder ?? 0;
+  // Merge core + EAV attrs into unified section groups so attributes sharing
+  // the same section (e.g. Translation Data) aren't split into two cards.
+  const allGroups = useMemo(() => {
+    type Tagged = AttrDef & { _isCore: boolean };
+    const tagged: Tagged[] = [
+      ...coreAttrDefs.map((a) => ({ ...a, _isCore: true })),
+      ...[...globalAttrs, ...categoryAttrs].map((a) => ({ ...a, _isCore: false })),
+    ];
+    const groups = new Map<string, { order: number; attrs: Tagged[] }>();
+    for (const attr of tagged) {
+      const name = attr.section?.name ?? (attr._isCore ? "General" : "Custom Attributes");
+      const order = attr.section?.sortOrder ?? (attr._isCore ? 0 : 999);
       if (!groups.has(name)) groups.set(name, { order, attrs: [] });
       groups.get(name)!.attrs.push(attr);
     }
     return [...groups.entries()]
       .sort(([, a], [, b]) => a.order - b.order)
       .map(([name, { attrs }]) => ({ name, attrs }));
-  }, [coreAttrDefs]);
-
-  // Group EAV attrs by section
-  const eavGroups = useMemo(() => {
-    const allEav = [...globalAttrs, ...categoryAttrs];
-    const groups = new Map<string, { order: number; attrs: AttrDef[] }>();
-    for (const attr of allEav) {
-      const name = attr.section?.name ?? "Custom Attributes";
-      const order = attr.section?.sortOrder ?? 999;
-      if (!groups.has(name)) groups.set(name, { order, attrs: [] });
-      groups.get(name)!.attrs.push(attr);
-    }
-    return [...groups.entries()]
-      .sort(([, a], [, b]) => a.order - b.order)
-      .map(([name, { attrs }]) => ({ name, attrs }));
-  }, [globalAttrs, categoryAttrs]);
+  }, [coreAttrDefs, globalAttrs, categoryAttrs]);
 
   const save = async () => {
     setSaving(true);
@@ -899,51 +890,30 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
               </div>
             )}
 
-            {/* Core field sections */}
-            {coreGroups.map((group) => (
+            {/* Attribute sections (core + EAV merged) */}
+            {allGroups.map((group) => (
               <SectionCard key={group.name} title={group.name}>
-                {group.attrs.map((attr) => (
-                  <div key={attr.key}>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      {attr.label}
-                      {attr.requirement === "REQUIRED" && (
-                        <span className="ml-1 text-red-500">*</span>
+                {group.attrs.map((attr) => {
+                  const isCore = (attr as { _isCore?: boolean })._isCore;
+                  return (
+                    <div key={isCore ? attr.key : attr.id}>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        {attr.label}
+                        {attr.requirement === "REQUIRED" && (
+                          <span className="ml-1 text-red-500">*</span>
+                        )}
+                      </label>
+                      <FieldInput
+                        attr={attr}
+                        value={isCore ? (core[attr.key] ?? "") : (eav[attr.id] ?? "")}
+                        onChange={isCore ? (v) => setField(attr.key, v) : (v) => setEavField(attr.id, String(v))}
+                      />
+                      {attr.description && (
+                        <p className="text-xs text-gray-400 mt-0.5">{attr.description}</p>
                       )}
-                    </label>
-                    <FieldInput
-                      attr={attr}
-                      value={core[attr.key] ?? ""}
-                      onChange={(v) => setField(attr.key, v)}
-                    />
-                    {attr.description && (
-                      <p className="text-xs text-gray-400 mt-0.5">{attr.description}</p>
-                    )}
-                  </div>
-                ))}
-              </SectionCard>
-            ))}
-
-            {/* EAV attribute sections */}
-            {eavGroups.map((group) => (
-              <SectionCard key={group.name} title={group.name}>
-                {group.attrs.map((attr) => (
-                  <div key={attr.id}>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      {attr.label}
-                      {attr.requirement === "REQUIRED" && (
-                        <span className="ml-1 text-red-500">*</span>
-                      )}
-                    </label>
-                    <FieldInput
-                      attr={attr}
-                      value={eav[attr.id] ?? ""}
-                      onChange={(v) => setEavField(attr.id, String(v))}
-                    />
-                    {attr.description && (
-                      <p className="text-xs text-gray-400 mt-0.5">{attr.description}</p>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </SectionCard>
             ))}
 
