@@ -7,7 +7,7 @@ import {
   Plus, X, Pencil, ChevronDown, ChevronRight, Download, Upload,
   Type, AlignLeft, Hash, ToggleLeft, CalendarDays, List, Link2,
   Mail, Barcode, GripVertical, Layers, Zap, Settings2, Trash2, Check,
-  Eye, EyeOff,
+  Eye, EyeOff, ArrowUp, ArrowDown,
 } from "lucide-react";
 
 interface Section {
@@ -571,6 +571,8 @@ function SectionManager({ sections, onSectionsChange, onClose }: SectionManagerP
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null);
+  const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null);
 
   const startEdit = (s: Section) => {
     setEditingId(s.id);
@@ -581,6 +583,65 @@ function SectionManager({ sections, onSectionsChange, onClose }: SectionManagerP
   const cancelEdit = () => {
     setEditingId(null);
     setEditName("");
+  };
+
+  const persistOrder = async (newSections: Section[]) => {
+    onSectionsChange(newSections);
+    try {
+      const res = await fetch("/api/attributes/sections", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: newSections.map((s) => s.id) }),
+      });
+      if (res.ok) {
+        const updated: Section[] = await res.json();
+        onSectionsChange(updated);
+      }
+    } catch { /* optimistic update already applied */ }
+  };
+
+  const moveSection = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= sections.length) return;
+    const next = [...sections];
+    [next[index], next[target]] = [next[target], next[index]];
+    persistOrder(next.map((s, i) => ({ ...s, sortOrder: i })));
+  };
+
+  const handleSectionDragStart = (e: React.DragEvent, id: string) => {
+    setDraggingSectionId(id);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", id);
+  };
+
+  const handleSectionDragOver = (e: React.DragEvent, id: string) => {
+    if (id === draggingSectionId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverSectionId(id);
+  };
+
+  const handleSectionDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggingSectionId || draggingSectionId === targetId) {
+      setDraggingSectionId(null);
+      setDragOverSectionId(null);
+      return;
+    }
+    const fromIdx = sections.findIndex((s) => s.id === draggingSectionId);
+    const toIdx = sections.findIndex((s) => s.id === targetId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const next = [...sections];
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    setDraggingSectionId(null);
+    setDragOverSectionId(null);
+    persistOrder(next.map((s, i) => ({ ...s, sortOrder: i })));
+  };
+
+  const handleSectionDragEnd = () => {
+    setDraggingSectionId(null);
+    setDragOverSectionId(null);
   };
 
   const saveEdit = async (id: string) => {
@@ -656,51 +717,86 @@ function SectionManager({ sections, onSectionsChange, onClose }: SectionManagerP
           {sections.length === 0 && (
             <p className="text-sm text-gray-400 italic text-center py-4">No groups yet</p>
           )}
-          {sections.map((s) => (
-            <div key={s.id} className="flex items-center gap-2 p-2 border border-gray-200 rounded-lg">
-              {editingId === s.id ? (
-                <>
-                  <Input
-                    className="flex-1 h-8 text-sm"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") saveEdit(s.id);
-                      if (e.key === "Escape") cancelEdit();
-                    }}
-                    autoFocus
-                  />
-                  <button
-                    onClick={() => saveEdit(s.id)}
-                    disabled={saving}
-                    className="p-1.5 rounded text-green-600 hover:bg-green-50"
-                  >
-                    <Check className="h-4 w-4" />
-                  </button>
-                  <button onClick={cancelEdit} className="p-1.5 rounded text-gray-400 hover:bg-gray-100">
-                    <X className="h-4 w-4" />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span className="flex-1 text-sm font-medium text-gray-800">{s.name}</span>
-                  <button
-                    onClick={() => startEdit(s)}
-                    className="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => deleteSection(s.id)}
-                    disabled={deleting === s.id}
-                    className="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </>
-              )}
-            </div>
-          ))}
+          {sections.map((s, idx) => {
+            const isDragging = draggingSectionId === s.id;
+            const isOver = dragOverSectionId === s.id;
+            return (
+              <div
+                key={s.id}
+                className={`flex items-center gap-2 p-2 border rounded-lg transition-colors ${isDragging ? "opacity-40 bg-blue-50 border-blue-200" : isOver ? "bg-blue-50 border-blue-400" : "border-gray-200"}`}
+                onDragOver={(e) => handleSectionDragOver(e, s.id)}
+                onDragLeave={() => setDragOverSectionId(null)}
+                onDrop={(e) => handleSectionDrop(e, s.id)}
+              >
+                <div
+                  draggable
+                  onDragStart={(e) => handleSectionDragStart(e, s.id)}
+                  onDragEnd={handleSectionDragEnd}
+                  className="cursor-grab active:cursor-grabbing shrink-0 touch-none"
+                >
+                  <GripVertical className="h-4 w-4 text-gray-300 hover:text-gray-500" />
+                </div>
+
+                {editingId === s.id ? (
+                  <>
+                    <Input
+                      className="flex-1 h-8 text-sm"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveEdit(s.id);
+                        if (e.key === "Escape") cancelEdit();
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => saveEdit(s.id)}
+                      disabled={saving}
+                      className="p-1.5 rounded text-green-600 hover:bg-green-50"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button onClick={cancelEdit} className="p-1.5 rounded text-gray-400 hover:bg-gray-100">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm font-medium text-gray-800">{s.name}</span>
+                    <div className="flex flex-col">
+                      <button
+                        onClick={() => moveSection(idx, -1)}
+                        disabled={idx === 0}
+                        className="p-0.5 text-gray-300 hover:text-gray-600 disabled:opacity-30 disabled:cursor-default"
+                      >
+                        <ArrowUp className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => moveSection(idx, 1)}
+                        disabled={idx === sections.length - 1}
+                        className="p-0.5 text-gray-300 hover:text-gray-600 disabled:opacity-30 disabled:cursor-default"
+                      >
+                        <ArrowDown className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => startEdit(s)}
+                      className="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => deleteSection(s.id)}
+                      disabled={deleting === s.id}
+                      className="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-2">
@@ -718,7 +814,7 @@ function SectionManager({ sections, onSectionsChange, onClose }: SectionManagerP
               Add
             </Button>
           </div>
-          <p className="text-xs text-gray-400">Deleting a group moves its attributes to &quot;Global&quot;.</p>
+          <p className="text-xs text-gray-400">Drag groups to reorder. Deleting a group moves its attributes to &quot;Global&quot;.</p>
         </div>
       </div>
     </div>
