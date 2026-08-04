@@ -153,7 +153,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         salsifyProduct[attr.salsifyPropertyId] = {
           [attr.salsifyLocale]: rawValue,
         };
-      } else if (rawValue !== null) {
+      } else {
         salsifyProduct[attr.salsifyPropertyId] = rawValue;
       }
     }
