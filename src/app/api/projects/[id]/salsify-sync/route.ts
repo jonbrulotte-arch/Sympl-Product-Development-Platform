@@ -128,19 +128,21 @@ export async function POST(req: NextRequest, { params }: Params) {
 
       if (coreAccessor) {
         rawValue = coreAccessor(product);
-        if (rawValue === null || rawValue === undefined || rawValue === "") continue;
-        // Core fields that are MULTI_SELECT may have been stored with \n-joined values
-        if (typeof rawValue === "string" && rawValue.includes("\n") && (attr.attributeType === "MULTI_SELECT" || attr.maxValues > 1)) {
+        if (rawValue === null || rawValue === undefined || rawValue === "") {
+          rawValue = "";
+        } else if (typeof rawValue === "string" && rawValue.includes("\n") && (attr.attributeType === "MULTI_SELECT" || attr.maxValues > 1)) {
           rawValue = rawValue.split("\n").map((s) => s.trim()).filter(Boolean);
         }
       } else {
         const avs = product.attributeValues
           .filter((v) => v.attributeDefinitionId === attr.id)
           .sort((a, b) => a.valueIndex - b.valueIndex);
-        if (avs.length === 0) continue;
-        const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
-        // Only send as array when there are multiple values; single values go as scalars
-        rawValue = values.length > 1 ? values : values[0];
+        if (avs.length === 0) {
+          rawValue = "";
+        } else {
+          const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
+          rawValue = values.length > 1 ? values : values[0];
+        }
       }
 
       // Salsify localizable properties: the v1 API expects a map keyed
