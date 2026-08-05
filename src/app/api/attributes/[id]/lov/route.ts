@@ -25,6 +25,36 @@ export async function POST(req: NextRequest, { params }: Params) {
   return NextResponse.json(item, { status: 201 });
 }
 
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const session = await auth();
+  if (!session?.user?.id || !(await can(session.user.role, "admin:attributes"))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id: attributeDefinitionId } = await params;
+  const { items } = await req.json() as { items: { id: string; sortOrder: number }[] };
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return NextResponse.json({ error: "items array required" }, { status: 400 });
+  }
+
+  await Promise.all(
+    items.map((item) =>
+      prisma.lovItem.updateMany({
+        where: { id: item.id, attributeDefinitionId },
+        data: { sortOrder: item.sortOrder },
+      })
+    )
+  );
+
+  const updated = await prisma.lovItem.findMany({
+    where: { attributeDefinitionId, isActive: true },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  return NextResponse.json(updated);
+}
+
 export async function DELETE(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user?.id || !(await can(session.user.role, "admin:attributes"))) {
