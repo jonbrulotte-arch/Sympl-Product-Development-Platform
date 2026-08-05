@@ -48,7 +48,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!editAccess.ok) return NextResponse.json({ error: editAccess.error }, { status: editAccess.status });
 
   const body = await req.json();
-  const { attributeValues: attrValues, ...coreData } = body;
+  const { attributeValues: attrValues, clearAttributeIds, ...coreData } = body;
 
   const parsed = productSchema.partial().safeParse(coreData);
   if (!parsed.success) {
@@ -66,11 +66,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (attrValues && Array.isArray(attrValues)) {
     type AvInput = { attributeDefinitionId: string; valueIndex?: number; textValue?: string; numberValue?: number; booleanValue?: boolean };
     const incoming = attrValues as AvInput[];
-    // Get the unique attributeDefinitionIds being written so we can wipe their old rows
-    const affectedAttrIds = [...new Set(incoming.map((av) => av.attributeDefinitionId))];
-    await prisma.productAttributeValue.deleteMany({
-      where: { productId, attributeDefinitionId: { in: affectedAttrIds } },
-    });
+    // Collect IDs from both the incoming values AND the explicit clear list
+    // so that clearing a field (empty attributeValues) still deletes old rows.
+    const explicitClearIds: string[] = Array.isArray(clearAttributeIds) ? clearAttributeIds : [];
+    const affectedAttrIds = [...new Set([
+      ...incoming.map((av) => av.attributeDefinitionId),
+      ...explicitClearIds,
+    ])];
+    if (affectedAttrIds.length > 0) {
+      await prisma.productAttributeValue.deleteMany({
+        where: { productId, attributeDefinitionId: { in: affectedAttrIds } },
+      });
+    }
     if (incoming.length > 0) {
       await prisma.productAttributeValue.createMany({
         data: incoming.map((av) => ({

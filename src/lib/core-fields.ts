@@ -20,7 +20,6 @@ export const CORE_FIELDS: { key: string; label: string; type: CoreFieldType }[] 
   { key: "inventoryStatusErp", label: "Inventory Status (ERP)", type: "string" },
   { key: "projectFolder", label: "Project Folder", type: "string" },
   { key: "wrikeUrl", label: "Wrike URL", type: "string" },
-  { key: "psir", label: "PSIR", type: "string" },
 
   { key: "warrantyInfo", label: "Warranty", type: "string" },
   { key: "needsProp65", label: "Needs Prop 65", type: "boolean" },
@@ -79,6 +78,12 @@ export const CORE_FIELDS: { key: string; label: string; type: CoreFieldType }[] 
 ];
 
 export const CORE_FIELD_KEYS = CORE_FIELDS.map((f) => f.key);
+
+// Keys of product fields that were once core columns but have been fully
+// removed from the schema. Excluded from global EAV attribute queries so a
+// leftover definition row never renders as an empty "zombie" grid column
+// before the admin-page cleanup purges it.
+export const REMOVED_CORE_KEYS = ["psir"];
 
 // Converts a raw spreadsheet cell string into the value Prisma expects for a
 // given core field type. Returns undefined for blank cells or unparseable

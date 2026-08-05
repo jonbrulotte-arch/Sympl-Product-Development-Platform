@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
   // Existing products keyed by Part Number → upsert instead of duplicating
   const existingProducts = await prisma.productRecord.findMany({
     where: { projectId, isArchived: false, partNumber: { not: null } },
+    include: { attributeValues: true },
   });
   const existingByPartNumber = new Map(
     existingProducts.filter((p) => p.partNumber).map((p) => [p.partNumber as string, p])
@@ -136,10 +137,11 @@ export async function POST(req: NextRequest) {
   const attrDefs = allAttrKeys.length
     ? await prisma.attributeDefinition.findMany({
         where: { key: { in: allAttrKeys }, isActive: true },
-        select: { id: true, key: true },
+        select: { id: true, key: true, label: true, maxValues: true },
       })
     : [];
   const defByKey = Object.fromEntries(attrDefs.map((d) => [d.key, d.id]));
+  const defsByKey = Object.fromEntries(attrDefs.map((d) => [d.key, d]));
 
   // ─── Dry run: report what WOULD happen, write nothing ──────────────────────
   if (phase === "dryrun") {
@@ -167,6 +169,21 @@ export async function POST(req: NextRequest) {
             fieldChanges.push({ field: field?.label ?? key, from: oldStr, to: newStr });
           }
         }
+        // Custom (EAV) attribute diffs — without these, imports that only
+        // change attribute values would misleadingly report "no field changes".
+        for (const av of mr.attrValues) {
+          const def = defsByKey[av.key];
+          if (!def || !av.value) continue;
+          const old = existing.attributeValues.find(
+            (x) => x.attributeDefinitionId === def.id && x.valueIndex === av.valueIndex
+          );
+          const oldStr =
+            old?.textValue ?? old?.numberValue?.toString() ?? old?.booleanValue?.toString() ?? "";
+          if (oldStr !== av.value) {
+            const label = def.maxValues > 1 ? `${def.label} ${av.valueIndex + 1}` : def.label;
+            fieldChanges.push({ field: label, from: oldStr, to: av.value });
+          }
+        }
         if (changes.length < 100) {
           changes.push({ row: mr.rowNumber, partNumber, action: "update", fieldChanges });
         }
@@ -178,12 +195,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Diagnostics: distinguish "no attribute columns mapped" from "cells all
+    // empty" from "attribute keys didn't resolve" — otherwise every one of
+    // those failure modes looks identical ("no field changes") in the review.
+    const mappedAttrColumns = Object.values(mapping).filter((v) => v?.startsWith("attr:")).length;
+    const attrCellsWithValue = mappedRows.reduce(
+      (n, mr) => n + mr.attrValues.filter((a) => a.value).length,
+      0
+    );
+    const unresolvedAttrKeys = allAttrKeys.filter((k) => !defByKey[k]);
+
     return NextResponse.json({
       dryRun: true,
       totalRows: mappedRows.length,
       wouldCreate,
       wouldUpdate,
       changes,
+      attrDiagnostics: { mappedAttrColumns, attrCellsWithValue, unresolvedAttrKeys },
     });
   }
 
@@ -203,6 +231,11 @@ export async function POST(req: NextRequest) {
   let updatedRows = 0;
   let errorRows = 0;
   const errors: { row: number; errors: string[] }[] = [];
+  // Per-attribute diagnostics so a silent mapping/resolution failure is
+  // visible in the result instead of looking like a successful no-op import.
+  let attrValuesWritten = 0;
+  let attrValuesSkippedEmpty = 0;
+  const unresolvedAttrKeys = allAttrKeys.filter((k) => !defByKey[k]);
 
   const maxRow = await prisma.productRecord.aggregate({
     where: { projectId },
@@ -241,13 +274,15 @@ export async function POST(req: NextRequest) {
           },
         });
         productId = created.id;
-        if (partNumber) existingByPartNumber.set(partNumber, created);
+        if (partNumber) existingByPartNumber.set(partNumber, { ...created, attributeValues: [] });
         createdRows++;
       }
 
       for (const av of mr.attrValues) {
         const attributeDefinitionId = defByKey[av.key];
-        if (!attributeDefinitionId || !av.value) continue;
+        if (!attributeDefinitionId) continue;
+        if (!av.value) { attrValuesSkippedEmpty++; continue; }
+        attrValuesWritten++;
         await prisma.productAttributeValue.upsert({
           where: {
             productId_attributeDefinitionId_valueIndex: {
@@ -297,5 +332,8 @@ export async function POST(req: NextRequest) {
     updatedRows,
     errorRows,
     errors,
+    attrValuesWritten,
+    attrValuesSkippedEmpty,
+    unresolvedAttrKeys,
   });
 }

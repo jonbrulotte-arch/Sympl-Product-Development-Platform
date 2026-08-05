@@ -38,16 +38,16 @@ interface CategoryOption { id: string; name: string; }
 interface Props {
   project: ProjectWithRelations;
   initialProducts: ProductWithAttributes[];
-  globalAttrs?: AttributeDef[];
-  categoryAttrs?: AttributeDef[];
+  allAttrDefs?: AttributeDef[];
   coreAttrDefs?: AttributeDef[];
+  eavAttrDefs?: AttributeDef[];
   allCategories?: CategoryOption[];
   canEdit: boolean;
   currentUserId: string;
   userRole?: string;
 }
 
-export function ProjectDetailClient({ project, initialProducts, globalAttrs = [], categoryAttrs = [], coreAttrDefs = [], allCategories = [], canEdit, currentUserId, userRole }: Props) {
+export function ProjectDetailClient({ project, initialProducts, allAttrDefs = [], coreAttrDefs = [], eavAttrDefs = [], allCategories = [], canEdit, currentUserId, userRole }: Props) {
   const [activeTab, setActiveTab] = useState("grid");
   const [salsifySyncing, setSalsifySyncing] = useState(false);
   const [salsifySyncResult, setSalsifySyncResult] = useState<string | null>(null);
@@ -242,9 +242,9 @@ export function ProjectDetailClient({ project, initialProducts, globalAttrs = []
           <ProductGrid
             projectId={project.id}
             initialProducts={initialProducts as never}
-            globalAttrs={globalAttrs as never}
-            categoryAttrs={categoryAttrs as never}
+            allAttrDefs={allAttrDefs as never}
             coreAttrDefs={coreAttrDefs as never}
+            eavAttrDefs={eavAttrDefs as never}
             canEdit={canEdit}
             onExport={handleExport}
             onImport={() => router.push(`/import?projectId=${project.id}`)}
@@ -1354,9 +1354,10 @@ function CommentsView({ projectId, currentUserId, userRole, team = [] }: { proje
     <div className="p-6 max-w-2xl space-y-4">
       {/* Compose box */}
       <div className="relative border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 bg-white">
-        {/* @mention typeahead */}
+        {/* @mention typeahead — opens downward: the compose box sits directly
+            under the sticky tab bar, so opening upward hid it behind the tabs */}
         {mentionQuery !== null && mentionMatches.length > 0 && (
-          <div className="absolute bottom-full left-3 mb-1 z-40 w-72 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+          <div className="absolute top-full left-3 mt-1 z-40 w-72 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
             {mentionMatches.map((u, i) => (
               <button
                 key={u.id}

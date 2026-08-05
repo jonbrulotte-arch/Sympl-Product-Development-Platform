@@ -129,7 +129,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (coreAccessor) {
         rawValue = coreAccessor(product);
         if (rawValue === null || rawValue === undefined || rawValue === "") continue;
-        // Core fields that are MULTI_SELECT may have been stored with \n-joined values
         if (typeof rawValue === "string" && rawValue.includes("\n") && (attr.attributeType === "MULTI_SELECT" || attr.maxValues > 1)) {
           rawValue = rawValue.split("\n").map((s) => s.trim()).filter(Boolean);
         }
@@ -139,16 +138,15 @@ export async function POST(req: NextRequest, { params }: Params) {
           .sort((a, b) => a.valueIndex - b.valueIndex);
         if (avs.length === 0) continue;
         const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
-        // Only send as array when there are multiple values; single values go as scalars
         rawValue = values.length > 1 ? values : values[0];
       }
 
-      // Localizable multi-value properties need each value wrapped: [{ locale: v1 }, { locale: v2 }]
-      // Single localizable values are wrapped as: { locale: value }
+      // Salsify localizable properties: the v1 API expects a map keyed
+      // by locale, e.g. { "en-US": "value" } or { "en-US": ["v1","v2"] }
       if (attr.salsifyLocale) {
-        salsifyProduct[attr.salsifyPropertyId] = Array.isArray(rawValue)
-          ? rawValue.map((v) => ({ [attr.salsifyLocale!]: v }))
-          : { [attr.salsifyLocale]: rawValue };
+        salsifyProduct[attr.salsifyPropertyId] = {
+          [attr.salsifyLocale]: rawValue,
+        };
       } else {
         salsifyProduct[attr.salsifyPropertyId] = rawValue;
       }
@@ -172,7 +170,16 @@ export async function POST(req: NextRequest, { params }: Params) {
 
       if (!res.ok) {
         const text = await res.text();
-        errors.push(`Product ${product.partNumber ?? product.id}: ${res.status} ${text.slice(0, 200)}`);
+        let hint = "";
+        if (res.status === 422 && text.includes("locale")) {
+          const propMatch = text.match(/localizable property (.+?)"/);
+          const faultyProp = propMatch?.[1];
+          const matchingAttrs = salsifyAttrs
+            .filter((a) => a.salsifyPropertyId === faultyProp || (!faultyProp && a.salsifyPropertyId))
+            .map((a) => `"${a.label}" key=${a.key} prop=${a.salsifyPropertyId} locale=${a.salsifyLocale ?? "NULL"} sent=${JSON.stringify(salsifyProduct[a.salsifyPropertyId!])?.slice(0, 100)}`);
+          if (matchingAttrs.length > 0) hint = ` — attrs: ${matchingAttrs.join("; ")}`;
+        }
+        errors.push(`Product ${product.partNumber ?? product.id}: ${res.status} ${text.slice(0, 200)}${hint}`);
       } else {
         synced++;
         // Record sync time WITHOUT touching updatedAt, so "changed since last

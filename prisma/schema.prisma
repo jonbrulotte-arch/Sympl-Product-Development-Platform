@@ -374,7 +374,6 @@ model ProductRecord {
   inventoryStatusErp String?
   projectFolder      String?
   wrikeUrl           String?
-  psir               String?
 
   // Regulatory
   warrantyInfo       String?

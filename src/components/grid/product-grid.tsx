@@ -18,6 +18,7 @@ import {
   type Column,
 } from "@tanstack/react-table";
 import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw, AlertTriangle, Bookmark, X } from "lucide-react";
+import { CORE_FIELDS } from "@/lib/core-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -175,12 +176,6 @@ const CORE_COLUMNS: ColumnDef<ProductRow>[] = [
     accessorKey: "wrikeUrl",
     header: "Wrike URL",
     size: 160,
-    meta: { section: "Status" },
-  },
-  {
-    accessorKey: "psir",
-    header: "PSIR",
-    size: 140,
     meta: { section: "Status" },
   },
   {
@@ -497,24 +492,22 @@ const CHECKBOX_COL_WIDTH = 36;
 interface ProductGridProps {
   projectId: string;
   initialProducts: ProductRow[];
-  globalAttrs?: AttrDef[];
-  categoryAttrs?: AttrDef[];
+  allAttrDefs?: AttrDef[];
   coreAttrDefs?: AttrDef[];
+  eavAttrDefs?: AttrDef[];
   canEdit: boolean;
   onExport?: () => void;
   onImport?: () => void;
   onSalsifySync?: (selectedIds: string[]) => void;
-  // Increment to make the grid refetch its rows from the server (e.g. after
-  // a Salsify sync updates per-product sync timestamps)
   reloadKey?: number;
 }
 
 export function ProductGrid({
   projectId,
   initialProducts,
-  globalAttrs = [],
-  categoryAttrs = [],
+  allAttrDefs = [],
   coreAttrDefs = [],
+  eavAttrDefs = [],
   canEdit,
   onExport,
   onImport,
@@ -571,6 +564,7 @@ export function ProductGrid({
               ? raw.split("\n").map((s) => s.trim()).filter(Boolean)
               : raw.trim() ? [raw.trim()] : [];
             body = {
+              clearAttributeIds: [attrDef.id],
               attributeValues: vals.map((textValue, valueIndex) => ({
                 attributeDefinitionId: attrDef.id,
                 valueIndex,
@@ -666,7 +660,7 @@ export function ProductGrid({
     setSelectedRows(new Set());
   }, [selectedRows, products, projectId]);
 
-  const allAttrs = useMemo(() => [...globalAttrs, ...categoryAttrs], [globalAttrs, categoryAttrs]);
+  const allAttrs = eavAttrDefs;
 
   // Build a unified column list: core columns ordered by coreAttrDefs, then EAV columns,
   // all grouped into shared section groups so the same section name never appears twice.
@@ -729,46 +723,41 @@ export function ProductGrid({
       },
     }, 0);
 
-    // 1. Core columns in attr-def order (section.sortOrder → attr.sortOrder)
-    const seenCoreKeys = new Set<string>();
-    for (const attr of coreAttrDefs) {
-      const col = colMap.get(attr.key);
-      if (col && !seenCoreKeys.has(attr.key)) {
-        const sectionName = attr.section?.name ?? "General";
-        const secOrder = attr.section?.sortOrder ?? 999;
-        addToSection(sectionName, { ...col, meta: { ...col.meta, attrDef: attr } }, secOrder);
-        seenCoreKeys.add(attr.key);
+    // Single pass through allAttrDefs in unified sort order so columns appear
+    // in the same sequence as the admin module and the Excel export.
+    const seenKeys = new Set<string>();
+    for (const attr of allAttrDefs) {
+      if (seenKeys.has(attr.key)) continue;
+      seenKeys.add(attr.key);
+      const sectionName = attr.section?.name ?? "General";
+      const secOrder = attr.section?.sortOrder ?? 999;
+
+      const coreCol = colMap.get(attr.key);
+      if (coreCol) {
+        addToSection(sectionName, { ...coreCol, meta: { ...coreCol.meta, attrDef: attr } }, secOrder);
+      } else {
+        const eavCol: ColumnDef<ProductRow> = {
+          id: `eav_${attr.key}`,
+          header: attr.label,
+          size: 180,
+          minSize: 80,
+          meta: { eav: true, attrDef: attr },
+          accessorFn: (row: ProductRow) => (row as ProductRow & { _eavValues?: EavMap })._eavValues?.[attr.key] ?? "",
+        };
+        addToSection(sectionName, eavCol, secOrder);
       }
     }
-    // Fallback for unseeded installs only: if no core attribute definitions
-    // exist yet, show every hardcoded core column. Once definitions exist they
-    // are authoritative — a core column whose definition was hidden
-    // (deactivated) must stay gone instead of being resurrected from this list.
-    if (coreAttrDefs.length === 0) {
+    // Fallback for unseeded installs with no attribute definitions at all
+    if (allAttrDefs.length === 0) {
       for (const col of CORE_COLUMNS) {
         const key = (col as { accessorKey?: string }).accessorKey;
-        if (key && !seenCoreKeys.has(key) && (col as { id?: string }).id !== "rowActions") {
+        if (key && !seenKeys.has(key) && (col as { id?: string }).id !== "rowActions") {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const fallbackSection = ((col.meta as any)?.section as string | undefined) ?? "General";
           addToSection(fallbackSection, col);
-          seenCoreKeys.add(key);
+          seenKeys.add(key);
         }
       }
-    }
-
-    // 2. EAV columns after core, sharing section groups where names match
-    for (const attr of allAttrs) {
-      const sectionName = attr.section?.name ?? "General";
-      const secOrder = attr.section?.sortOrder ?? 999;
-      const eavCol: ColumnDef<ProductRow> = {
-        id: `eav_${attr.key}`,
-        header: attr.label,
-        size: 180,
-        minSize: 80,
-        meta: { eav: true, attrDef: attr },
-        accessorFn: (row: ProductRow) => (row as ProductRow & { _eavValues?: EavMap })._eavValues?.[attr.key] ?? "",
-      };
-      addToSection(sectionName, eavCol, secOrder);
     }
 
     // Build groups sorted by section sort order
@@ -782,7 +771,7 @@ export function ProductGrid({
       } as ColumnDef<ProductRow>));
 
     return rowActionsCol ? [rowActionsCol, ...groups] : groups;
-  }, [coreAttrDefs, allAttrs]);
+  }, [allAttrDefs, coreAttrDefs, allAttrs]);
 
   const table = useReactTable({
     data: products,
@@ -1350,9 +1339,11 @@ function GridRow({
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isBoolean = (cell.column.columnDef.meta as any)?.fieldType === "boolean" || attrDef?.attributeType === "BOOLEAN";
-        // Core boolean columns hold a real boolean; EAV boolean values are
-        // stored as the string "true"/"false" in _eavValues.
-        const boolValue = isEav ? String(value) === "true" : !!value;
+        // Core boolean columns hold a real boolean; string-backed booleans
+        // (e.g. batteriesRequired) and EAV booleans are stored as "true"/"false".
+        const boolValue = isEav
+          ? String(value) === "true"
+          : typeof value === "string" ? value === "true" : !!value;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isComputed = (cell.column.columnDef.meta as any)?.computed === true;
 
@@ -1392,7 +1383,12 @@ function GridRow({
           if (isEav) {
             onCellChange(colId, raw, attrDef);
           } else {
-            const parsed = typeof value === "number" ? parseFloat(raw) || 0 : raw;
+            let parsed: unknown = raw;
+            if (typeof value === "number" || (value == null && raw !== "" && !isNaN(Number(raw)))) {
+              parsed = raw.trim() === "" ? null : parseFloat(raw);
+            } else if (raw === "") {
+              parsed = null;
+            }
             onCellChange(colId, parsed);
           }
           if (navigate !== undefined) {
@@ -1420,10 +1416,12 @@ function GridRow({
             )}
             onClick={() => {
               if (isBoolean && canEdit) {
+                const toggled = !boolValue;
                 if (isEav) {
-                  onCellChange(colId, (!boolValue).toString(), attrDef);
+                  onCellChange(colId, toggled.toString(), attrDef);
                 } else {
-                  onCellChange(colId, !boolValue);
+                  const coreType = CORE_FIELDS.find((f) => f.key === colId)?.type;
+                  onCellChange(colId, coreType === "boolean" ? toggled : toggled.toString());
                 }
               } else {
                 canEdit && onCellEdit(colId);
@@ -1654,6 +1652,7 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
               : [value];
           }
           body = {
+            clearAttributeIds: [selectedEavAttr.id],
             attributeValues: vals.map((textValue, valueIndex) => ({
               attributeDefinitionId: selectedEavAttr.id,
               valueIndex,

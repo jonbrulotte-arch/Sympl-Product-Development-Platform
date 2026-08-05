@@ -122,10 +122,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       rawValue = values.length > 1 ? values : values[0];
     }
 
+    // Salsify localizable properties: the v1 API expects a map keyed
+    // by locale, e.g. { "en-US": "value" } or { "en-US": ["v1","v2"] }
     if (attr.salsifyLocale) {
-      salsifyProduct[attr.salsifyPropertyId] = Array.isArray(rawValue)
-        ? rawValue.map((v) => ({ [attr.salsifyLocale!]: v }))
-        : { [attr.salsifyLocale]: rawValue };
+      salsifyProduct[attr.salsifyPropertyId] = {
+        [attr.salsifyLocale]: rawValue,
+      };
     } else {
       salsifyProduct[attr.salsifyPropertyId] = rawValue;
     }

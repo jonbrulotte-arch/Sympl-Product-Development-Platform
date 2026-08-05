@@ -11,6 +11,25 @@ export async function GET() {
   return NextResponse.json(sections);
 }
 
+export async function PUT(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id || !(await can(session.user.role, "admin:attributes"))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { order } = await req.json();
+  if (!Array.isArray(order)) return NextResponse.json({ error: "order[] required" }, { status: 400 });
+
+  await prisma.$transaction(
+    order.map((id: string, i: number) =>
+      prisma.attributeSection.update({ where: { id }, data: { sortOrder: i } })
+    )
+  );
+
+  const sections = await prisma.attributeSection.findMany({ orderBy: { sortOrder: "asc" } });
+  return NextResponse.json(sections);
+}
+
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id || !(await can(session.user.role, "admin:attributes"))) {

@@ -3,8 +3,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import type { ProductRecord } from "@prisma/client";
-import { CORE_FIELDS, CORE_FIELD_KEYS } from "@/lib/core-fields";
+import { CORE_FIELDS, CORE_FIELD_KEYS, REMOVED_CORE_KEYS } from "@/lib/core-fields";
 import { checkProjectAccess } from "@/lib/project-access";
+import { expandWithAncestors } from "@/lib/category-tree";
 
 const CORE_FIELD_BY_KEY = Object.fromEntries(CORE_FIELDS.map((f) => [f.key, f]));
 
@@ -33,34 +34,35 @@ export async function GET(
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // A single ordered list covering every attribute that can appear on a product
-  // in this project — core (ProductRecord-backed) and EAV alike — sorted by
-  // (section.sortOrder, attr.sortOrder). Sections mix core and custom fields
-  // (e.g. "Core Data" holds Part Number, a real column, alongside Product
-  // Series, an EAV-only attribute), so ordering them separately in two blocks
-  // previously split apart fields that belong together.
-  const [products, attrDefs] = await Promise.all([
-    prisma.productRecord.findMany({
-      where: { projectId, isArchived: false },
-      include: {
-        attributeValues: { include: { attributeDefinition: true } },
-        category: true,
-      },
-      orderBy: [{ rowIndex: "asc" }, { createdAt: "asc" }],
-    }),
-    prisma.attributeDefinition.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          { key: { in: CORE_FIELD_KEYS } },
-          { categoryId: null },
-          ...(project.categoryId ? [{ categoryId: project.categoryId }] : []),
-        ],
-      },
-      include: { section: true },
-      orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
-    }),
+  const products = await prisma.productRecord.findMany({
+    where: { projectId, isArchived: false },
+    include: {
+      attributeValues: { include: { attributeDefinition: true } },
+      category: true,
+    },
+    orderBy: [{ rowIndex: "asc" }, { createdAt: "asc" }],
+  });
+
+  // Include ancestor and product-level category attributes so the export
+  // covers the same columns as the grid (which uses expandWithAncestors).
+  const categoryIds = await expandWithAncestors([
+    project.categoryId,
+    ...products.map((p) => p.categoryId),
   ]);
+
+  const attrDefs = await prisma.attributeDefinition.findMany({
+    where: {
+      isActive: true,
+      key: { notIn: REMOVED_CORE_KEYS },
+      OR: [
+        { key: { in: CORE_FIELD_KEYS } },
+        { categoryId: null },
+        ...(categoryIds.length > 0 ? [{ categoryId: { in: categoryIds } }] : []),
+      ],
+    },
+    include: { section: true },
+    orderBy: [{ section: { sortOrder: "asc" } }, { sectionId: "asc" }, { sortOrder: "asc" }],
+  });
 
   // Active attribute definitions are authoritative for which columns exist —
   // a core field hidden (deactivated) in the attributes admin stays out of the

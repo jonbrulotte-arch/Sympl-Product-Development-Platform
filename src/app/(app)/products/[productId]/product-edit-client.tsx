@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { formatDate } from "@/lib/utils";
+import { CORE_FIELDS } from "@/lib/core-fields";
 import {
   ArrowLeft, ExternalLink, Save, CheckCircle2, AlertCircle, RefreshCw,
   Plus, X, Clock, Circle, Trash2, ChevronDown, ChevronUp, ShieldCheck, ClipboardCheck,
@@ -44,6 +45,14 @@ interface Product {
   masterCartonGtin: string | null;
   masterCartonHeight: number | null; masterCartonWidth: number | null; masterCartonLength: number | null;
   masterCartonWeight: number | null; masterCartonQty: number | null;
+  inventoryStatusErp: string | null;
+  projectFolder: string | null;
+  wrikeUrl: string | null;
+  batteriesRequired: string | null;
+  packagingLangType: string | null;
+  altCartonGtin: string | null;
+  altCartonHeight: number | null; altCartonWidth: number | null; altCartonLength: number | null;
+  altCartonWeight: number | null; altCartonType: string | null; altCartonQty: number | null;
   palletGtin: string | null;
   palletHeight: number | null; palletWidth: number | null; palletLength: number | null;
   palletWeight: number | null; palletStackable: boolean; layersPerPallet: number | null; palletQty: number | null;
@@ -77,23 +86,12 @@ interface Props {
 
 function productToCore(p: Product): Record<string, string | boolean> {
   const out: Record<string, string | boolean> = {};
-  const booleans = new Set(["needsProp65", "palletStackable"]);
-  const fields = [
-    "partNumber","modelNumber","itemName","brand","upc","inventoryStatus","warrantyInfo",
-    "htsCode","htsCodeCanada","productComposition","needsProp65","packagingType","packSize",
-    "numberOfPieces","individualOrSet","material","size","jspCategory",
-    "upcHeight","upcWidth","upcLength","upcWeight",
-    "itemHeight","itemWidth","itemLength","itemWeight",
-    "innerCartonGtin","innerCartonHeight","innerCartonWidth","innerCartonLength","innerCartonWeight","innerCartonQty",
-    "masterCartonGtin","masterCartonHeight","masterCartonWidth","masterCartonLength","masterCartonWeight","masterCartonQty",
-    "palletGtin","palletHeight","palletWidth","palletLength","palletWeight","palletStackable","layersPerPallet","palletQty",
-  ];
-  for (const f of fields) {
-    const v = (p as never)[f];
-    if (booleans.has(f)) {
-      out[f] = v === true;
+  for (const field of CORE_FIELDS) {
+    const v = (p as never)[field.key];
+    if (field.type === "boolean") {
+      out[field.key] = v === true;
     } else {
-      out[f] = v != null ? String(v) : "";
+      out[field.key] = v != null ? String(v) : "";
     }
   }
   return out;
@@ -651,48 +649,32 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
     setSaveStatus("idle");
   }, []);
 
-  // Group core attrs by section
-  const coreGroups = useMemo(() => {
-    const groups = new Map<string, { order: number; attrs: AttrDef[] }>();
-    for (const attr of coreAttrDefs) {
-      const name = attr.section?.name ?? "General";
-      const order = attr.section?.sortOrder ?? 0;
+  // Merge core + EAV attrs into unified section groups so attributes sharing
+  // the same section (e.g. Translation Data) aren't split into two cards.
+  const allGroups = useMemo(() => {
+    type Tagged = AttrDef & { _isCore: boolean };
+    const tagged: Tagged[] = [
+      ...coreAttrDefs.map((a) => ({ ...a, _isCore: true })),
+      ...[...globalAttrs, ...categoryAttrs].map((a) => ({ ...a, _isCore: false })),
+    ];
+    const groups = new Map<string, { order: number; attrs: Tagged[] }>();
+    for (const attr of tagged) {
+      const name = attr.section?.name ?? (attr._isCore ? "General" : "Custom Attributes");
+      const order = attr.section?.sortOrder ?? (attr._isCore ? 0 : 999);
       if (!groups.has(name)) groups.set(name, { order, attrs: [] });
       groups.get(name)!.attrs.push(attr);
     }
     return [...groups.entries()]
       .sort(([, a], [, b]) => a.order - b.order)
       .map(([name, { attrs }]) => ({ name, attrs }));
-  }, [coreAttrDefs]);
-
-  // Group EAV attrs by section
-  const eavGroups = useMemo(() => {
-    const allEav = [...globalAttrs, ...categoryAttrs];
-    const groups = new Map<string, { order: number; attrs: AttrDef[] }>();
-    for (const attr of allEav) {
-      const name = attr.section?.name ?? "Custom Attributes";
-      const order = attr.section?.sortOrder ?? 999;
-      if (!groups.has(name)) groups.set(name, { order, attrs: [] });
-      groups.get(name)!.attrs.push(attr);
-    }
-    return [...groups.entries()]
-      .sort(([, a], [, b]) => a.order - b.order)
-      .map(([name, { attrs }]) => ({ name, attrs }));
-  }, [globalAttrs, categoryAttrs]);
+  }, [coreAttrDefs, globalAttrs, categoryAttrs]);
 
   const save = async () => {
     setSaving(true);
     setErrorMsg(null);
 
-    // Build core payload — convert empty strings to null, booleans stay boolean, numbers stay numbers
-    const booleans = new Set(["needsProp65", "palletStackable"]);
-    const numbers = new Set([
-      "upcHeight","upcWidth","upcLength","upcWeight",
-      "itemHeight","itemWidth","itemLength","itemWeight",
-      "innerCartonHeight","innerCartonWidth","innerCartonLength","innerCartonWeight","innerCartonQty",
-      "masterCartonHeight","masterCartonWidth","masterCartonLength","masterCartonWeight","masterCartonQty",
-      "palletHeight","palletWidth","palletLength","palletWeight","layersPerPallet","palletQty","numberOfPieces",
-    ]);
+    const booleans = new Set(CORE_FIELDS.filter((f) => f.type === "boolean").map((f) => f.key));
+    const numbers = new Set(CORE_FIELDS.filter((f) => f.type === "decimal" || f.type === "int").map((f) => f.key));
 
     const corePayload: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(core)) {
@@ -908,51 +890,30 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
               </div>
             )}
 
-            {/* Core field sections */}
-            {coreGroups.map((group) => (
+            {/* Attribute sections (core + EAV merged) */}
+            {allGroups.map((group) => (
               <SectionCard key={group.name} title={group.name}>
-                {group.attrs.map((attr) => (
-                  <div key={attr.key}>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      {attr.label}
-                      {attr.requirement === "REQUIRED" && (
-                        <span className="ml-1 text-red-500">*</span>
+                {group.attrs.map((attr) => {
+                  const isCore = (attr as { _isCore?: boolean })._isCore;
+                  return (
+                    <div key={isCore ? attr.key : attr.id}>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        {attr.label}
+                        {attr.requirement === "REQUIRED" && (
+                          <span className="ml-1 text-red-500">*</span>
+                        )}
+                      </label>
+                      <FieldInput
+                        attr={attr}
+                        value={isCore ? (core[attr.key] ?? "") : (eav[attr.id] ?? "")}
+                        onChange={isCore ? (v) => setField(attr.key, v) : (v) => setEavField(attr.id, String(v))}
+                      />
+                      {attr.description && (
+                        <p className="text-xs text-gray-400 mt-0.5">{attr.description}</p>
                       )}
-                    </label>
-                    <FieldInput
-                      attr={attr}
-                      value={core[attr.key] ?? ""}
-                      onChange={(v) => setField(attr.key, v)}
-                    />
-                    {attr.description && (
-                      <p className="text-xs text-gray-400 mt-0.5">{attr.description}</p>
-                    )}
-                  </div>
-                ))}
-              </SectionCard>
-            ))}
-
-            {/* EAV attribute sections */}
-            {eavGroups.map((group) => (
-              <SectionCard key={group.name} title={group.name}>
-                {group.attrs.map((attr) => (
-                  <div key={attr.id}>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      {attr.label}
-                      {attr.requirement === "REQUIRED" && (
-                        <span className="ml-1 text-red-500">*</span>
-                      )}
-                    </label>
-                    <FieldInput
-                      attr={attr}
-                      value={eav[attr.id] ?? ""}
-                      onChange={(v) => setEavField(attr.id, String(v))}
-                    />
-                    {attr.description && (
-                      <p className="text-xs text-gray-400 mt-0.5">{attr.description}</p>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </SectionCard>
             ))}
 

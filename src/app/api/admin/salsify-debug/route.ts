@@ -71,7 +71,7 @@ export async function GET(_req: NextRequest) {
 
   const attrs = await prisma.attributeDefinition.findMany({
     where: { salsifyEnabled: true, isActive: true, salsifyPropertyId: { not: null } },
-    orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+    orderBy: [{ section: { sortOrder: "asc" } }, { sectionId: "asc" }, { sortOrder: "asc" }],
     select: { key: true, label: true, salsifyPropertyId: true, salsifyLocale: true, maxValues: true },
   });
 

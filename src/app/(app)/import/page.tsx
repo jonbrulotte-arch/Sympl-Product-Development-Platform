@@ -9,37 +9,52 @@ import { cn } from "@/lib/utils";
 import { Suspense } from "react";
 import { CORE_FIELDS, CORE_FIELD_KEYS } from "@/lib/core-fields";
 
-// Core field mappings — single source of truth shared with export & import route
-const SYMPL_FIELDS = CORE_FIELDS.map((f) => ({ key: f.key, label: f.label }));
+// Hardcoded core field labels as fallback for unseeded installs
+const SYMPL_FIELDS_FALLBACK = CORE_FIELDS.map((f) => ({ key: f.key, label: f.label }));
 const CORE_FIELD_KEY_SET = new Set(CORE_FIELD_KEYS);
 
 type AttrOption = { key: string; label: string };
 
-// Auto-detect mappings from Excel column headers
-// Prefers exact match, then falls back to substring — checks longer (more specific) labels first
-function autoDetect(headers: string[], extraFields: AttrOption[]): Record<string, string> {
+// Auto-detect mappings from Excel column headers.
+// Uses DB attribute labels (which the export also uses) so round-tripping
+// always works. Falls back to hardcoded CORE_FIELDS labels only when no
+// DB definitions exist (unseeded install).
+function autoDetect(
+  headers: string[],
+  coreFields: AttrOption[],
+  extraFields: AttrOption[]
+): Record<string, string> {
   const mapping: Record<string, string> = {};
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-  const allFields = [...SYMPL_FIELDS, ...extraFields].sort(
+  // Prefer DB labels; fall back to hardcoded list if no core defs exist
+  const effectiveCore = coreFields.length > 0 ? coreFields : SYMPL_FIELDS_FALLBACK;
+  const allFields = [...effectiveCore, ...extraFields].sort(
     (a, b) => normalize(b.label).length - normalize(a.label).length
   );
+
+  // Track which target keys have been claimed so two headers can't map to the same field
+  const usedKeys = new Set<string>();
 
   for (const header of headers) {
     const norm = normalize(header);
     // Exact match pass
     for (const field of allFields) {
+      if (usedKeys.has(field.key)) continue;
       if (norm === normalize(field.label)) {
         mapping[header] = field.key;
+        usedKeys.add(field.key);
         break;
       }
     }
     if (mapping[header]) continue;
     // Partial match pass (longer fields checked first thanks to sort above)
     for (const field of allFields) {
+      if (usedKeys.has(field.key)) continue;
       const fieldNorm = normalize(field.label);
       if (norm.includes(fieldNorm) || fieldNorm.includes(norm)) {
         mapping[header] = field.key;
+        usedKeys.add(field.key);
         break;
       }
     }
@@ -59,6 +74,11 @@ type DryRunResult = {
     action: "create" | "update";
     fieldChanges: { field: string; from: string; to: string }[];
   }[];
+  attrDiagnostics?: {
+    mappedAttrColumns: number;
+    attrCellsWithValue: number;
+    unresolvedAttrKeys: string[];
+  };
 };
 
 interface PreviewData {
@@ -83,6 +103,8 @@ function ImportWizardContent() {
   const [importResult, setImportResult] = useState<{
     importedRows: number; errorRows: number; totalRows: number;
     createdRows?: number; updatedRows?: number;
+    attrValuesWritten?: number; attrValuesSkippedEmpty?: number;
+    unresolvedAttrKeys?: string[];
     errors: { row: number; errors: string[] }[];
   } | null>(null);
   const [dryRun, setDryRun] = useState<DryRunResult | null>(null);
@@ -96,6 +118,11 @@ function ImportWizardContent() {
   const [newProjectName, setNewProjectName] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
   const [attrFields, setAttrFields] = useState<AttrOption[]>([]);
+  const [coreFieldsFromDb, setCoreFieldsFromDb] = useState<AttrOption[]>([]);
+  // Auto-detect must wait for attribute definitions — if it runs against an
+  // empty list, every custom-attribute column silently maps to "Skip".
+  const attrsPromiseRef = useRef<Promise<{ core: AttrOption[]; extras: AttrOption[] }> | null>(null);
+  const previewRef = useRef<PreviewData | null>(null);
 
   const projectId = selectedProjectId || initialProjectId;
 
@@ -109,36 +136,50 @@ function ImportWizardContent() {
       .finally(() => setProjectsLoading(false));
   }, [initialProjectId]);
 
+  // Scoped to the destination project when one is known: unrelated categories
+  // can legitimately have attributes with the same label (e.g. "Drive Size"
+  // on both Sockets and Driver Bits), and an unscoped list makes auto-detect
+  // pick whichever definition it sees first — silently importing values under
+  // the wrong attribute. Re-runs (and re-maps) when the destination changes.
   useEffect(() => {
-    fetch("/api/attributes")
+    const promise = fetch(`/api/attributes${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`)
       .then((r) => r.json())
       .then((data: { key: string; label: string; isCore: boolean; maxValues: number }[]) => {
-        if (!Array.isArray(data)) return;
-        // Exclude only attributes that are backed by a real ProductRecord column
-        // (already covered by SYMPL_FIELDS) — including them again here would
-        // create two identically-labeled options and the auto-mapper could pick
-        // the wrong one, sending the value to an EAV row instead of the real
-        // column. Many "core" (isCore=true) attributes — Product Series, Product
-        // Sub-Series, Project Engineer, Vendor, etc. — have no ProductRecord
-        // column at all and are EAV-only, so isCore alone can't be the filter.
+        if (!Array.isArray(data)) return { core: [], extras: [] };
+
+        // Core fields backed by real ProductRecord columns — use their DB
+        // labels for auto-mapping so export→import round-trips perfectly
+        // even if labels were customized in the admin.
+        const coreFromDb: AttrOption[] = data
+          .filter((a) => CORE_FIELD_KEY_SET.has(a.key))
+          .map((a) => ({ key: a.key, label: a.label }));
+        setCoreFieldsFromDb(coreFromDb);
+
+        // Non-core (EAV) attributes
         const custom = data.filter((a) => !CORE_FIELD_KEY_SET.has(a.key));
         const options: AttrOption[] = [];
         for (const a of custom) {
           if (a.maxValues > 1) {
-            // Multi-value attrs export as separate "Label 1", "Label 2", ... columns.
-            // Offer one mapping target per index so re-importing them doesn't
-            // collapse all values onto a single valueIndex and overwrite each other.
             for (let i = 1; i <= a.maxValues; i++) {
-              options.push({ key: `attr:${a.key}:${i - 1}`, label: `${a.label} (${i})` });
+              options.push({ key: `attr:${a.key}:${i - 1}`, label: `${a.label} ${i}` });
             }
           } else {
             options.push({ key: `attr:${a.key}:0`, label: a.label });
           }
         }
         setAttrFields(options);
+        return { core: coreFromDb, extras: options };
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => ({ core: [], extras: [] }));
+    attrsPromiseRef.current = promise;
+    // A file may already be uploaded when the destination project is chosen —
+    // re-run auto-detect against the correctly scoped attribute list.
+    promise.then(({ core, extras }) => {
+      if (attrsPromiseRef.current === promise && previewRef.current) {
+        setMapping(autoDetect(previewRef.current.headers, core, extras));
+      }
+    });
+  }, [projectId]);
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
@@ -176,8 +217,12 @@ function ImportWizardContent() {
       const res = await fetch("/api/import", { method: "POST", body: formData });
       if (!res.ok) throw new Error("Failed to parse file");
       const data = await res.json();
+      // Wait for attribute definitions before auto-detecting — running against
+      // a not-yet-loaded list would leave custom-attribute columns unmapped.
+      const attrs = (await attrsPromiseRef.current) ?? { core: [], extras: [] };
       setPreview(data);
-      setMapping(autoDetect(data.headers, attrFields));
+      previewRef.current = data;
+      setMapping(autoDetect(data.headers, attrs.core, attrs.extras));
       setStep("preview");
     } catch {
       setError("Failed to parse the file. Please ensure it is a valid Excel (.xlsx) file.");
@@ -391,7 +436,7 @@ function ImportWizardContent() {
                     >
                       <option value="">— Skip —</option>
                       <optgroup label="Core Fields">
-                        {SYMPL_FIELDS.map((f) => (
+                        {(coreFieldsFromDb.length > 0 ? coreFieldsFromDb : SYMPL_FIELDS_FALLBACK).map((f) => (
                           <option key={f.key} value={f.key}>{f.label}</option>
                         ))}
                       </optgroup>
@@ -492,6 +537,27 @@ function ImportWizardContent() {
                 </div>
               </div>
 
+              {dryRun.attrDiagnostics && (
+                <div className={cn(
+                  "text-sm rounded-lg border p-3",
+                  dryRun.attrDiagnostics.mappedAttrColumns === 0 || dryRun.attrDiagnostics.unresolvedAttrKeys.length > 0
+                    ? "border-amber-300 bg-amber-50 text-amber-800"
+                    : "border-gray-200 bg-gray-50 text-gray-600"
+                )}>
+                  <p>
+                    {dryRun.attrDiagnostics.mappedAttrColumns} custom attribute column{dryRun.attrDiagnostics.mappedAttrColumns === 1 ? "" : "s"} mapped,{" "}
+                    {dryRun.attrDiagnostics.attrCellsWithValue} non-empty attribute cell{dryRun.attrDiagnostics.attrCellsWithValue === 1 ? "" : "s"} in the sheet.
+                    {dryRun.attrDiagnostics.mappedAttrColumns === 0 && " No custom attributes will be imported — check the Map Columns step."}
+                  </p>
+                  {dryRun.attrDiagnostics.unresolvedAttrKeys.length > 0 && (
+                    <p className="mt-1">
+                      These mapped attributes don&apos;t match any active attribute definition and will be skipped:{" "}
+                      <span className="font-mono">{dryRun.attrDiagnostics.unresolvedAttrKeys.join(", ")}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+
               {dryRun.changes.length > 0 && (
                 <div className="border border-gray-200 rounded-lg max-h-80 overflow-y-auto divide-y divide-gray-100">
                   {dryRun.changes.map((c, i) => (
@@ -579,6 +645,20 @@ function ImportWizardContent() {
               </p>
             )}
 
+            {importResult.attrValuesWritten !== undefined && (
+              <p className="text-sm text-gray-500 mb-4">
+                {importResult.attrValuesWritten} attribute value{importResult.attrValuesWritten === 1 ? "" : "s"} written
+                {(importResult.attrValuesSkippedEmpty ?? 0) > 0 && `, ${importResult.attrValuesSkippedEmpty} empty cells left unchanged`}
+              </p>
+            )}
+
+            {(importResult.unresolvedAttrKeys?.length ?? 0) > 0 && (
+              <div className="text-left mb-4 border border-amber-300 bg-amber-50 rounded-lg p-3 text-sm text-amber-800">
+                These mapped attributes no longer exist (or are inactive) and were skipped:{" "}
+                <span className="font-mono">{importResult.unresolvedAttrKeys!.join(", ")}</span>
+              </div>
+            )}
+
             {importResult.errors.length > 0 && (
               <div className="text-left mb-6 max-h-48 overflow-y-auto border border-red-200 rounded-lg p-3">
                 {importResult.errors.map((e, i) => (
@@ -597,6 +677,7 @@ function ImportWizardContent() {
                 setStep("upload");
                 setFile(null);
                 setPreview(null);
+                previewRef.current = null;
                 setMapping({});
                 setDryRun(null);
                 setImportResult(null);

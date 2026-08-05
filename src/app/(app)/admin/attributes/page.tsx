@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { AttributesClient } from "./attributes-client";
-import { CORE_FIELDS, CORE_FIELD_KEYS } from "@/lib/core-fields";
+import { CORE_FIELDS, CORE_FIELD_KEYS, REMOVED_CORE_KEYS } from "@/lib/core-fields";
 
 // Core product fields that are typed columns in the product grid.
 // These live on ProductRecord directly (not as EAV values) but should be
@@ -20,7 +20,6 @@ const CORE_ATTR_SEEDS = [
   { key: "inventoryStatusErp", label: "Inventory Status (ERP)", attributeType: "TEXT",    requirement: "OPTIONAL",    section: "Status",          sortOrder: 1,  description: "Inventory status as reported by the ERP system" },
   { key: "projectFolder",      label: "Project Folder",         attributeType: "TEXT",    requirement: "OPTIONAL",    section: "Status",          sortOrder: 2,  description: null },
   { key: "wrikeUrl",           label: "Wrike URL",              attributeType: "URL",     requirement: "OPTIONAL",    section: "Status",          sortOrder: 3,  description: "Link to the Wrike task/project" },
-  { key: "psir",               label: "PSIR",                   attributeType: "TEXT",    requirement: "CONDITIONAL", section: "Status",          sortOrder: 4,  description: "Product Safety Inspection Report reference" },
   { key: "warrantyInfo",       label: "Warranty Info",          attributeType: "TEXTAREA",requirement: "OPTIONAL",    section: "Regulatory",      sortOrder: 0,  description: null },
   { key: "htsCode",            label: "HTS Code",               attributeType: "TEXT",    requirement: "CONDITIONAL", section: "Regulatory",      sortOrder: 1,  description: "Harmonized Tariff Schedule code for customs" },
   { key: "htsCodeCanada",      label: "HTS Code (Canada)",      attributeType: "TEXT",    requirement: "CONDITIONAL", section: "Regulatory",      sortOrder: 2,  description: "Canadian Harmonized Tariff Schedule code" },
@@ -118,7 +117,7 @@ async function seedCoreAttributes() {
     const section = await prisma.attributeSection.upsert({
       where: { slug },
       create: { name, slug, sortOrder: i, isCore: true },
-      update: {},
+      update: { sortOrder: i },
     });
     sectionMap.set(name, section.id);
   }
@@ -156,6 +155,17 @@ async function seedCoreAttributes() {
     where: { key: { notIn: CORE_FIELD_KEYS }, isCore: true },
     data: { isCore: false },
   });
+
+  // Purge definitions (and any stray values) for core fields that have been
+  // fully removed from the schema. Without this their old definition rows
+  // linger and, since their keys are no longer core, get treated as zombie
+  // global EAV attributes — rendering empty columns on every project grid.
+  if (REMOVED_CORE_KEYS.length > 0) {
+    await prisma.productAttributeValue.deleteMany({
+      where: { attributeDefinition: { key: { in: REMOVED_CORE_KEYS } } },
+    });
+    await prisma.attributeDefinition.deleteMany({ where: { key: { in: REMOVED_CORE_KEYS } } });
+  }
 }
 
 export default async function AttributesPage() {
@@ -174,7 +184,7 @@ export default async function AttributesPage() {
         category: true,
         lovItems: { orderBy: { sortOrder: "asc" } },
       },
-      orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+      orderBy: [{ section: { sortOrder: "asc" } }, { sectionId: "asc" }, { sortOrder: "asc" }],
     }),
     prisma.attributeSection.findMany({ orderBy: { sortOrder: "asc" } }),
     prisma.category.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
