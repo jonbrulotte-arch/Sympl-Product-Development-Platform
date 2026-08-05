@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import {
   HardDrive, Play, RotateCcw, CheckCircle, XCircle, Clock,
-  RefreshCw, ShieldCheck, AlertTriangle, Key, Copy, Eye, EyeOff, Trash2,
+  RefreshCw, ShieldCheck, AlertTriangle, Key, Copy, Eye, EyeOff, Trash2, Terminal,
 } from "lucide-react";
 
 type BackupConfig = {
@@ -172,7 +172,7 @@ export function BackupClient() {
           <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
             <HardDrive className="h-5 w-5 text-gray-500" /> Backup & Restore
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">Encrypted local backups of the PostgreSQL database.</p>
+          <p className="text-sm text-gray-500 mt-0.5">Encrypted database backups and uploaded file archives.</p>
         </div>
         <Button onClick={runBackup} disabled={running || !config} size="sm">
           <Play className={`h-3.5 w-3.5 mr-1.5 ${running ? "animate-pulse" : ""}`} />
@@ -379,6 +379,53 @@ export function BackupClient() {
               </div>
             )}
           </div>
+
+          {/* Cron Setup */}
+          {hasToken && (
+            <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Terminal className="h-4 w-4 text-gray-500" />
+                <h3 className="text-sm font-medium text-gray-800">Cron Job Setup</h3>
+                <span className="text-xs text-gray-400">backs up database + uploaded files</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                Add this line to your server&apos;s crontab (<code className="font-mono bg-gray-100 px-1 rounded">crontab -e</code>) to run
+                automated backups. The script calls the API for the encrypted database dump and separately archives
+                the <code className="font-mono bg-gray-100 px-1 rounded">data/uploads/</code> directory.
+              </p>
+              {(() => {
+                const min = form.scheduleMinute;
+                const hr = form.scheduleHour;
+                const cron = form.scheduleType === "HOURLY" ? `${min} * * * *`
+                  : form.scheduleType === "WEEKLY" ? `${min} ${hr} * * 0`
+                  : `${min} ${hr} * * *`;
+                const cmd = `${cron} /opt/sympl/scripts/backup.sh https://YOUR_APP_URL <API_TOKEN> ${form.backupPath}`;
+                return (
+                  <div className="flex items-start gap-2">
+                    <code className="flex-1 text-xs font-mono bg-gray-900 text-green-400 rounded-lg px-4 py-3 block whitespace-pre-wrap break-all select-all">
+                      {cmd}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 mt-1"
+                      onClick={async () => {
+                        if (!(await copyToClipboard(cmd))) window.prompt("Copy this command:", cmd);
+                      }}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                );
+              })()}
+              <p className="text-xs text-gray-400">
+                Replace <code className="font-mono bg-gray-100 px-1 rounded">YOUR_APP_URL</code> with your application URL
+                and <code className="font-mono bg-gray-100 px-1 rounded">&lt;API_TOKEN&gt;</code> with the token shown above.
+                Copy <code className="font-mono bg-gray-100 px-1 rounded">scripts/backup.sh</code> to <code className="font-mono bg-gray-100 px-1 rounded">/opt/sympl/scripts/</code> on
+                your server and make it executable (<code className="font-mono bg-gray-100 px-1 rounded">chmod +x</code>).
+              </p>
+            </div>
+          )}
 
           <div className="flex justify-end">
             <Button onClick={save} disabled={saving} size="sm">
