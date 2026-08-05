@@ -1129,30 +1129,11 @@ export function ProductGrid({
           coreAttrDefs={coreAttrDefs}
           projectId={projectId}
           onClose={() => setBulkEditOpen(false)}
-          onApplied={(updatedProducts) => {
-            setProducts((prev) =>
-              prev.map((p) => {
-                const u = updatedProducts.find((u) => u.id === p.id);
-                if (!u) return p;
-                // Rebuild EAV maps entirely from the API response (which returns all attributeValues).
-                // Do NOT start from p._eavArrays — that would duplicate values that are already in the response.
-                const raw = u as typeof u & { attributeValues?: { attributeDefinition: { key: string }; valueIndex: number; textValue?: string | null }[] };
-                const arrays: EavArrayMap = {};
-                for (const av of (raw.attributeValues ?? []).sort((a, b) => a.valueIndex - b.valueIndex)) {
-                  const k = av.attributeDefinition.key;
-                  if (!arrays[k]) arrays[k] = [];
-                  arrays[k].push(av.textValue ?? "");
-                }
-                // Preserve any EAV keys the API response didn't include (shouldn't happen, but safe fallback)
-                const merged = { ...p._eavArrays, ...arrays };
-                return {
-                  ...p,
-                  ...u,
-                  _eavArrays: merged,
-                  _eavValues: Object.fromEntries(Object.entries(merged).map(([k, vals]) => [k, (vals as string[]).join(" · ")])),
-                };
-              })
-            );
+          onApplied={() => {
+            fetch(`/api/projects/${projectId}/products`)
+              .then((r) => (r.ok ? r.json() : null))
+              .then((data) => { if (Array.isArray(data)) setProducts(enrichProducts(data)); })
+              .catch(() => {});
             setSelectedRows(new Set());
             setBulkEditOpen(false);
           }}
@@ -1586,7 +1567,7 @@ interface BulkEditDialogProps {
   coreAttrDefs: AttrDef[];
   projectId: string;
   onClose: () => void;
-  onApplied: (updated: ProductRow[]) => void;
+  onApplied: () => void;
 }
 
 function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, projectId, onClose, onApplied }: BulkEditDialogProps) {
@@ -1631,7 +1612,6 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
     let succeeded = 0;
     let failed = 0;
 
-    const updated: ProductRow[] = [];
     await Promise.all(
       selectedIds.map(async (productId) => {
         let body: Record<string, unknown>;
@@ -1660,7 +1640,6 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
             })),
           };
         } else {
-          // Core field — field key maps directly to ProductRecord column
           body = { [field]: value };
         }
 
@@ -1669,15 +1648,16 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        if (res.ok) { succeeded++; updated.push(await res.json()); }
+        if (res.ok) succeeded++;
         else failed++;
       })
     );
 
     setResult(`${succeeded} saved${failed ? `, ${failed} failed` : ""}`);
     setApplying(false);
-    if (!failed) setTimeout(onClose, 1200);
-    onApplied(updated);
+    if (!failed) {
+      setTimeout(() => onApplied(), 800);
+    }
   };
 
   return (
