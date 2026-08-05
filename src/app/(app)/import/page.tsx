@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -112,8 +112,17 @@ function ImportWizardContent() {
   const [creatingProject, setCreatingProject] = useState(false);
   const [attrFields, setAttrFields] = useState<AttrOption[]>([]);
   const [coreFieldsFromDb, setCoreFieldsFromDb] = useState<AttrOption[]>([]);
+  const attrFieldsRef = useRef<AttrOption[]>([]);
+  const coreFieldsRef = useRef<AttrOption[]>([]);
+  const attrsLoadedRef = useRef(false);
 
   const projectId = selectedProjectId || initialProjectId;
+
+  const rerunAutoDetect = useCallback(() => {
+    if (preview && attrsLoadedRef.current) {
+      setMapping(autoDetect(preview.headers, coreFieldsRef.current, attrFieldsRef.current));
+    }
+  }, [preview]);
 
   useEffect(() => {
     if (initialProjectId) return;
@@ -131,15 +140,12 @@ function ImportWizardContent() {
       .then((data: { key: string; label: string; isCore: boolean; maxValues: number }[]) => {
         if (!Array.isArray(data)) return;
 
-        // Core fields backed by real ProductRecord columns — use their DB
-        // labels for auto-mapping so export→import round-trips perfectly
-        // even if labels were customized in the admin.
         const coreFromDb: AttrOption[] = data
           .filter((a) => CORE_FIELD_KEY_SET.has(a.key))
           .map((a) => ({ key: a.key, label: a.label }));
         setCoreFieldsFromDb(coreFromDb);
+        coreFieldsRef.current = coreFromDb;
 
-        // Non-core (EAV) attributes
         const custom = data.filter((a) => !CORE_FIELD_KEY_SET.has(a.key));
         const options: AttrOption[] = [];
         for (const a of custom) {
@@ -152,9 +158,12 @@ function ImportWizardContent() {
           }
         }
         setAttrFields(options);
+        attrFieldsRef.current = options;
+        attrsLoadedRef.current = true;
+        rerunAutoDetect();
       })
       .catch(() => {});
-  }, []);
+  }, [rerunAutoDetect]);
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
@@ -193,7 +202,7 @@ function ImportWizardContent() {
       if (!res.ok) throw new Error("Failed to parse file");
       const data = await res.json();
       setPreview(data);
-      setMapping(autoDetect(data.headers, coreFieldsFromDb, attrFields));
+      setMapping(autoDetect(data.headers, coreFieldsRef.current, attrFieldsRef.current));
       setStep("preview");
     } catch {
       setError("Failed to parse the file. Please ensure it is a valid Excel (.xlsx) file.");
@@ -374,7 +383,7 @@ function ImportWizardContent() {
             <Button variant="outline" onClick={() => setStep("upload")}>
               <ArrowLeft className="h-4 w-4" /> Back
             </Button>
-            <Button onClick={() => setStep("mapping")}>
+            <Button onClick={() => { rerunAutoDetect(); setStep("mapping"); }}>
               Map Columns <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
