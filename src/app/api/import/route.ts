@@ -195,12 +195,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Diagnostics: distinguish "no attribute columns mapped" from "cells all
+    // empty" from "attribute keys didn't resolve" — otherwise every one of
+    // those failure modes looks identical ("no field changes") in the review.
+    const mappedAttrColumns = Object.values(mapping).filter((v) => v?.startsWith("attr:")).length;
+    const attrCellsWithValue = mappedRows.reduce(
+      (n, mr) => n + mr.attrValues.filter((a) => a.value).length,
+      0
+    );
+    const unresolvedAttrKeys = allAttrKeys.filter((k) => !defByKey[k]);
+
     return NextResponse.json({
       dryRun: true,
       totalRows: mappedRows.length,
       wouldCreate,
       wouldUpdate,
       changes,
+      attrDiagnostics: { mappedAttrColumns, attrCellsWithValue, unresolvedAttrKeys },
     });
   }
 

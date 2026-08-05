@@ -74,6 +74,11 @@ type DryRunResult = {
     action: "create" | "update";
     fieldChanges: { field: string; from: string; to: string }[];
   }[];
+  attrDiagnostics?: {
+    mappedAttrColumns: number;
+    attrCellsWithValue: number;
+    unresolvedAttrKeys: string[];
+  };
 };
 
 interface PreviewData {
@@ -516,6 +521,27 @@ function ImportWizardContent() {
                   <p className="text-sm text-gray-600">Total rows</p>
                 </div>
               </div>
+
+              {dryRun.attrDiagnostics && (
+                <div className={cn(
+                  "text-sm rounded-lg border p-3",
+                  dryRun.attrDiagnostics.mappedAttrColumns === 0 || dryRun.attrDiagnostics.unresolvedAttrKeys.length > 0
+                    ? "border-amber-300 bg-amber-50 text-amber-800"
+                    : "border-gray-200 bg-gray-50 text-gray-600"
+                )}>
+                  <p>
+                    {dryRun.attrDiagnostics.mappedAttrColumns} custom attribute column{dryRun.attrDiagnostics.mappedAttrColumns === 1 ? "" : "s"} mapped,{" "}
+                    {dryRun.attrDiagnostics.attrCellsWithValue} non-empty attribute cell{dryRun.attrDiagnostics.attrCellsWithValue === 1 ? "" : "s"} in the sheet.
+                    {dryRun.attrDiagnostics.mappedAttrColumns === 0 && " No custom attributes will be imported — check the Map Columns step."}
+                  </p>
+                  {dryRun.attrDiagnostics.unresolvedAttrKeys.length > 0 && (
+                    <p className="mt-1">
+                      These mapped attributes don&apos;t match any active attribute definition and will be skipped:{" "}
+                      <span className="font-mono">{dryRun.attrDiagnostics.unresolvedAttrKeys.join(", ")}</span>
+                    </p>
+                  )}
+                </div>
+              )}
 
               {dryRun.changes.length > 0 && (
                 <div className="border border-gray-200 rounded-lg max-h-80 overflow-y-auto divide-y divide-gray-100">
