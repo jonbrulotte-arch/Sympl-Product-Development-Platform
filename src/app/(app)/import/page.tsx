@@ -98,6 +98,8 @@ function ImportWizardContent() {
   const [importResult, setImportResult] = useState<{
     importedRows: number; errorRows: number; totalRows: number;
     createdRows?: number; updatedRows?: number;
+    attrValuesWritten?: number; attrValuesSkippedEmpty?: number;
+    unresolvedAttrKeys?: string[];
     errors: { row: number; errors: string[] }[];
   } | null>(null);
   const [dryRun, setDryRun] = useState<DryRunResult | null>(null);
@@ -600,6 +602,20 @@ function ImportWizardContent() {
                 {importResult.createdRows ?? 0} new product{importResult.createdRows === 1 ? "" : "s"} created,{" "}
                 {importResult.updatedRows ?? 0} existing product{importResult.updatedRows === 1 ? "" : "s"} updated
               </p>
+            )}
+
+            {importResult.attrValuesWritten !== undefined && (
+              <p className="text-sm text-gray-500 mb-4">
+                {importResult.attrValuesWritten} attribute value{importResult.attrValuesWritten === 1 ? "" : "s"} written
+                {(importResult.attrValuesSkippedEmpty ?? 0) > 0 && `, ${importResult.attrValuesSkippedEmpty} empty cells left unchanged`}
+              </p>
+            )}
+
+            {(importResult.unresolvedAttrKeys?.length ?? 0) > 0 && (
+              <div className="text-left mb-4 border border-amber-300 bg-amber-50 rounded-lg p-3 text-sm text-amber-800">
+                These mapped attributes no longer exist (or are inactive) and were skipped:{" "}
+                <span className="font-mono">{importResult.unresolvedAttrKeys!.join(", ")}</span>
+              </div>
             )}
 
             {importResult.errors.length > 0 && (

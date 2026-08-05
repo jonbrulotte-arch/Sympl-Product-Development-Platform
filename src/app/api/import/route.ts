@@ -220,6 +220,11 @@ export async function POST(req: NextRequest) {
   let updatedRows = 0;
   let errorRows = 0;
   const errors: { row: number; errors: string[] }[] = [];
+  // Per-attribute diagnostics so a silent mapping/resolution failure is
+  // visible in the result instead of looking like a successful no-op import.
+  let attrValuesWritten = 0;
+  let attrValuesSkippedEmpty = 0;
+  const unresolvedAttrKeys = allAttrKeys.filter((k) => !defByKey[k]);
 
   const maxRow = await prisma.productRecord.aggregate({
     where: { projectId },
@@ -258,13 +263,15 @@ export async function POST(req: NextRequest) {
           },
         });
         productId = created.id;
-        if (partNumber) existingByPartNumber.set(partNumber, created);
+        if (partNumber) existingByPartNumber.set(partNumber, { ...created, attributeValues: [] });
         createdRows++;
       }
 
       for (const av of mr.attrValues) {
         const attributeDefinitionId = defByKey[av.key];
-        if (!attributeDefinitionId || !av.value) continue;
+        if (!attributeDefinitionId) continue;
+        if (!av.value) { attrValuesSkippedEmpty++; continue; }
+        attrValuesWritten++;
         await prisma.productAttributeValue.upsert({
           where: {
             productId_attributeDefinitionId_valueIndex: {
@@ -314,5 +321,8 @@ export async function POST(req: NextRequest) {
     updatedRows,
     errorRows,
     errors,
+    attrValuesWritten,
+    attrValuesSkippedEmpty,
+    unresolvedAttrKeys,
   });
 }
