@@ -59,6 +59,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Duplicate labels break the grid, export, and import: values end up stored
+  // under one definition while columns bind to the other, and export headers
+  // (which are labels) can no longer round-trip unambiguously.
+  const label = String(body.label ?? "").trim();
+  if (label) {
+    const dupLabel = await prisma.attributeDefinition.findFirst({
+      where: { label: { equals: label, mode: "insensitive" }, isActive: true },
+      select: { key: true },
+    });
+    if (dupLabel) {
+      return NextResponse.json(
+        { error: `An active attribute labeled "${label}" already exists (key: ${dupLabel.key}). Duplicate labels make import/export columns ambiguous — rename or deactivate the other attribute first.` },
+        { status: 409 }
+      );
+    }
+  }
+
   try {
     // A definition whose key matches a core product field IS that field's
     // definition — flag it so it can't be deleted out from under the column

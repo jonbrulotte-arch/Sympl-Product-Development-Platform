@@ -24,6 +24,30 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     defaultValue, unit, validationRules,
   } = body;
 
+  // Renaming to (or reactivating with) a label another active attribute
+  // already uses would make import/export columns ambiguous — see POST.
+  const newLabel = label !== undefined ? String(label).trim() : undefined;
+  if (newLabel || isActive === true) {
+    const self = await prisma.attributeDefinition.findUnique({ where: { id }, select: { label: true } });
+    const effectiveLabel = newLabel ?? self?.label?.trim();
+    if (effectiveLabel) {
+      const dupLabel = await prisma.attributeDefinition.findFirst({
+        where: {
+          id: { not: id },
+          isActive: true,
+          label: { equals: effectiveLabel, mode: "insensitive" },
+        },
+        select: { key: true },
+      });
+      if (dupLabel) {
+        return NextResponse.json(
+          { error: `An active attribute labeled "${effectiveLabel}" already exists (key: ${dupLabel.key}). Duplicate labels make import/export columns ambiguous — rename or deactivate the other attribute first.` },
+          { status: 409 }
+        );
+      }
+    }
+  }
+
   const updated = await prisma.attributeDefinition.update({
     where: { id },
     data: {
