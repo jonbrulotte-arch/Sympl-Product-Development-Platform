@@ -1483,8 +1483,8 @@ function CommentsView({ projectId, currentUserId, userRole, team = [] }: { proje
 
 type ActivityLog = {
   id: string; action: string; entityType: string; fieldKey: string | null;
-  oldValue: string | null; newValue: string | null; createdAt: string;
-  metadata: Record<string, unknown> | null;
+  oldValue: string | null; newValue: string | null; source: string | null;
+  createdAt: string; metadata: Record<string, unknown> | null;
   user: { id: string; name: string | null };
 };
 
@@ -1604,6 +1604,11 @@ function ActivityView({ projectId, members }: { projectId: string; members: Arra
               <p className="text-sm text-gray-700">
                 <span className="font-medium">{log.user.name}</span>{" "}
                 {activityDescription(log)}
+                {log.source && (
+                  <span className="ml-1.5 inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                    via {log.source}
+                  </span>
+                )}
               </p>
               {log.oldValue && log.newValue && log.action === "UPDATED" && (
                 <p className="text-xs text-gray-500 mt-0.5">{log.oldValue} → {log.newValue}</p>

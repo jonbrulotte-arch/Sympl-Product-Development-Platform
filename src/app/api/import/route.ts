@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { CORE_FIELDS, coerceCoreValue } from "@/lib/core-fields";
 import { checkProjectAccess } from "@/lib/project-access";
 import { parseUploadedWorkbook } from "@/lib/xlsx-parse";
+import { logActivity } from "@/lib/activity";
 
 const CORE_FIELD_BY_KEY = Object.fromEntries(CORE_FIELDS.map((f) => [f.key, f]));
 
@@ -264,6 +265,7 @@ export async function POST(req: NextRequest) {
         });
         productId = updated.id;
         updatedRows++;
+        logActivity({ userId: session.user.id, action: "UPDATED", entityType: "ProductRecord", entityId: productId, projectId, productId, source: "Import" }).catch(() => {});
       } else {
         const created = await prisma.productRecord.create({
           data: {
@@ -278,6 +280,7 @@ export async function POST(req: NextRequest) {
         productId = created.id;
         if (partNumber) existingByPartNumber.set(partNumber, { ...created, attributeValues: [] });
         createdRows++;
+        logActivity({ userId: session.user.id, action: "CREATED", entityType: "ProductRecord", entityId: productId, projectId, productId, source: "Import" }).catch(() => {});
       }
 
       for (const av of mr.attrValues) {

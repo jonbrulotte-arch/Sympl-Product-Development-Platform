@@ -174,7 +174,7 @@ export function PsirBrowser() {
               <ClipboardCheck className="h-4 w-4 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-gray-900">Pre-Shipment Inspections</h1>
+              <h1 className="text-lg font-semibold text-gray-900">Inspections</h1>
               <p className="text-xs text-gray-500">
                 {total.toLocaleString()} report{total !== 1 ? "s" : ""}
                 {passCount > 0 && ` · ${passCount} passed`}

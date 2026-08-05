@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Search, UserCheck, UserX } from "lucide-react";
+import { Plus, Search, UserCheck, UserX, KeyRound, Clock } from "lucide-react";
 import { formatDate, getInitials } from "@/lib/utils";
 import type { UserRole } from "@prisma/client";
 
@@ -35,6 +35,14 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "CONTRIBUTOR" as UserRole });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pwUser, setPwUser] = useState<UserRow | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwMsg, setPwMsg] = useState<string | null>(null);
+  const [activityUser, setActivityUser] = useState<UserRow | null>(null);
+  type ActivityEntry = { id: string; action: string; entityType: string; fieldKey: string | null; source: string | null; createdAt: string };
+  const [activityLogs, setActivityLogs] = useState<ActivityEntry[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   const filtered = users.filter(
     (u) =>
@@ -75,6 +83,38 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
     if (res.ok) {
       setUsers((prev) => prev.map((u) => u.id === id ? { ...u, isActive: !isActive } : u));
     }
+  }
+
+  async function changePassword() {
+    if (!pwUser || !newPassword) return;
+    setPwLoading(true);
+    setPwMsg(null);
+    const res = await fetch(`/api/users/${pwUser.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: newPassword }),
+    });
+    if (res.ok) {
+      setPwMsg("Password updated");
+      setNewPassword("");
+      setTimeout(() => { setPwUser(null); setPwMsg(null); }, 1200);
+    } else {
+      const data = await res.json().catch(() => null);
+      setPwMsg(data?.error ?? "Failed to update password");
+    }
+    setPwLoading(false);
+  }
+
+  async function loadActivity(user: UserRow) {
+    setActivityUser(user);
+    setActivityLoading(true);
+    setActivityLogs([]);
+    const res = await fetch(`/api/admin/users/${user.id}/activity`);
+    if (res.ok) {
+      const data = await res.json();
+      setActivityLogs(Array.isArray(data.data) ? data.data : []);
+    }
+    setActivityLoading(false);
   }
 
   async function changeRole(id: string, role: UserRole) {
@@ -152,13 +192,29 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
                   </td>
                   <td className="px-4 py-3 text-gray-500">{formatDate(user.createdAt)}</td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => toggleActive(user.id, user.isActive)}
-                      className="text-gray-400 hover:text-gray-700"
-                      title={user.isActive ? "Deactivate" : "Activate"}
-                    >
-                      {user.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => { setPwUser(user); setNewPassword(""); setPwMsg(null); }}
+                        className="text-gray-400 hover:text-gray-700"
+                        title="Change password"
+                      >
+                        <KeyRound className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => loadActivity(user)}
+                        className="text-gray-400 hover:text-gray-700"
+                        title="View activity"
+                      >
+                        <Clock className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => toggleActive(user.id, user.isActive)}
+                        className="text-gray-400 hover:text-gray-700"
+                        title={user.isActive ? "Deactivate" : "Activate"}
+                      >
+                        {user.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -201,6 +257,54 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
               {loading ? "Creating..." : "Create User"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!pwUser} onOpenChange={(open) => { if (!open) setPwUser(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Change Password — {pwUser?.name ?? pwUser?.email}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">New Password <span className="text-red-500">*</span></label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Minimum 6 characters"
+                onKeyDown={(e) => e.key === "Enter" && changePassword()}
+              />
+            </div>
+            {pwMsg && <p className={`text-sm ${pwMsg === "Password updated" ? "text-green-600" : "text-red-600"}`}>{pwMsg}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPwUser(null)}>Cancel</Button>
+            <Button onClick={changePassword} disabled={pwLoading || newPassword.length < 6}>
+              {pwLoading ? "Updating..." : "Update Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!activityUser} onOpenChange={(open) => { if (!open) setActivityUser(null); }}>
+        <DialogContent className="max-w-lg max-h-[70vh] flex flex-col">
+          <DialogHeader><DialogTitle>Activity — {activityUser?.name ?? activityUser?.email}</DialogTitle></DialogHeader>
+          <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+            {activityLoading && <p className="text-sm text-gray-400 text-center py-6">Loading...</p>}
+            {!activityLoading && activityLogs.length === 0 && <p className="text-sm text-gray-400 text-center py-6">No activity found.</p>}
+            {activityLogs.map((log) => (
+              <div key={log.id} className="py-2.5 px-1">
+                <p className="text-sm text-gray-700">
+                  {log.action} {log.entityType}{log.fieldKey ? ` (${log.fieldKey})` : ""}
+                  {log.source && (
+                    <span className="ml-1.5 inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                      via {log.source}
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">{formatDate(log.createdAt)}</p>
+              </div>
+            ))}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
