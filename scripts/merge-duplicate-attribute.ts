@@ -13,6 +13,9 @@ import { Pool } from "pg";
 //   npx tsx scripts/merge-duplicate-attribute.ts <sourceKey> <targetKey>
 // Apply:
 //   npx tsx scripts/merge-duplicate-attribute.ts <sourceKey> <targetKey> --apply
+// Keep the source definition active (when it legitimately serves another
+// category and only misdirected values are being moved):
+//   npx tsx scripts/merge-duplicate-attribute.ts <sourceKey> <targetKey> --apply --keep-source-active
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL environment variable is not set");
@@ -23,6 +26,7 @@ const prisma = new PrismaClient({ adapter } as never);
 async function main() {
   const [sourceKey, targetKey] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
   const apply = process.argv.includes("--apply");
+  const keepSourceActive = process.argv.includes("--keep-source-active");
   if (!sourceKey || !targetKey) {
     console.error("Usage: merge-duplicate-attribute.ts <sourceKey> <targetKey> [--apply]");
     process.exit(1);
@@ -98,9 +102,11 @@ async function main() {
     }
   }
 
-  if (apply && source.isActive) {
+  if (apply && source.isActive && !keepSourceActive) {
     await prisma.attributeDefinition.update({ where: { id: source.id }, data: { isActive: false } });
     console.log(`\nDeactivated source definition "${source.key}".`);
+  } else if (source.isActive && keepSourceActive) {
+    console.log(`\nSource definition "${source.key}" stays active (--keep-source-active).`);
   }
 
   console.log(`\n${apply ? "Done" : "Would move"}: ${moved} value(s) moved, ${dropped} conflicting source row(s) ${apply ? "deleted" : "to delete"}.`);

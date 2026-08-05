@@ -24,24 +24,32 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     defaultValue, unit, validationRules,
   } = body;
 
-  // Renaming to (or reactivating with) a label another active attribute
-  // already uses would make import/export columns ambiguous — see POST.
+  // Renaming, recategorizing, or reactivating must not collide with another
+  // active attribute's label in the same scope (global, or same category) —
+  // that would make import/export columns ambiguous. Same label in two
+  // different categories is fine. See POST for details.
   const newLabel = label !== undefined ? String(label).trim() : undefined;
-  if (newLabel || isActive === true) {
-    const self = await prisma.attributeDefinition.findUnique({ where: { id }, select: { label: true } });
+  if (newLabel || isActive === true || categoryId !== undefined) {
+    const self = await prisma.attributeDefinition.findUnique({
+      where: { id },
+      select: { label: true, categoryId: true },
+    });
     const effectiveLabel = newLabel ?? self?.label?.trim();
+    const effectiveCategoryId: string | null =
+      categoryId !== undefined ? (categoryId || null) : (self?.categoryId ?? null);
     if (effectiveLabel) {
       const dupLabel = await prisma.attributeDefinition.findFirst({
         where: {
           id: { not: id },
           isActive: true,
           label: { equals: effectiveLabel, mode: "insensitive" },
+          ...(effectiveCategoryId ? { OR: [{ categoryId: null }, { categoryId: effectiveCategoryId }] } : {}),
         },
         select: { key: true },
       });
       if (dupLabel) {
         return NextResponse.json(
-          { error: `An active attribute labeled "${effectiveLabel}" already exists (key: ${dupLabel.key}). Duplicate labels make import/export columns ambiguous — rename or deactivate the other attribute first.` },
+          { error: `An active attribute labeled "${effectiveLabel}" already exists in the same scope (key: ${dupLabel.key}). Duplicate labels make import/export columns ambiguous — rename it, or scope both attributes to different categories.` },
           { status: 409 }
         );
       }

@@ -122,6 +122,7 @@ function ImportWizardContent() {
   // Auto-detect must wait for attribute definitions — if it runs against an
   // empty list, every custom-attribute column silently maps to "Skip".
   const attrsPromiseRef = useRef<Promise<{ core: AttrOption[]; extras: AttrOption[] }> | null>(null);
+  const previewRef = useRef<PreviewData | null>(null);
 
   const projectId = selectedProjectId || initialProjectId;
 
@@ -135,8 +136,13 @@ function ImportWizardContent() {
       .finally(() => setProjectsLoading(false));
   }, [initialProjectId]);
 
+  // Scoped to the destination project when one is known: unrelated categories
+  // can legitimately have attributes with the same label (e.g. "Drive Size"
+  // on both Sockets and Driver Bits), and an unscoped list makes auto-detect
+  // pick whichever definition it sees first — silently importing values under
+  // the wrong attribute. Re-runs (and re-maps) when the destination changes.
   useEffect(() => {
-    attrsPromiseRef.current = fetch("/api/attributes")
+    const promise = fetch(`/api/attributes${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`)
       .then((r) => r.json())
       .then((data: { key: string; label: string; isCore: boolean; maxValues: number }[]) => {
         if (!Array.isArray(data)) return { core: [], extras: [] };
@@ -165,7 +171,15 @@ function ImportWizardContent() {
         return { core: coreFromDb, extras: options };
       })
       .catch(() => ({ core: [], extras: [] }));
-  }, []);
+    attrsPromiseRef.current = promise;
+    // A file may already be uploaded when the destination project is chosen —
+    // re-run auto-detect against the correctly scoped attribute list.
+    promise.then(({ core, extras }) => {
+      if (attrsPromiseRef.current === promise && previewRef.current) {
+        setMapping(autoDetect(previewRef.current.headers, core, extras));
+      }
+    });
+  }, [projectId]);
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
@@ -207,6 +221,7 @@ function ImportWizardContent() {
       // a not-yet-loaded list would leave custom-attribute columns unmapped.
       const attrs = (await attrsPromiseRef.current) ?? { core: [], extras: [] };
       setPreview(data);
+      previewRef.current = data;
       setMapping(autoDetect(data.headers, attrs.core, attrs.extras));
       setStep("preview");
     } catch {
@@ -662,6 +677,7 @@ function ImportWizardContent() {
                 setStep("upload");
                 setFile(null);
                 setPreview(null);
+                previewRef.current = null;
                 setMapping({});
                 setDryRun(null);
                 setImportResult(null);
