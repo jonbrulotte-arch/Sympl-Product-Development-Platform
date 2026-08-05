@@ -103,7 +103,7 @@ function ImportWizardContent() {
   const [importResult, setImportResult] = useState<{
     importedRows: number; errorRows: number; totalRows: number;
     createdRows?: number; updatedRows?: number;
-    attrValuesWritten?: number; attrValuesSkippedEmpty?: number;
+    attrValuesWritten?: number; attrValuesCleared?: number;
     unresolvedAttrKeys?: string[];
     errors: { row: number; errors: string[] }[];
   } | null>(null);
@@ -648,7 +648,7 @@ function ImportWizardContent() {
             {importResult.attrValuesWritten !== undefined && (
               <p className="text-sm text-gray-500 mb-4">
                 {importResult.attrValuesWritten} attribute value{importResult.attrValuesWritten === 1 ? "" : "s"} written
-                {(importResult.attrValuesSkippedEmpty ?? 0) > 0 && `, ${importResult.attrValuesSkippedEmpty} empty cells left unchanged`}
+                {(importResult.attrValuesCleared ?? 0) > 0 && `, ${importResult.attrValuesCleared} cleared by blank cells`}
               </p>
             )}
 

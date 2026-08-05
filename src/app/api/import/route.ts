@@ -171,9 +171,11 @@ export async function POST(req: NextRequest) {
         }
         // Custom (EAV) attribute diffs — without these, imports that only
         // change attribute values would misleadingly report "no field changes".
+        // A blank cell in a mapped column clears the stored value, so an
+        // empty av.value against a non-empty stored value is a real change.
         for (const av of mr.attrValues) {
           const def = defsByKey[av.key];
-          if (!def || !av.value) continue;
+          if (!def) continue;
           const old = existing.attributeValues.find(
             (x) => x.attributeDefinitionId === def.id && x.valueIndex === av.valueIndex
           );
@@ -234,7 +236,7 @@ export async function POST(req: NextRequest) {
   // Per-attribute diagnostics so a silent mapping/resolution failure is
   // visible in the result instead of looking like a successful no-op import.
   let attrValuesWritten = 0;
-  let attrValuesSkippedEmpty = 0;
+  let attrValuesCleared = 0;
   const unresolvedAttrKeys = allAttrKeys.filter((k) => !defByKey[k]);
 
   const maxRow = await prisma.productRecord.aggregate({
@@ -281,7 +283,16 @@ export async function POST(req: NextRequest) {
       for (const av of mr.attrValues) {
         const attributeDefinitionId = defByKey[av.key];
         if (!attributeDefinitionId) continue;
-        if (!av.value) { attrValuesSkippedEmpty++; continue; }
+        // Blank cell in a mapped column = clear the stored value for that
+        // slot. Unmapped columns never reach here, so data the sheet doesn't
+        // cover is left alone.
+        if (!av.value) {
+          const deleted = await prisma.productAttributeValue.deleteMany({
+            where: { productId, attributeDefinitionId, valueIndex: av.valueIndex },
+          });
+          attrValuesCleared += deleted.count;
+          continue;
+        }
         attrValuesWritten++;
         await prisma.productAttributeValue.upsert({
           where: {
@@ -333,7 +344,7 @@ export async function POST(req: NextRequest) {
     errorRows,
     errors,
     attrValuesWritten,
-    attrValuesSkippedEmpty,
+    attrValuesCleared,
     unresolvedAttrKeys,
   });
 }

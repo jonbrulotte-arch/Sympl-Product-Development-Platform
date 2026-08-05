@@ -919,6 +919,21 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
     if (res.ok) setLovItems((prev) => prev.filter((l) => l.id !== lovId));
   };
 
+  const moveLov = async (index: number, direction: -1 | 1) => {
+    if (!attr?.id) return;
+    const target = index + direction;
+    if (target < 0 || target >= lovItems.length) return;
+    const next = [...lovItems];
+    [next[index], next[target]] = [next[target], next[index]];
+    setLovItems(next);
+    const items = next.map((item, i) => ({ id: item.id, sortOrder: i }));
+    await fetch(`/api/attributes/${attr.id}/lov`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+  };
+
   const showLov = form.attributeType === "SELECT" || form.attributeType === "MULTI_SELECT";
   const isMultiValue = Number(form.maxValues) > 1;
 
@@ -1085,12 +1100,28 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
                         <span className="text-xs text-gray-400 w-5">{i + 1}.</span>
                         <span className="flex-1 text-sm">{item.label}</span>
                         <code className="text-xs text-gray-400 bg-gray-100 px-1.5 rounded">{item.value}</code>
-                        <button
-                          onClick={() => removeLov(item.id)}
-                          className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => moveLov(i, -1)}
+                            disabled={i === 0}
+                            className="text-gray-400 hover:text-gray-700 disabled:opacity-20 disabled:cursor-not-allowed"
+                          >
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => moveLov(i, 1)}
+                            disabled={i === lovItems.length - 1}
+                            className="text-gray-400 hover:text-gray-700 disabled:opacity-20 disabled:cursor-not-allowed"
+                          >
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => removeLov(item.id)}
+                            className="text-gray-300 hover:text-red-500"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
