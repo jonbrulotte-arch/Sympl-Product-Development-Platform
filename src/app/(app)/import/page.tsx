@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -112,17 +112,11 @@ function ImportWizardContent() {
   const [creatingProject, setCreatingProject] = useState(false);
   const [attrFields, setAttrFields] = useState<AttrOption[]>([]);
   const [coreFieldsFromDb, setCoreFieldsFromDb] = useState<AttrOption[]>([]);
-  const attrFieldsRef = useRef<AttrOption[]>([]);
-  const coreFieldsRef = useRef<AttrOption[]>([]);
-  const attrsLoadedRef = useRef(false);
+  // Auto-detect must wait for attribute definitions — if it runs against an
+  // empty list, every custom-attribute column silently maps to "Skip".
+  const attrsPromiseRef = useRef<Promise<{ core: AttrOption[]; extras: AttrOption[] }> | null>(null);
 
   const projectId = selectedProjectId || initialProjectId;
-
-  const rerunAutoDetect = useCallback(() => {
-    if (preview && attrsLoadedRef.current) {
-      setMapping(autoDetect(preview.headers, coreFieldsRef.current, attrFieldsRef.current));
-    }
-  }, [preview]);
 
   useEffect(() => {
     if (initialProjectId) return;
@@ -135,17 +129,20 @@ function ImportWizardContent() {
   }, [initialProjectId]);
 
   useEffect(() => {
-    fetch("/api/attributes")
+    attrsPromiseRef.current = fetch("/api/attributes")
       .then((r) => r.json())
       .then((data: { key: string; label: string; isCore: boolean; maxValues: number }[]) => {
-        if (!Array.isArray(data)) return;
+        if (!Array.isArray(data)) return { core: [], extras: [] };
 
+        // Core fields backed by real ProductRecord columns — use their DB
+        // labels for auto-mapping so export→import round-trips perfectly
+        // even if labels were customized in the admin.
         const coreFromDb: AttrOption[] = data
           .filter((a) => CORE_FIELD_KEY_SET.has(a.key))
           .map((a) => ({ key: a.key, label: a.label }));
         setCoreFieldsFromDb(coreFromDb);
-        coreFieldsRef.current = coreFromDb;
 
+        // Non-core (EAV) attributes
         const custom = data.filter((a) => !CORE_FIELD_KEY_SET.has(a.key));
         const options: AttrOption[] = [];
         for (const a of custom) {
@@ -158,12 +155,10 @@ function ImportWizardContent() {
           }
         }
         setAttrFields(options);
-        attrFieldsRef.current = options;
-        attrsLoadedRef.current = true;
-        rerunAutoDetect();
+        return { core: coreFromDb, extras: options };
       })
-      .catch(() => {});
-  }, [rerunAutoDetect]);
+      .catch(() => ({ core: [], extras: [] }));
+  }, []);
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
@@ -201,8 +196,11 @@ function ImportWizardContent() {
       const res = await fetch("/api/import", { method: "POST", body: formData });
       if (!res.ok) throw new Error("Failed to parse file");
       const data = await res.json();
+      // Wait for attribute definitions before auto-detecting — running against
+      // a not-yet-loaded list would leave custom-attribute columns unmapped.
+      const attrs = (await attrsPromiseRef.current) ?? { core: [], extras: [] };
       setPreview(data);
-      setMapping(autoDetect(data.headers, coreFieldsRef.current, attrFieldsRef.current));
+      setMapping(autoDetect(data.headers, attrs.core, attrs.extras));
       setStep("preview");
     } catch {
       setError("Failed to parse the file. Please ensure it is a valid Excel (.xlsx) file.");
@@ -383,7 +381,7 @@ function ImportWizardContent() {
             <Button variant="outline" onClick={() => setStep("upload")}>
               <ArrowLeft className="h-4 w-4" /> Back
             </Button>
-            <Button onClick={() => { rerunAutoDetect(); setStep("mapping"); }}>
+            <Button onClick={() => setStep("mapping")}>
               Map Columns <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
