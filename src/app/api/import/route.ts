@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
   // Existing products keyed by Part Number → upsert instead of duplicating
   const existingProducts = await prisma.productRecord.findMany({
     where: { projectId, isArchived: false, partNumber: { not: null } },
+    include: { attributeValues: true },
   });
   const existingByPartNumber = new Map(
     existingProducts.filter((p) => p.partNumber).map((p) => [p.partNumber as string, p])
@@ -136,10 +137,11 @@ export async function POST(req: NextRequest) {
   const attrDefs = allAttrKeys.length
     ? await prisma.attributeDefinition.findMany({
         where: { key: { in: allAttrKeys }, isActive: true },
-        select: { id: true, key: true },
+        select: { id: true, key: true, label: true, maxValues: true },
       })
     : [];
   const defByKey = Object.fromEntries(attrDefs.map((d) => [d.key, d.id]));
+  const defsByKey = Object.fromEntries(attrDefs.map((d) => [d.key, d]));
 
   // ─── Dry run: report what WOULD happen, write nothing ──────────────────────
   if (phase === "dryrun") {
@@ -165,6 +167,21 @@ export async function POST(req: NextRequest) {
           const newStr = String(newVal);
           if (oldStr !== newStr) {
             fieldChanges.push({ field: field?.label ?? key, from: oldStr, to: newStr });
+          }
+        }
+        // Custom (EAV) attribute diffs — without these, imports that only
+        // change attribute values would misleadingly report "no field changes".
+        for (const av of mr.attrValues) {
+          const def = defsByKey[av.key];
+          if (!def || !av.value) continue;
+          const old = existing.attributeValues.find(
+            (x) => x.attributeDefinitionId === def.id && x.valueIndex === av.valueIndex
+          );
+          const oldStr =
+            old?.textValue ?? old?.numberValue?.toString() ?? old?.booleanValue?.toString() ?? "";
+          if (oldStr !== av.value) {
+            const label = def.maxValues > 1 ? `${def.label} ${av.valueIndex + 1}` : def.label;
+            fieldChanges.push({ field: label, from: oldStr, to: av.value });
           }
         }
         if (changes.length < 100) {
