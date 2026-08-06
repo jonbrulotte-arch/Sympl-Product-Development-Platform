@@ -407,6 +407,9 @@ const sections: Section[] = [
         <H3>Max Values</H3>
         <P>Setting Max Values &gt; 1 makes an attribute multi-value (e.g. multiple team members). In the grid, values appear joined by <Code>·</Code>.</P>
 
+        <H3>Reordering Lists of Values</H3>
+        <P>For SELECT and MULTI_SELECT attributes, use the <strong>▲ / ▼</strong> buttons next to each List of Values entry in the attribute editor to control the order options appear in the dropdown.</P>
+
         <H3>Descriptions / Tooltips</H3>
         <P>The <strong>Description</strong> field on each attribute becomes the tooltip shown when hovering the column header in the product grid. Use it to explain what the field means, acceptable formats, or where the value comes from.</P>
 
@@ -476,6 +479,19 @@ const sections: Section[] = [
           <LI><strong>Action</strong> — Approved, Rejected, Status changed, Created, Updated, Deleted, Commented, Assigned.</LI>
           <LI><strong>User</strong> — any project member.</LI>
         </UL>
+
+        <H3>Old → new values</H3>
+        <P>Field edits show the previous and new value side by side (e.g. <em>Model Number: 1010 → 1020</em>), with field keys shown in readable form. A <strong>via</strong> badge on each entry shows where the change came from.</P>
+
+        <H3>Source of change</H3>
+        <UL>
+          <LI><strong>Project Grid</strong> — edited inline in the product grid, including bulk edit.</LI>
+          <LI><strong>Product Record</strong> — edited on the full product edit page.</LI>
+          <LI><strong>Import</strong> — created or updated via an Excel import.</LI>
+        </UL>
+
+        <H3>Per-user activity (Admin)</H3>
+        <P>Admins can view any user&apos;s recent activity from <strong>Admin → Users</strong> — click the clock icon on a user&apos;s row to open their last 100 actions across all projects.</P>
       </>
     ),
   },
@@ -829,15 +845,22 @@ const sections: Section[] = [
   -H "Content-Type: application/json"`}</pre>
         <P>Tokens can be regenerated (invalidating the old one) or revoked entirely from the same section. The token hash is stored server-side — the plaintext is never saved and cannot be recovered after the initial display.</P>
 
-        <H3>Scheduled backups</H3>
+        <H3>Scheduled backups (database only)</H3>
         <P>
-          Sympl does not run a built-in scheduler. To automate backups, generate an API token (above) and add a cron entry on your server:
+          Sympl does not run a built-in scheduler. To automate database-only backups, generate an API token (above) and add a cron entry on your server:
         </P>
         <pre className="text-xs font-mono bg-gray-900 text-gray-100 rounded-lg p-3 overflow-x-auto mb-3">{`# Example: daily at 2:00 AM
 0 2 * * * curl -s -X POST https://your-server/api/admin/backup/run \\
   -H "Authorization: Bearer sbk_<your-token>" \\
   -H "Content-Type: application/json" \\
   -d '{"triggeredBy":"SCHEDULE"}'`}</pre>
+
+        <H3>Scheduled full backups (database + uploaded files)</H3>
+        <P>
+          The <strong>Cron Job Setup</strong> section on this page (once an API token is active) shows the exact command for your server. It runs the bundled <Code>scripts/backup.sh</Code>, which calls the same backup API for the database dump and additionally archives <Code>data/uploads/</Code> as a <Code>.tar.gz</Code>, pruning old upload archives to match your retention setting.
+        </P>
+        <pre className="text-xs font-mono bg-gray-900 text-gray-100 rounded-lg p-3 overflow-x-auto mb-3">{`# Example: daily at 2:00 AM
+0 2 * * * /opt/sympl/scripts/backup.sh https://your-server sbk_<your-token> /var/backups/sympl >> /var/log/sympl-backup.log 2>&1`}</pre>
       </>
     ),
   },

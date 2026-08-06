@@ -9,7 +9,7 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Dashboard** — Landing view with pipeline stats, approvals waiting on you, overdue compliance events, projects needing attention, and recent activity.
 - **Projects** — Organize products into projects with statuses, team members, and workflow stages. Search, filter by status, and switch between card and list views.
 - **Product Grid** — Spreadsheet-style inline editing with custom EAV attributes, column tooltips, freezable columns, saved views (named sort/visibility/pinning combos per project), bulk edit, and Excel import & export. Computed columns show per-product required-field completeness (%) and Salsify sync freshness (Synced / Changed / never). Duplicate Part Numbers used in another project are flagged with a warning icon.
-- **Product Record** — Full edit page per product with core fields, custom attributes by section, category inheritance from project, completeness chip, duplicate-part-number banner, Share / Pull-from-Salsify / Sync buttons (Admin/PM), and tabs for Compliance, Inspections, and field-level change History.
+- **Product Record** — Full edit page per product with core fields, custom attributes by section, category inheritance from project, completeness chip, duplicate-part-number banner, Share / Pull-from-Salsify / Sync buttons (Admin/PM), and tabs for Compliance, Inspections, and field-level change History (old → new values, with the source of the change: Project Grid, Product Record, or Import).
 - **Import with dry-run** — Excel import auto-maps columns, matches rows to existing products by Part Number (update-in-place, never duplicates), and shows a Verify step with create/update counts and cell-level old → new diffs before anything is written.
 - **Workflows** — Configurable approval stages per project with per-stage approvers, voting, automatic status transitions, and reusable templates. Stages can be reordered, carry due dates (overdue stages show red chips and a project-header badge, and escalate to pending approvers via the overdue cron), and can declare informational dependencies on other stages, compliance events, or PSIRs.
 - **Compliance** — Track regulatory events (Prop 65, REACH, CPSC, etc.) linked to products. Bulk-link products by pasting part numbers or uploading a spreadsheet. Overdue events surface on the dashboard and trigger notifications. Image attachments preview inline.
@@ -20,9 +20,9 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Read-Only Share Links** — Expiring tokenized URLs (7/30/90 days) that let a buyer or vendor view one product or inspection report without an account. Revocable at any time.
 - **Read-Only API Tokens** — Scoped `spt_` tokens (Admin → API Tokens) let ERP/BI tools pull product data via the API without a browser session.
 - **Manual Status Override** — Admins and Product Managers can set a project's status directly from the project Settings tab at any time.
-- **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups written to local disk, with retention policy, one-click restore, and a scoped API token for external cron automation.
+- **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups written to local disk, with retention policy, one-click restore, and a scoped API token for external cron automation. The bundled `scripts/backup.sh` wraps the API to also archive uploaded files, for a single crontab entry that backs up both database and attachments.
 - **Security** — Project-level authorization on every route, authenticated file serving with an upload-type allowlist, login rate limiting, immediate session invalidation for deactivated accounts, and last-admin lockout protection.
-- **Admin** — Users, categories, attributes (with EAV), workflow templates, compliance types, PSIR attributes, API tokens, backup, access control, and settings.
+- **Admin** — Users (including per-user password reset and activity log viewer), categories, attributes (with EAV and reorderable Lists of Values), workflow templates, compliance types, PSIR attributes, API tokens, backup, access control, and settings.
 
 ---
 
@@ -136,7 +136,7 @@ curl -s -X POST https://your-server/api/admin/backup/run \
   -H "Content-Type: application/json"
 ```
 
-**Scheduled backup:** Sympl does not have a built-in scheduler. Generate an API token and add a cron job:
+**Scheduled backup (database only):** Sympl does not have a built-in scheduler. Generate an API token and add a cron job:
 
 ```bash
 # Daily at 2:00 AM
@@ -146,7 +146,14 @@ curl -s -X POST https://your-server/api/admin/backup/run \
   -d '{"triggeredBy":"SCHEDULE"}'
 ```
 
-**Restore:** Go to Admin → Backup & Restore → Restore tab. Select a snapshot and click Restore. This runs `pg_restore --clean --if-exists` — all current data is overwritten. Reload the app after restoring.
+**Scheduled full backup (database + uploaded files):** use the bundled `scripts/backup.sh` instead — it calls the same API for the database dump and additionally tars up `data/uploads/`, pruning old archives to match the retention count configured in the admin UI:
+
+```bash
+# Daily at 2:00 AM
+0 2 * * * /opt/sympl/scripts/backup.sh https://your-server sbk_<your-token> /var/backups/sympl >> /var/log/sympl-backup.log 2>&1
+```
+
+**Restore:** Go to Admin → Backup & Restore → Restore tab. Select a snapshot and click Restore. This runs `pg_restore --clean --if-exists` — all current data is overwritten. Reload the app after restoring. To restore uploaded files, extract the corresponding `sympl-uploads-*.tar.gz` archive into `data/uploads/`.
 
 ---
 
