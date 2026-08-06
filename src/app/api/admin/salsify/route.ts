@@ -44,7 +44,9 @@ export async function PUT(req: NextRequest) {
   }
 
   const created = await prisma.salsifyConfig.create({
-    data: { organizationId: organizationId ?? "", channelId, isEnabled: isEnabled ?? false, salsifyDebugEnabled: salsifyDebugEnabled ?? false },
+    // apiKey is deprecated but still NOT NULL on databases that predate the
+    // per-user key migration, so write the empty string explicitly.
+    data: { apiKey: "", organizationId: organizationId ?? "", channelId, isEnabled: isEnabled ?? false, salsifyDebugEnabled: salsifyDebugEnabled ?? false },
   });
   return NextResponse.json({ success: true, id: created.id });
 }
