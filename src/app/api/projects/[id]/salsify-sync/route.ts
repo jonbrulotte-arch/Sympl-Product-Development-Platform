@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveSalsifyCredentials } from "@/lib/salsify-auth";
 import { can } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
 import type { ProductRecord } from "@prisma/client";
@@ -82,10 +83,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Project must be in EXPORT_READY status to sync" }, { status: 400 });
   }
 
-  const config = await prisma.salsifyConfig.findFirst({ where: { isEnabled: true } });
-  if (!config) {
-    return NextResponse.json({ error: "Salsify is not configured or not enabled. Configure it in Admin → Settings." }, { status: 400 });
+  const resolved = await resolveSalsifyCredentials(session.user.id);
+  if (!resolved.ok) {
+    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
   }
+  const config = resolved.credentials;
 
   // Get all salsify-enabled attribute definitions, excluding any the user opted out of
   const salsifyAttrs = await prisma.attributeDefinition.findMany({

@@ -16,7 +16,7 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Pre-Shipment Inspections (PSIR)** — Inspection reports with custom attributes, file attachments, pass/fail results, and bulk product linking (paste or .xlsx upload). List cards expand in place with quick status changes.
 - **Notifications** — In-app bell for workflow votes, stage completions, comments, and @mentions; cron-driven overdue alerts and a scheduled leadership digest email (pipeline, compliance risk, approvals aging).
 - **Comments & Attachments** — Project comments with file attachments (20 MB limit, type allowlist, served behind authentication). @mention teammates to notify them directly.
-- **Salsify Integration** — Map attributes to Salsify property IDs; sync all products in a project, a selection of rows from the grid, or a single product from its edit page — with a per-attribute opt-out modal before every sync. Per-product drift detection shows what's stale in Salsify, and Pull-from-Salsify brings digital-asset URLs and state back into Sympl. Enable Salsify Debug mode in Settings for log and inspector pages.
+- **Salsify Integration** — Per-user API keys (each sync authenticates as the person who ran it) with org-level settings shared. Map attributes to Salsify property IDs; sync all products in a project, a selection of rows from the grid, or a single product from its edit page — with a per-attribute opt-out modal before every sync. Per-product drift detection shows what's stale in Salsify, and Pull-from-Salsify brings digital-asset URLs and state back into Sympl. Enable Salsify Debug mode in Settings for log and inspector pages.
 - **Read-Only Share Links** — Expiring tokenized URLs (7/30/90 days) that let a buyer or vendor view one product or inspection report without an account. Revocable at any time.
 - **Read-Only API Tokens** — Scoped `spt_` tokens (Admin → API Tokens) let ERP/BI tools pull product data via the API without a browser session.
 - **Manual Status Override** — Admins and Product Managers can set a project's status directly from the project Settings tab at any time.
@@ -46,9 +46,8 @@ NEXTAUTH_SECRET=your-secret-here
 # Externally reachable URL of the app (NextAuth v5 reads AUTH_URL)
 AUTH_URL=http://localhost:4000
 
-# Salsify (optional — configure in Admin → Settings)
-SALSIFY_API_KEY=
-SALSIFY_ORG_ID=
+# Salsify is configured in the app, not here: the Organization ID lives in
+# Admin → Settings and each user's API key in My Profile → Salsify API Key.
 
 # Backup encryption (optional — falls back to NEXTAUTH_SECRET if not set)
 # Generate with: openssl rand -hex 32
@@ -216,13 +215,14 @@ Admins and Product Managers can create expiring read-only share links for a prod
 
 ## Salsify Integration
 
-1. Go to **Admin → Settings** and enter your Salsify API Key and Organization ID. Enable the **Enable Salsify Sync** toggle.
-2. In **Admin → Attributes**, enable Salsify on each attribute you want to sync and enter the Salsify Property ID.
-3. Sync products in one of three ways (all require `EXPORT_READY` status):
+1. **Admin → Settings** (admins): enter the Organization ID and channel, and enable the **Enable Salsify Sync** toggle.
+2. **My Profile → Salsify API Key** (each user who syncs): paste your own Salsify API key, from Salsify → User Settings → API Access. Keys are per-user, not global — every sync, pull, and debug call authenticates as the user who ran it, so Salsify attributes each change to the right person. Syncing without a key on file fails with a pointer to your profile.
+3. In **Admin → Attributes**, enable Salsify on each attribute you want to sync and enter the Salsify Property ID.
+4. Sync products in one of three ways (all require `EXPORT_READY` status):
    - **Full project** — click **Sync to Salsify** in the project header.
    - **Selected rows** — check rows in the product grid, then click **Sync to Salsify** in the selection toolbar.
    - **Single product** — click **Sync to Salsify** on the product edit page (`/products/[id]`).
-4. A pre-sync modal lists every Salsify-enabled attribute with checkboxes. Uncheck any attribute to exclude it from this sync run without permanently changing the attribute's Salsify settings.
+5. A pre-sync modal lists every Salsify-enabled attribute with checkboxes. Uncheck any attribute to exclude it from this sync run without permanently changing the attribute's Salsify settings.
 
 **Drift detection:** every successful sync records a per-product timestamp. The grid's **Salsify** column shows *Synced* (green, unchanged since last sync), *Changed* (yellow, edited since last sync — Salsify is stale), or *—* (never synced).
 

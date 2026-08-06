@@ -98,6 +98,9 @@ model User {
   passwordHash  String?
   role          UserRole  @default(CONTRIBUTOR)
   isActive      Boolean   @default(true)
+  // Salsify credentials are per-person, not per-installation: every sync
+  // authenticates as the user who triggered it.
+  salsifyApiKey String?   @db.Text
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -257,7 +260,9 @@ model AttributeDefinition {
 
 model SalsifyConfig {
   id                   String   @id @default(cuid())
-  apiKey               String   @db.Text
+  /// Deprecated — API keys now live on User.salsifyApiKey. Retained so the
+  /// previously configured key is not destroyed on upgrade; nothing reads it.
+  apiKey               String   @default("") @db.Text
   organizationId       String
   channelId            String?
   isEnabled            Boolean  @default(false)

@@ -12,11 +12,10 @@ export async function GET() {
   const config = await prisma.salsifyConfig.findFirst();
   if (!config) return NextResponse.json(null);
 
-  // Never expose the API key to the client — return a masked version
-  return NextResponse.json({
-    ...config,
-    apiKey: config.apiKey ? "••••••••" + config.apiKey.slice(-4) : "",
-  });
+  // API keys are per-user (User.salsifyApiKey) and never travel through this
+  // admin endpoint — drop the deprecated column from the response entirely.
+  const { apiKey: _deprecated, ...rest } = config;
+  return NextResponse.json(rest);
 }
 
 export async function PUT(req: NextRequest) {
@@ -25,7 +24,9 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { apiKey, organizationId, channelId, isEnabled, salsifyDebugEnabled } = await req.json();
+  // apiKey is deliberately not accepted — each user sets their own via
+  // /api/users/me/salsify-key.
+  const { organizationId, channelId, isEnabled, salsifyDebugEnabled } = await req.json();
 
   const existing = await prisma.salsifyConfig.findFirst();
 
@@ -33,7 +34,6 @@ export async function PUT(req: NextRequest) {
     const updated = await prisma.salsifyConfig.update({
       where: { id: existing.id },
       data: {
-        ...(apiKey && !apiKey.startsWith("••") ? { apiKey } : {}),
         organizationId,
         channelId,
         isEnabled,
@@ -44,7 +44,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const created = await prisma.salsifyConfig.create({
-    data: { apiKey: apiKey ?? "", organizationId: organizationId ?? "", channelId, isEnabled: isEnabled ?? false, salsifyDebugEnabled: salsifyDebugEnabled ?? false },
+    data: { organizationId: organizationId ?? "", channelId, isEnabled: isEnabled ?? false, salsifyDebugEnabled: salsifyDebugEnabled ?? false },
   });
   return NextResponse.json({ success: true, id: created.id });
 }

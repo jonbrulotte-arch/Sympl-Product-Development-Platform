@@ -733,7 +733,15 @@ const sections: Section[] = [
     content: (
       <>
         <H3>Setup</H3>
-        <P>Go to <strong>Admin → Settings</strong> and enter your Salsify API Key and Organization ID. Enable Salsify globally to allow syncing.</P>
+        <P>Salsify setup has two halves — one global, one per person:</P>
+        <UL>
+          <LI><strong>Admin → Settings</strong> (admins) — enter the Organization ID and channel, and switch on <strong>Enable Salsify Sync</strong>.</LI>
+          <LI><strong>My Profile → Salsify API Key</strong> (every user who syncs) — paste your own Salsify API key, found in Salsify → User Settings → API Access.</LI>
+        </UL>
+
+        <H3>Personal API keys</H3>
+        <P>Salsify API keys are issued per person, so Sympl stores them per user rather than once for the whole installation. Every sync, pull, and debug call authenticates as the user who triggered it, which means Salsify&apos;s own audit trail attributes each change to the right individual and each user only reaches what their Salsify account permits.</P>
+        <P>If you try to sync without a key on file, Sympl stops and points you to your profile. Replacing or removing your key from the profile page takes effect on your next sync; the key is never shown again after saving — only its last four characters.</P>
 
         <H3>Mapping attributes</H3>
         <P>In <strong>Admin → Attributes</strong>, open any attribute, enable the Salsify toggle, and enter the Salsify Property ID. This is the property name in Salsify that this attribute's value will be written to.</P>
