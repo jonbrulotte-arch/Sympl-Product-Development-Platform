@@ -48,7 +48,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!editAccess.ok) return NextResponse.json({ error: editAccess.error }, { status: editAccess.status });
 
   const body = await req.json();
-  const { attributeValues: attrValues, clearAttributeIds, ...coreData } = body;
+  const { attributeValues: attrValues, clearAttributeIds, source: reqSource, ...coreData } = body;
+  const activitySource: string = reqSource ?? "Product Record";
 
   const parsed = productSchema.partial().safeParse(coreData);
   if (!parsed.success) {
@@ -122,6 +123,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         fieldKey: field,
         oldValue: oldVal != null ? String(oldVal) : undefined,
         newValue: newVal != null ? String(newVal) : undefined,
+        source: activitySource,
       }).catch(() => {});
     }
   }

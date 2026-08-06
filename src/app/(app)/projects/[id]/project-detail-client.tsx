@@ -1483,8 +1483,8 @@ function CommentsView({ projectId, currentUserId, userRole, team = [] }: { proje
 
 type ActivityLog = {
   id: string; action: string; entityType: string; fieldKey: string | null;
-  oldValue: string | null; newValue: string | null; createdAt: string;
-  metadata: Record<string, unknown> | null;
+  oldValue: string | null; newValue: string | null; source: string | null;
+  createdAt: string; metadata: Record<string, unknown> | null;
   user: { id: string; name: string | null };
 };
 
@@ -1516,7 +1516,10 @@ function activityDescription(log: ActivityLog): string {
   }
   if (log.action === "CREATED" && log.newValue) return `${action} ${entity} "${log.newValue}"`;
   if (log.action === "DELETED" && log.oldValue) return `${action} ${entity} "${log.oldValue}"`;
-  return `${action} ${entity}${log.fieldKey ? ` (${log.fieldKey})` : ""}`;
+  const fieldLabel = log.fieldKey
+    ? log.fieldKey.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()).trim()
+    : null;
+  return `${action} ${entity}${fieldLabel ? ` — ${fieldLabel}` : ""}`;
 }
 
 const ACTION_ICON_COLOR: Record<string, string> = {
@@ -1604,9 +1607,18 @@ function ActivityView({ projectId, members }: { projectId: string; members: Arra
               <p className="text-sm text-gray-700">
                 <span className="font-medium">{log.user.name}</span>{" "}
                 {activityDescription(log)}
+                {log.source && (
+                  <span className="ml-1.5 inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                    via {log.source}
+                  </span>
+                )}
               </p>
-              {log.oldValue && log.newValue && log.action === "UPDATED" && (
-                <p className="text-xs text-gray-500 mt-0.5">{log.oldValue} → {log.newValue}</p>
+              {(log.oldValue || log.newValue) && log.action === "UPDATED" && (
+                <p className="text-xs text-gray-500 mt-0.5">
+                  <span className={log.oldValue ? "line-through text-gray-400" : "italic text-gray-400"}>{log.oldValue || "(empty)"}</span>
+                  {" → "}
+                  <span className={log.newValue ? "text-gray-700" : "italic text-gray-400"}>{log.newValue || "(empty)"}</span>
+                </p>
               )}
               <p className="text-xs text-gray-400 mt-0.5">{formatDate(log.createdAt)}</p>
             </div>

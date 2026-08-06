@@ -622,6 +622,7 @@ model ActivityLog {
   fieldKey   String?
   oldValue   String?        @db.Text
   newValue   String?        @db.Text
+  source     String?
   metadata   Json?
   createdAt  DateTime       @default(now())
 

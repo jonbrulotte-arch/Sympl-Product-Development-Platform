@@ -564,6 +564,7 @@ export function ProductGrid({
               ? raw.split("\n").map((s) => s.trim()).filter(Boolean)
               : raw.trim() ? [raw.trim()] : [];
             body = {
+              source: "Project Grid",
               clearAttributeIds: [attrDef.id],
               attributeValues: vals.map((textValue, valueIndex) => ({
                 attributeDefinitionId: attrDef.id,
@@ -572,7 +573,8 @@ export function ProductGrid({
               })),
             };
           } else {
-            body = { [field]: value };
+            const coerced = value != null && typeof value !== "boolean" ? String(value) : value;
+            body = { source: "Project Grid", [field]: coerced };
           }
 
           const res = await fetch(`/api/projects/${projectId}/products/${productId}`, {
@@ -1365,8 +1367,11 @@ function GridRow({
             onCellChange(colId, raw, attrDef);
           } else {
             let parsed: unknown = raw;
-            if (typeof value === "number" || (value == null && raw !== "" && !isNaN(Number(raw)))) {
+            const coreType = CORE_FIELDS.find((f) => f.key === colId)?.type;
+            if (coreType === "decimal" || coreType === "int") {
               parsed = raw.trim() === "" ? null : parseFloat(raw);
+            } else if (coreType === "boolean") {
+              parsed = raw === "true";
             } else if (raw === "") {
               parsed = null;
             }
@@ -1632,6 +1637,7 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
               : [value];
           }
           body = {
+            source: "Project Grid",
             clearAttributeIds: [selectedEavAttr.id],
             attributeValues: vals.map((textValue, valueIndex) => ({
               attributeDefinitionId: selectedEavAttr.id,
@@ -1640,7 +1646,7 @@ function BulkEditDialog({ selectedIds, products, allAttrs, coreAttrDefs, project
             })),
           };
         } else {
-          body = { [field]: value };
+          body = { source: "Project Grid", [field]: value };
         }
 
         const res = await fetch(`/api/projects/${projectId}/products/${productId}`, {

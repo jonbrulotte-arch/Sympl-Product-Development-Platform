@@ -11,6 +11,7 @@ export async function logActivity({
   fieldKey,
   oldValue,
   newValue,
+  source,
   metadata,
 }: {
   userId: string;
@@ -22,6 +23,7 @@ export async function logActivity({
   fieldKey?: string;
   oldValue?: string;
   newValue?: string;
+  source?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: any;
 }) {
@@ -36,6 +38,7 @@ export async function logActivity({
       fieldKey,
       oldValue,
       newValue,
+      source,
       metadata,
     },
   });
