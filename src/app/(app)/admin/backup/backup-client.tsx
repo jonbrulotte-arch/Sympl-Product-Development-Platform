@@ -185,12 +185,15 @@ export function BackupClient() {
       body: JSON.stringify({ name: file.name }),
     });
     const data = await res.json();
+    const counts = data.restored
+      ? ` Now holding ${data.restored.projects} project(s) and ${data.restored.products} product(s).`
+      : "";
     setRestoreMsg(res.ok
       ? {
           ok: true,
           text: file.kind === "uploads"
             ? "Uploaded files restored successfully."
-            : "Database restored successfully. Please reload the application.",
+            : `Database restored successfully.${counts} Please reload the application.`,
         }
       : { ok: false, text: data.error ?? "Restore failed" }
     );
@@ -541,7 +544,7 @@ export function BackupClient() {
           {restoreMsg && (
             <div className={`flex items-start gap-2 rounded-lg px-4 py-3 text-sm ${restoreMsg.ok ? "bg-blue-50 text-blue-700 border border-blue-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
               {restoreMsg.ok ? <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" /> : <XCircle className="h-4 w-4 shrink-0 mt-0.5" />}
-              {restoreMsg.text}
+              <span className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">{restoreMsg.text}</span>
             </div>
           )}
 

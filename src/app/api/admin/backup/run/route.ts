@@ -6,6 +6,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { createCipheriv, createHash, randomBytes } from "crypto";
 import { getBackupKey } from "@/lib/backup-key";
+import { pgConnectionUrl } from "@/lib/pg-url";
 import { createWriteStream, mkdirSync, readdirSync, statSync, unlinkSync } from "fs";
 import path from "path";
 import { pipeline } from "stream/promises";
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
   try {
     mkdirSync(backupDir, { recursive: true });
 
-    const dbUrl = process.env.DATABASE_URL ?? "";
+    const dbUrl = pgConnectionUrl(process.env.DATABASE_URL ?? "");
     // pg_dump to stdout
     const { stdout } = await execFileAsync("pg_dump", ["--no-password", "--format=custom", dbUrl], {
       encoding: "buffer",

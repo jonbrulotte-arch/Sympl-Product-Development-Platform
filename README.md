@@ -155,7 +155,7 @@ curl -s -X POST https://your-server/api/admin/backup/run \
 
 **Restore:** Go to Admin → Backup & Restore → Restore tab. Snapshots are listed newest-first with a **Database** or **Files** badge:
 
-- **Database** (`.pgenc`) — runs `pg_restore --clean --if-exists`; all current data is overwritten. Reload the app after restoring.
+- **Database** (`.pgenc`) — drops the `public` schema and restores the snapshot into it in a single transaction; all current data is overwritten. The success banner reports the restored project and product counts. Reload the app after restoring.
 - **Files** (`.tar.gz`) — extracts back over `data/uploads/`. Files in the archive overwrite same-named files; files only on this server are left in place.
 
 ### Server Migration

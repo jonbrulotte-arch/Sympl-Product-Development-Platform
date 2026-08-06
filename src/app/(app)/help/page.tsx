@@ -837,7 +837,7 @@ const sections: Section[] = [
         <H3>Restoring from a backup</H3>
         <P>Go to the <strong>Restore</strong> tab. Every snapshot in the backup directory is listed newest-first with a <strong>Database</strong> or <strong>Files</strong> badge. Click <strong>Restore</strong> next to the one you want.</P>
         <UL>
-          <LI><strong>Database</strong> snapshots run <Code>pg_restore --clean --if-exists</Code>, which drops and recreates all objects. <strong>All current data is overwritten.</strong> Reload the application afterwards.</LI>
+          <LI><strong>Database</strong> snapshots drop the entire <Code>public</Code> schema and restore the snapshot into it as a single transaction. <strong>All current data is overwritten</strong> — anything created since the backup is gone. On success the banner reports how many projects and products the database now holds; reload the application afterwards.</LI>
           <LI><strong>Files</strong> archives extract back over <Code>data/uploads/</Code>. Files in the archive overwrite files of the same name; files that exist only on this server are left in place.</LI>
         </UL>
 

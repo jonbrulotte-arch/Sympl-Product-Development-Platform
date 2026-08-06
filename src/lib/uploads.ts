@@ -54,6 +54,24 @@ export function resolvePrivateUploadPath(relPath: string): string | null {
   return resolved;
 }
 
+// Comment attachments are embedded in the comment body as an HTML comment
+// holding a JSON array. Returns the relative paths ("uploads/…") of every
+// attachment, ready for deleteUploadFile.
+export function parseCommentAttachments(content: string): string[] {
+  const match = content.match(/<!--attachments:(\[.*?\])-->/s);
+  if (!match) return [];
+  try {
+    const parsed: unknown = JSON.parse(match[1]);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((a) => (a && typeof a === "object" ? (a as { url?: unknown }).url : undefined))
+      .filter((u): u is string => typeof u === "string" && u.startsWith("/uploads/"))
+      .map((u) => u.slice(1));
+  } catch {
+    return [];
+  }
+}
+
 // Removes an uploaded file wherever it lives — private root for new uploads,
 // legacy public/ for files created before storage was locked down.
 export async function deleteUploadFile(relPath: string): Promise<void> {

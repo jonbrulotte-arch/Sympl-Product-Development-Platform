@@ -7,6 +7,7 @@ import { checkProjectAccess } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
 import { sendMail, projectStatusEmail } from "@/lib/email";
 import { createNotificationForMany } from "@/lib/notifications";
+import { deleteUploadFile, parseCommentAttachments } from "@/lib/uploads";
 
 async function getProject(id: string) {
   return prisma.project.findUnique({
@@ -181,7 +182,23 @@ export async function DELETE(
     if (session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Only admins can permanently delete projects" }, { status: 403 });
     }
+
+    // Comment rows cascade with the project, so collect their attachment paths
+    // first — once the rows are gone the files on disk are unreachable.
+    // Product comments carry projectId too, but match on either to also catch
+    // rows written before projectId was always set.
+    const comments = await prisma.comment.findMany({
+      where: { OR: [{ projectId: id }, { product: { projectId: id } }] },
+      select: { content: true },
+    });
+    const attachmentPaths = [...new Set(comments.flatMap((c) => parseCommentAttachments(c.content)))];
+
     await prisma.project.delete({ where: { id } });
+
+    // Only after the rows are gone, so a failed delete never orphans live files.
+    for (const relPath of attachmentPaths) {
+      await deleteUploadFile(relPath).catch(() => {});
+    }
     await logActivity({
       userId: session.user.id,
       action: "DELETED",
