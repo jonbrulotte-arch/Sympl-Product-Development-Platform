@@ -26,7 +26,7 @@ export async function PUT(req: NextRequest) {
 
   // apiKey is deliberately not accepted — each user sets their own via
   // /api/users/me/salsify-key.
-  const { organizationId, channelId, isEnabled, salsifyDebugEnabled } = await req.json();
+  const { organizationId, isEnabled, salsifyDebugEnabled } = await req.json();
 
   const existing = await prisma.salsifyConfig.findFirst();
 
@@ -35,7 +35,6 @@ export async function PUT(req: NextRequest) {
       where: { id: existing.id },
       data: {
         organizationId,
-        channelId,
         isEnabled,
         ...(salsifyDebugEnabled !== undefined ? { salsifyDebugEnabled } : {}),
       },
@@ -46,7 +45,7 @@ export async function PUT(req: NextRequest) {
   const created = await prisma.salsifyConfig.create({
     // apiKey is deprecated but still NOT NULL on databases that predate the
     // per-user key migration, so write the empty string explicitly.
-    data: { apiKey: "", organizationId: organizationId ?? "", channelId, isEnabled: isEnabled ?? false, salsifyDebugEnabled: salsifyDebugEnabled ?? false },
+    data: { apiKey: "", organizationId: organizationId ?? "", isEnabled: isEnabled ?? false, salsifyDebugEnabled: salsifyDebugEnabled ?? false },
   });
   return NextResponse.json({ success: true, id: created.id });
 }

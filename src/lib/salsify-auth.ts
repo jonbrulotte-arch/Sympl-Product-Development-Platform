@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 export type SalsifyCredentials = {
   apiKey: string;
   organizationId: string;
-  channelId: string | null;
 };
 
 type Resolved =
@@ -11,7 +10,7 @@ type Resolved =
   | { ok: false; error: string; status: number };
 
 // Salsify authenticates as the person who triggered the action, so the key
-// comes from the user while org/channel stay global in admin settings.
+// comes from the user while the organization stays global in admin settings.
 export async function resolveSalsifyCredentials(userId: string): Promise<Resolved> {
   const [config, user] = await Promise.all([
     prisma.salsifyConfig.findFirst({ where: { isEnabled: true } }),
@@ -36,7 +35,7 @@ export async function resolveSalsifyCredentials(userId: string): Promise<Resolve
 
   return {
     ok: true,
-    credentials: { apiKey, organizationId: config.organizationId, channelId: config.channelId },
+    credentials: { apiKey, organizationId: config.organizationId },
   };
 }
 

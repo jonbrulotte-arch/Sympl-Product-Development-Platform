@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface SalsifyConfig {
   organizationId: string;
-  channelId: string;
   isEnabled: boolean;
   salsifyDebugEnabled: boolean;
 }
@@ -15,7 +14,6 @@ interface SalsifyConfig {
 export function SalsifySettingsClient() {
   const [config, setConfig] = useState<SalsifyConfig>({
     organizationId: "",
-    channelId: "",
     isEnabled: false,
     salsifyDebugEnabled: false,
   });
@@ -112,14 +110,6 @@ export function SalsifySettingsClient() {
             </p>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Channel ID (optional)</label>
-            <Input
-              placeholder="Leave blank to use default channel"
-              value={config.channelId ?? ""}
-              onChange={(e) => setConfig((c) => ({ ...c, channelId: e.target.value }))}
-            />
-          </div>
         </div>
 
         <div className="pt-2 flex items-center gap-3">

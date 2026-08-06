@@ -735,7 +735,7 @@ const sections: Section[] = [
         <H3>Setup</H3>
         <P>Salsify setup has two halves — one global, one per person:</P>
         <UL>
-          <LI><strong>Admin → Settings</strong> (admins) — enter the Organization ID and channel, and switch on <strong>Enable Salsify Sync</strong>.</LI>
+          <LI><strong>Admin → Settings</strong> (admins) — enter the Organization ID and switch on <strong>Enable Salsify Sync</strong>.</LI>
           <LI><strong>My Profile → Salsify API Key</strong> (every user who syncs) — paste your own Salsify API key, found in Salsify → User Settings → API Access.</LI>
         </UL>
 

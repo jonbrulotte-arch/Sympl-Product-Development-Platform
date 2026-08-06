@@ -264,6 +264,8 @@ model SalsifyConfig {
   /// previously configured key is not destroyed on upgrade; nothing reads it.
   apiKey               String   @default("") @db.Text
   organizationId       String
+  /// Deprecated — never referenced by any Salsify API call. Retained so the
+  /// column is not dropped from existing databases; nothing reads or writes it.
   channelId            String?
   isEnabled            Boolean  @default(false)
   salsifyDebugEnabled  Boolean  @default(false)

@@ -215,7 +215,7 @@ Admins and Product Managers can create expiring read-only share links for a prod
 
 ## Salsify Integration
 
-1. **Admin → Settings** (admins): enter the Organization ID and channel, and enable the **Enable Salsify Sync** toggle.
+1. **Admin → Settings** (admins): enter the Organization ID and enable the **Enable Salsify Sync** toggle.
 2. **My Profile → Salsify API Key** (each user who syncs): paste your own Salsify API key, from Salsify → User Settings → API Access. Keys are per-user, not global — every sync, pull, and debug call authenticates as the user who ran it, so Salsify attributes each change to the right person. Syncing without a key on file fails with a pointer to your profile.
 3. In **Admin → Attributes**, enable Salsify on each attribute you want to sync and enter the Salsify Property ID.
 4. Sync products in one of three ways (all require `EXPORT_READY` status):
