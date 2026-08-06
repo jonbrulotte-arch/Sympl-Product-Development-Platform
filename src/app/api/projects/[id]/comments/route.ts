@@ -149,8 +149,11 @@ export async function DELETE(
   }
 
   // Delete any attached files stored on disk
-  for (const relPath of parseCommentAttachments(comment.content)) {
-    await deleteUploadFile(relPath).catch(() => {});
+  const attachmentPaths = parseCommentAttachments(comment.content);
+  if (attachmentPaths.length > 0) {
+    const results = await Promise.all(attachmentPaths.map((p) => deleteUploadFile(p)));
+    const removed = results.filter(Boolean).length;
+    console.log(`[uploads] comment ${commentId} delete: removed ${removed}/${attachmentPaths.length} attachment(s)`);
   }
 
   await prisma.comment.delete({ where: { id: commentId } });

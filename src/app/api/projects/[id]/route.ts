@@ -196,8 +196,10 @@ export async function DELETE(
     await prisma.project.delete({ where: { id } });
 
     // Only after the rows are gone, so a failed delete never orphans live files.
-    for (const relPath of attachmentPaths) {
-      await deleteUploadFile(relPath).catch(() => {});
+    if (attachmentPaths.length > 0) {
+      const results = await Promise.all(attachmentPaths.map((p) => deleteUploadFile(p)));
+      const removed = results.filter(Boolean).length;
+      console.log(`[uploads] project ${id} hard-delete: removed ${removed}/${attachmentPaths.length} comment attachment(s)`);
     }
     await logActivity({
       userId: session.user.id,
