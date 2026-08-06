@@ -20,7 +20,7 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Read-Only Share Links** — Expiring tokenized URLs (7/30/90 days) that let a buyer or vendor view one product or inspection report without an account. Revocable at any time.
 - **Read-Only API Tokens** — Scoped `spt_` tokens (Admin → API Tokens) let ERP/BI tools pull product data via the API without a browser session.
 - **Manual Status Override** — Admins and Product Managers can set a project's status directly from the project Settings tab at any time.
-- **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups written to local disk, with retention policy, one-click restore, and a scoped API token for external cron automation. The bundled `scripts/backup.sh` wraps the API to also archive uploaded files, for a single crontab entry that backs up both database and attachments.
+- **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups plus uploaded-file archives, written to local disk with a retention policy and one-click restore. Snapshots can be downloaded and re-uploaded through the admin UI to migrate an instance between servers, and a scoped API token drives external cron automation (`scripts/backup.sh` backs up database and attachments in one crontab entry).
 - **Security** — Project-level authorization on every route, authenticated file serving with an upload-type allowlist, login rate limiting, immediate session invalidation for deactivated accounts, and last-admin lockout protection.
 - **Admin** — Users (including per-user password reset and activity log viewer), categories, attributes (with EAV and reorderable Lists of Values), workflow templates, compliance types, PSIR attributes, API tokens, backup, access control, and settings.
 
@@ -153,7 +153,21 @@ curl -s -X POST https://your-server/api/admin/backup/run \
 0 2 * * * /opt/sympl/scripts/backup.sh https://your-server sbk_<your-token> /var/backups/sympl >> /var/log/sympl-backup.log 2>&1
 ```
 
-**Restore:** Go to Admin → Backup & Restore → Restore tab. Select a snapshot and click Restore. This runs `pg_restore --clean --if-exists` — all current data is overwritten. Reload the app after restoring. To restore uploaded files, extract the corresponding `sympl-uploads-*.tar.gz` archive into `data/uploads/`.
+**Restore:** Go to Admin → Backup & Restore → Restore tab. Snapshots are listed newest-first with a **Database** or **Files** badge:
+
+- **Database** (`.pgenc`) — runs `pg_restore --clean --if-exists`; all current data is overwritten. Reload the app after restoring.
+- **Files** (`.tar.gz`) — extracts back over `data/uploads/`. Files in the archive overwrite same-named files; files only on this server are left in place.
+
+### Server Migration
+
+Snapshots can be downloaded from one server and uploaded to another entirely through the admin UI — no shell access required:
+
+1. On the **old** server: click **Back Up Database** and **Archive Files**, then **Download** both artifacts from the Restore tab.
+2. Set the same `BACKUP_ENCRYPTION_KEY` (or, if unset, the same `NEXTAUTH_SECRET`) on the **new** server — the database dump cannot be decrypted without it.
+3. On the **new** server: open Backup & Restore → Restore and upload both files via **Upload a Snapshot**. Uploads stream to disk with a progress bar, so multi-GB dumps are fine.
+4. Restore the database snapshot, reload the app, then restore the files archive.
+
+Uploaded snapshots must keep their original file names (`sympl-backup-<timestamp>.pgenc` / `sympl-uploads-<timestamp>.tar.gz`) — the name is what identifies the artifact type.
 
 ---
 

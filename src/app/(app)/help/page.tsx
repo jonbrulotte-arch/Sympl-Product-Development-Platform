@@ -827,12 +827,29 @@ const sections: Section[] = [
         </UL>
 
         <H3>Running a backup manually</H3>
-        <P>Click <strong>Run Now</strong> at the top of the Backup & Restore page. The backup runs immediately and the result (file size, duration) appears as a banner. All runs are recorded in the <strong>Activity Log</strong> tab.</P>
+        <P>Two buttons at the top of the Backup & Restore page create snapshots on demand:</P>
+        <UL>
+          <LI><strong>Back Up Database</strong> — dumps and encrypts the PostgreSQL database to a <Code>.pgenc</Code> file.</LI>
+          <LI><strong>Archive Files</strong> — packs the <Code>data/uploads/</Code> directory (all attachments) into a <Code>.tar.gz</Code> archive.</LI>
+        </UL>
+        <P>The result (file name, size, duration) appears as a banner, and all runs are recorded in the <strong>Activity Log</strong> tab. Both artifact types are subject to the same <strong>Retain last N</strong> setting.</P>
 
         <H3>Restoring from a backup</H3>
-        <P>Go to the <strong>Restore</strong> tab. Available <Code>.pgenc</Code> files in the backup directory are listed newest-first. Click <strong>Restore</strong> next to the snapshot you want to restore from.</P>
+        <P>Go to the <strong>Restore</strong> tab. Every snapshot in the backup directory is listed newest-first with a <strong>Database</strong> or <strong>Files</strong> badge. Click <strong>Restore</strong> next to the one you want.</P>
+        <UL>
+          <LI><strong>Database</strong> snapshots run <Code>pg_restore --clean --if-exists</Code>, which drops and recreates all objects. <strong>All current data is overwritten.</strong> Reload the application afterwards.</LI>
+          <LI><strong>Files</strong> archives extract back over <Code>data/uploads/</Code>. Files in the archive overwrite files of the same name; files that exist only on this server are left in place.</LI>
+        </UL>
+
+        <H3>Download &amp; upload (server migration)</H3>
+        <P>Every snapshot has a <strong>Download</strong> button, and the Restore tab has an <strong>Upload a Snapshot</strong> panel. Together these let you move an entire Sympl instance to a new server without shell access:</P>
+        <UL>
+          <LI>On the <em>old</em> server, click <strong>Back Up Database</strong> and <strong>Archive Files</strong>, then <strong>Download</strong> both artifacts.</LI>
+          <LI>On the <em>new</em> server, open Backup &amp; Restore → Restore and upload both files. Large uploads stream with a progress bar.</LI>
+          <LI>Restore the database snapshot first, reload the app, then restore the files archive.</LI>
+        </UL>
         <Callout type="tip">
-          Restore uses <Code>pg_restore --clean --if-exists</Code>, which drops and recreates all objects before restoring. <strong>All current data will be overwritten.</strong> Reload the application after a successful restore.
+          The new server must have the same <Code>BACKUP_ENCRYPTION_KEY</Code> (or, if that is unset, the same <Code>NEXTAUTH_SECRET</Code>) as the server that created the database backup — otherwise decryption fails and the restore cannot proceed. Copy that value across before migrating.
         </Callout>
 
         <H3>API Token (for automation)</H3>
