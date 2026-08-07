@@ -40,7 +40,13 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
   const [pwLoading, setPwLoading] = useState(false);
   const [pwMsg, setPwMsg] = useState<string | null>(null);
   const [activityUser, setActivityUser] = useState<UserRow | null>(null);
-  type ActivityEntry = { id: string; action: string; entityType: string; fieldKey: string | null; source: string | null; createdAt: string };
+  type ActivityEntry = {
+    id: string; action: string; entityType: string; entityId: string;
+    fieldKey: string | null; oldValue: string | null; newValue: string | null;
+    source: string | null; createdAt: string;
+    project: { id: string; name: string } | null;
+    product: { id: string; partNumber: string | null; itemName: string | null } | null;
+  };
   const [activityLogs, setActivityLogs] = useState<ActivityEntry[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
 
@@ -291,19 +297,47 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
           <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
             {activityLoading && <p className="text-sm text-gray-400 text-center py-6">Loading...</p>}
             {!activityLoading && activityLogs.length === 0 && <p className="text-sm text-gray-400 text-center py-6">No activity found.</p>}
-            {activityLogs.map((log) => (
-              <div key={log.id} className="py-2.5 px-1">
-                <p className="text-sm text-gray-700">
-                  {log.action} {log.entityType}{log.fieldKey ? ` (${log.fieldKey})` : ""}
-                  {log.source && (
-                    <span className="ml-1.5 inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
-                      via {log.source}
+            {activityLogs.map((log) => {
+              const productLabel = log.product?.partNumber ?? log.product?.itemName ?? null;
+              const truncate = (v: string, n = 60) => v.length > n ? v.slice(0, n) + "…" : v;
+              return (
+                <div key={log.id} className="py-2.5 px-1 space-y-1">
+                  <p className="text-sm text-gray-700">
+                    <span className={`inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded mr-1.5 ${log.action === "DELETED" ? "bg-red-50 text-red-600" : log.action === "CREATED" ? "bg-green-50 text-green-600" : "bg-blue-50 text-blue-600"}`}>
+                      {log.action}
                     </span>
+                    {log.entityType}{log.fieldKey ? ` · ${log.fieldKey}` : ""}
+                    {log.source && (
+                      <span className="ml-1.5 inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                        via {log.source}
+                      </span>
+                    )}
+                  </p>
+                  {log.project && (
+                    <p className="text-xs text-gray-500">
+                      Project: <span className="font-medium text-gray-700">{log.project.name}</span>
+                    </p>
                   )}
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">{formatDate(log.createdAt)}</p>
-              </div>
-            ))}
+                  {productLabel && (
+                    <p className="text-xs text-gray-500">
+                      Product: <span className="font-medium text-gray-700">{productLabel}</span>
+                    </p>
+                  )}
+                  {log.fieldKey && (log.oldValue != null || log.newValue != null) && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      {log.oldValue != null && (
+                        <span className="bg-red-50 text-red-700 px-1.5 py-0.5 rounded line-through">{truncate(log.oldValue)}</span>
+                      )}
+                      {log.oldValue != null && log.newValue != null && <span className="text-gray-400">→</span>}
+                      {log.newValue != null && (
+                        <span className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded">{truncate(log.newValue)}</span>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-400">{formatDate(log.createdAt)}</p>
+                </div>
+              );
+            })}
           </div>
         </DialogContent>
       </Dialog>
