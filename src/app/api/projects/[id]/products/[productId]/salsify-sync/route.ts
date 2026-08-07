@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveSalsifyCredentials } from "@/lib/salsify-auth";
 import { checkProjectAccess } from "@/lib/project-access";
+import { logActivity } from "@/lib/activity";
+import { SALSIFY_FIELD_SYNC, unresolvedDriftForProduct } from "@/lib/salsify-drift";
 import type { ProductRecord } from "@prisma/client";
 
 const CORE_FIELD_ACCESSOR: Record<string, (p: ProductRecord) => unknown> = {
@@ -200,9 +202,38 @@ export async function POST(req: NextRequest, { params }: Params) {
   // timestamp column uses the DB server's local timezone, skewing the
   // comparison against Prisma's UTC-written updatedAt.
   //
-  // A partial push deliberately leaves the timestamp alone: the other fields
-  // are still stale, so the product must stay flagged as out of sync.
-  if (!isPartial) {
+  // A partial push records each field it pushed, then only stamps the
+  // timestamp once no edited field is left unpushed — so resolving every
+  // drifted field one at a time clears the product from the report just as a
+  // full sync would.
+  let fullyResolved = !isPartial;
+
+  if (isPartial) {
+    const syncedFields = salsifyAttrs.map((a) => a.key);
+    await Promise.all(
+      syncedFields.map((key) =>
+        logActivity({
+          userId: session.user.id,
+          action: "EXPORTED",
+          entityType: "ProductRecord",
+          entityId: product.id,
+          projectId,
+          productId: product.id,
+          fieldKey: key,
+          source: SALSIFY_FIELD_SYNC,
+        }).catch(() => {})
+      )
+    );
+
+    // Never infer a full sync for a product that has never had one — one
+    // pushed property is no evidence the rest of the record matches.
+    if (product.salsifyLastSyncedAt) {
+      const remaining = await unresolvedDriftForProduct(product.id, product.salsifyLastSyncedAt);
+      fullyResolved = remaining.length === 0;
+    }
+  }
+
+  if (fullyResolved) {
     await prisma.$executeRaw`UPDATE "ProductRecord" SET "salsifyLastSyncedAt" = ${new Date()} WHERE id = ${product.id}`.catch(() => {});
   }
 
@@ -210,6 +241,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     synced: true,
     salsifyId,
     partial: isPartial,
+    fullyResolved,
     fields: isPartial ? salsifyAttrs.map((a) => a.key) : undefined,
   });
 }

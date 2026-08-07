@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
+import { unresolvedDriftForProduct } from "@/lib/salsify-drift";
 
 // Detail behind a row of the Out-of-Sync Products report: which fields were
 // edited since the last Salsify push, what they were, what they are now, and
@@ -35,26 +36,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const [logs, salsifyAttrs, salsifyConfig, canSync] = await Promise.all([
-    prisma.activityLog.findMany({
-      where: {
-        productId,
-        entityType: "ProductRecord",
-        fieldKey: { not: null },
-        ...(product.salsifyLastSyncedAt ? { createdAt: { gt: product.salsifyLastSyncedAt } } : {}),
-      },
-      select: {
-        id: true,
-        fieldKey: true,
-        oldValue: true,
-        newValue: true,
-        source: true,
-        createdAt: true,
-        user: { select: { name: true, email: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    }),
+  const [outstanding, salsifyAttrs, salsifyConfig, canSync] = await Promise.all([
+    unresolvedDriftForProduct(productId, product.salsifyLastSyncedAt),
     prisma.attributeDefinition.findMany({
       where: { salsifyEnabled: true, isActive: true },
       select: { key: true, label: true, salsifyPropertyId: true },
@@ -65,42 +48,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const syncable = new Map(salsifyAttrs.map((a) => [a.key, a]));
 
-  // Collapse the log into one entry per field: the value before the first edit
-  // since the last sync, and the value after the most recent one.
-  type Change = {
-    fieldKey: string;
-    label: string;
-    oldValue: string | null;
-    newValue: string | null;
-    changedBy: string;
-    changedAt: string;
-    source: string | null;
-    edits: number;
-    syncable: boolean;
-  };
-  const byField = new Map<string, Change>();
-  for (const log of logs) {
-    const key = log.fieldKey!;
-    const attr = syncable.get(key);
-    const existing = byField.get(key);
-    if (existing) {
-      // logs are newest-first, so each later entry is the older edit
-      existing.oldValue = log.oldValue;
-      existing.edits++;
-      continue;
-    }
-    byField.set(key, {
-      fieldKey: key,
-      label: attr?.label ?? key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()).trim(),
-      oldValue: log.oldValue,
-      newValue: log.newValue,
-      changedBy: log.user.name ?? log.user.email,
-      changedAt: log.createdAt.toISOString(),
-      source: log.source,
-      edits: 1,
+  const changes = outstanding.map((c) => {
+    const attr = syncable.get(c.fieldKey);
+    return {
+      ...c,
+      changedAt: c.changedAt.toISOString(),
+      label: attr?.label ?? c.fieldKey.replace(/([A-Z])/g, " $1").replace(/^./, (ch) => ch.toUpperCase()).trim(),
       syncable: !!attr?.salsifyPropertyId,
-    });
-  }
+    };
+  });
 
   const salsifyUrl =
     salsifyConfig?.organizationId && product.partNumber
@@ -122,7 +78,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       product: `/products/${product.id}`,
       salsify: salsifyUrl,
     },
-    changes: [...byField.values()],
+    changes,
     canSync: canSync && !!salsifyConfig?.isEnabled,
   });
 }

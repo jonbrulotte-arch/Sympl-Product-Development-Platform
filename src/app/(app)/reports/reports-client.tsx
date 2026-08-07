@@ -74,10 +74,13 @@ function DriftDetailDrawer({
   projectId,
   productId,
   onClose,
+  onResolved,
 }: {
   projectId: string;
   productId: string;
   onClose: () => void;
+  /** Every drifted field has been pushed — the row is no longer out of sync. */
+  onResolved: () => void;
 }) {
   const [detail, setDetail] = useState<DriftDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -117,6 +120,10 @@ function DriftDetailDrawer({
         return;
       }
       setSynced((prev) => ({ ...prev, [fieldKey]: true }));
+      if (data.fullyResolved) {
+        onResolved();
+        onClose();
+      }
     } catch {
       setError("Sync request failed.");
     } finally {
@@ -271,6 +278,7 @@ export function ReportsClient() {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [inspectionsEnabled, setInspectionsEnabled] = useState(true);
   const [drill, setDrill] = useState<{ projectId: string; productId: string } | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     fetch("/api/config")
@@ -299,7 +307,7 @@ export function ReportsClient() {
       .then((data) => { if (!cancelled) setRows(Array.isArray(data.rows) ? data.rows : []); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [active, filters, query]);
+  }, [active, filters, query, refreshKey]);
 
   function selectReport(type: ReportType) {
     setActive(type);
@@ -442,6 +450,7 @@ export function ReportsClient() {
           projectId={drill.projectId}
           productId={drill.productId}
           onClose={() => setDrill(null)}
+          onResolved={() => setRefreshKey((k) => k + 1)}
         />
       )}
     </div>

@@ -6,6 +6,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { isInspectionsEnabled } from "@/lib/app-config";
+import { unresolvedDrift } from "@/lib/salsify-drift";
 import type { Prisma } from "@prisma/client";
 
 export const REPORT_TYPES = [
@@ -337,25 +338,11 @@ export async function outOfSyncReport(ctx: ReportContext): Promise<ReportRow[]> 
   );
   if (drifted.length === 0) return [];
 
-  // Count field-level edits recorded since each product's last sync, so the
-  // row can advertise how much has drifted before the user opens the detail.
-  const logs = await prisma.activityLog.findMany({
-    where: {
-      productId: { in: drifted.map((p) => p.id) },
-      entityType: "ProductRecord",
-      fieldKey: { not: null },
-    },
-    select: { productId: true, fieldKey: true, createdAt: true },
-  });
-  const changedFields = new Map<string, Set<string>>();
-  for (const log of logs) {
-    if (!log.productId || !log.fieldKey) continue;
-    const product = drifted.find((p) => p.id === log.productId);
-    if (product?.salsifyLastSyncedAt && log.createdAt <= product.salsifyLastSyncedAt) continue;
-    const set = changedFields.get(log.productId) ?? new Set<string>();
-    set.add(log.fieldKey);
-    changedFields.set(log.productId, set);
-  }
+  // Field-level edits not yet pushed, so the row can advertise how much has
+  // drifted before the user opens the detail.
+  const outstanding = await unresolvedDrift(
+    new Map(drifted.map((p) => [p.id, p.salsifyLastSyncedAt]))
+  );
 
   return drifted.map((p) => ({
     "Part Number": p.partNumber ?? null,
@@ -363,7 +350,7 @@ export async function outOfSyncReport(ctx: ReportContext): Promise<ReportRow[]> 
     Project: p.project.name,
     "Project Status": p.project.status,
     "Drift Status": p.salsifyLastSyncedAt ? "Changed" : "Never synced",
-    "Changed Fields": changedFields.get(p.id)?.size ?? 0,
+    "Unsynced Fields": outstanding.get(p.id)?.length ?? 0,
     "Last Synced": fmtDate(p.salsifyLastSyncedAt),
     "Last Updated": fmtDate(p.updatedAt),
     // Underscore-prefixed keys are internal: the client uses them to open the
