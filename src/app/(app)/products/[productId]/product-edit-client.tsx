@@ -963,7 +963,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
                         <img
                           src={salsifySquareUrl(imageAssets[lightboxIndex]?.url ?? "")}
                           alt={imageAssets[lightboxIndex]?.name ?? ""}
-                          className="rounded-xl shadow-2xl object-contain"
+                          className="rounded-xl shadow-2xl object-contain bg-white"
                           style={{ maxWidth: "min(600px, 85vw)", maxHeight: "min(600px, 75vh)", aspectRatio: "1/1" }}
                         />
                         {imageAssets.length > 1 && (
