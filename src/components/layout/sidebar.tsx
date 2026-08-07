@@ -24,6 +24,7 @@ import {
   ClipboardCheck,
   HardDrive,
   KeyRound,
+  BarChart3,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -36,6 +37,7 @@ const navItems = [
   { href: "/products", label: "Products", icon: Package },
   { href: "/psir", label: "Inspections", icon: ClipboardCheck },
   { href: "/compliance", label: "Compliance", icon: ShieldCheck },
+  { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/import", label: "Import", icon: Upload },
   { href: "/help", label: "Help & Docs", icon: HelpCircle },
 ];
