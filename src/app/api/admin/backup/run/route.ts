@@ -6,6 +6,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { createCipheriv, createHash, randomBytes } from "crypto";
 import { getBackupKey } from "@/lib/backup-key";
+import { pgConnectionUrl } from "@/lib/pg-url";
 import { createWriteStream, mkdirSync, readdirSync, statSync, unlinkSync } from "fs";
 import path from "path";
 import { pipeline } from "stream/promises";
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
   try {
     mkdirSync(backupDir, { recursive: true });
 
-    const dbUrl = process.env.DATABASE_URL ?? "";
+    const dbUrl = pgConnectionUrl(process.env.DATABASE_URL ?? "");
     // pg_dump to stdout
     const { stdout } = await execFileAsync("pg_dump", ["--no-password", "--format=custom", dbUrl], {
       encoding: "buffer",
@@ -76,14 +77,18 @@ export async function POST(req: NextRequest) {
 
     const fileSize = statSync(filePath).size;
 
-    // Prune old backups beyond retainCount
+    // Prune old backups beyond retainCount. Best-effort per file: a file that
+    // vanishes mid-prune must not fail a backup that already succeeded.
     const allBackups = readdirSync(backupDir)
       .filter((f) => f.startsWith("sympl-backup-") && f.endsWith(".pgenc"))
-      .map((f) => ({ name: f, mtime: statSync(path.join(backupDir, f)).mtime.getTime() }))
+      .flatMap((f) => {
+        try { return [{ name: f, mtime: statSync(path.join(backupDir, f)).mtime.getTime() }]; }
+        catch { return []; }
+      })
       .sort((a, b) => b.mtime - a.mtime);
 
     for (const old of allBackups.slice(config.retainCount)) {
-      unlinkSync(path.join(backupDir, old.name));
+      try { unlinkSync(path.join(backupDir, old.name)); } catch { /* already gone */ }
     }
 
     const log = await prisma.backupLog.create({

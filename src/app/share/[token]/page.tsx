@@ -25,7 +25,7 @@ function Field({ label, value }: { label: string; value: string }) {
   if (!value) return null;
   return (
     <div>
-      <p className="text-xs text-gray-400">{label}</p>
+      <p className="text-xs text-gray-500">{label}</p>
       <p className="text-sm text-gray-800 whitespace-pre-wrap">{value}</p>
     </div>
   );
@@ -188,7 +188,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             {s.fields.map((f, i) => <Field key={i} label={f.label} value={f.value} />)}
           </Section>
         ))}
-        <p className="text-xs text-gray-400 text-center pt-4 pb-8">
+        <p className="text-xs text-gray-500 text-center pt-4 pb-8">
           Read-only view · expires {link.expiresAt.toLocaleDateString()}
         </p>
       </div>

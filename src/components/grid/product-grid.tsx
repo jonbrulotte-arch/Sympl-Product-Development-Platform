@@ -629,6 +629,11 @@ export function ProductGrid({
 
   const deleteSelected = useCallback(async () => {
     if (selectedRows.size === 0) return;
+    const count = selectedRows.size;
+    const msg = count === 1
+      ? "Are you sure you want to delete this product? This cannot be undone."
+      : `Are you sure you want to delete these ${count} products? This cannot be undone.`;
+    if (!confirm(msg)) return;
     const ids = [...selectedRows];
     await Promise.all(
       ids.map((id) =>
@@ -1008,7 +1013,7 @@ export function ProductGrid({
                       }}
                       className={cn(
                         "border-b border-r border-gray-200 px-2 py-2 text-left text-xs font-semibold whitespace-nowrap select-none relative overflow-visible hover:z-30",
-                        (isEav || isGroup) ? "bg-amber-50 text-amber-800" : "bg-gray-50 text-gray-600",
+                        "bg-amber-50 text-amber-800",
                         isGroup && "text-center font-bold border-t-2 border-amber-300",
                         isPinned && "!bg-blue-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]"
                       )}
@@ -1396,7 +1401,7 @@ function GridRow({
             style={{ width: cell.column.getSize(), ...pinnedStyle }}
             className={cn(
               "border-r border-gray-100 px-0 py-0 relative",
-              isEav && !isPinned && "bg-amber-50/40",
+              !isPinned && "bg-amber-50/40",
               isPinned && "bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]",
               editing && "ring-2 ring-inset ring-blue-500 z-10"
             )}
@@ -1520,7 +1525,7 @@ function GridRow({
                 />
               );
             })() : (
-              <div className={cn("px-2 py-1 text-sm truncate min-h-[32px] flex items-center gap-1 flex-wrap", isEav ? "text-amber-900" : "text-gray-700")}>
+              <div className={cn("px-2 py-1 text-sm truncate min-h-[32px] flex items-center gap-1 flex-wrap", "text-amber-900")}>
                 {colId === "partNumber" && (row.original as ProductRow).duplicateOf && (
                   <span
                     title={`Duplicate Part Number — also used in project "${(row.original as ProductRow).duplicateOf!.projectName}"`}
@@ -1534,9 +1539,7 @@ function GridRow({
                     const vals = isEav
                       ? ((row.original as ProductRow)._eavArrays?.[attrDef.key] ?? [])
                       : String(value).split("\n").filter(Boolean);
-                    const chipClass = isEav
-                      ? "inline-block bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded"
-                      : "inline-block bg-gray-100 text-gray-700 text-xs px-1.5 py-0.5 rounded";
+                    const chipClass = "inline-block bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded";
                     if (attrDef.lovItems?.length) {
                       return vals.map((v, i) => {
                         const label = attrDef.lovItems.find((l) => l.value === v)?.label ?? v;

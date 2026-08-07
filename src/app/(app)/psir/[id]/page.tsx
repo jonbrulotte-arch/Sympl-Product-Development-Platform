@@ -1,11 +1,13 @@
 import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { isInspectionsEnabled } from "@/lib/app-config";
 import { PsirDetailClient } from "./psir-detail-client";
 
 export default async function PsirDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
+  if (!(await isInspectionsEnabled())) redirect("/dashboard");
 
   const { id } = await params;
 

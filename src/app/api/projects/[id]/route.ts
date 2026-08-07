@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { projectSchema } from "@/lib/validation";
-import { canEditProject, canDeleteProject } from "@/lib/permissions";
+import { canEditProject, canDeleteProject, can } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
-import { sendMail, projectStatusEmail } from "@/lib/email";
+import { projectStatusEmail } from "@/lib/email";
 import { createNotificationForMany } from "@/lib/notifications";
+import { deleteUploadFile, parseCommentAttachments } from "@/lib/uploads";
 
 async function getProject(id: string) {
   return prisma.project.findUnique({
@@ -92,6 +93,19 @@ export async function PATCH(
 
   const { targetLaunchDate, ownerId, ...rest } = parsed.data;
 
+  // Setting status directly bypasses the workflow, so it needs its own
+  // permission rather than riding on general project-edit rights.
+  if (rest.status !== undefined) {
+    const current = await prisma.project.findUnique({ where: { id }, select: { status: true } });
+    if (current && current.status !== rest.status &&
+        !(await can(session.user.role, "projects:override_status"))) {
+      return NextResponse.json(
+        { error: "You do not have permission to change project status" },
+        { status: 403 }
+      );
+    }
+  }
+
   // Only admins may reassign the project owner
   if (ownerId && session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Only admins can reassign project ownership" }, { status: 403 });
@@ -139,13 +153,6 @@ export async function PATCH(
       include: { user: { select: { id: true, email: true } } },
     });
     function fmtStatus(s: string) { return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
-    for (const m of members) {
-      sendMail(
-        m.user.email,
-        `Project status updated: ${updated.name}`,
-        projectStatusEmail({ projectName: updated.name, oldStatus: project.status, newStatus: rest.status, changedBy, projectId: id })
-      ).catch(() => {});
-    }
     createNotificationForMany(members.map((m) => m.user.id), {
       title: `${updated.name} status changed`,
       message: `${changedBy} changed the status from ${fmtStatus(project.status)} to ${fmtStatus(rest.status)}`,
@@ -153,6 +160,7 @@ export async function PATCH(
       category: "WORKFLOW",
       link: `/projects/${id}`,
       projectId: id,
+      emailHtml: projectStatusEmail({ projectName: updated.name, oldStatus: project.status, newStatus: rest.status, changedBy, projectId: id }),
     });
   }
 
@@ -181,7 +189,25 @@ export async function DELETE(
     if (session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Only admins can permanently delete projects" }, { status: 403 });
     }
+
+    // Comment rows cascade with the project, so collect their attachment paths
+    // first — once the rows are gone the files on disk are unreachable.
+    // Product comments carry projectId too, but match on either to also catch
+    // rows written before projectId was always set.
+    const comments = await prisma.comment.findMany({
+      where: { OR: [{ projectId: id }, { product: { projectId: id } }] },
+      select: { content: true },
+    });
+    const attachmentPaths = [...new Set(comments.flatMap((c) => parseCommentAttachments(c.content)))];
+
     await prisma.project.delete({ where: { id } });
+
+    // Only after the rows are gone, so a failed delete never orphans live files.
+    if (attachmentPaths.length > 0) {
+      const results = await Promise.all(attachmentPaths.map((p) => deleteUploadFile(p)));
+      const removed = results.filter(Boolean).length;
+      console.log(`[uploads] project ${id} hard-delete: removed ${removed}/${attachmentPaths.length} comment attachment(s)`);
+    }
     await logActivity({
       userId: session.user.id,
       action: "DELETED",

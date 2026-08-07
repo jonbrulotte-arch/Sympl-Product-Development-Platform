@@ -8,7 +8,7 @@ import { copyToClipboard } from "@/lib/copy-to-clipboard";
 type ActiveLink = { id: string; url: string; expiresAt: string };
 
 // Creates and manages expiring read-only share links for a product or PSIR.
-// Rendered only for ADMIN / PRODUCT_MANAGER (the API enforces it regardless).
+// Rendered only for ADMIN / DIRECTOR / PRODUCT_MANAGER (the API enforces it regardless).
 export function ShareLinkButton({ entityType, entityId }: { entityType: "PRODUCT" | "PSIR" | "COMPLIANCE"; entityId: string }) {
   const [open, setOpen] = useState(false);
   const [links, setLinks] = useState<ActiveLink[]>([]);

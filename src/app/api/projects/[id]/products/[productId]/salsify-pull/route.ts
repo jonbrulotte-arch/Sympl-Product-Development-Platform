@@ -2,6 +2,7 @@ import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveSalsifyCredentials } from "@/lib/salsify-auth";
 import { checkProjectAccess } from "@/lib/project-access";
 
 type Params = { params: Promise<{ id: string; productId: string }> };
@@ -22,10 +23,11 @@ export async function POST(_req: NextRequest, { params }: Params) {
   const access = await checkProjectAccess(projectId, session, "view");
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 
-  const config = await prisma.salsifyConfig.findFirst({ where: { isEnabled: true } });
-  if (!config) {
-    return NextResponse.json({ error: "Salsify is not configured or not enabled." }, { status: 400 });
+  const resolved = await resolveSalsifyCredentials(session.user.id);
+  if (!resolved.ok) {
+    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
   }
+  const config = resolved.credentials;
 
   const product = await prisma.productRecord.findUnique({
     where: { id: productId },

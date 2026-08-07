@@ -10,7 +10,20 @@ export const authConfig: NextAuthConfig = {
   },
   providers: [],
   callbacks: {
-    authorized({ auth }) {
+    authorized({ auth, request }) {
+      const path = request.nextUrl.pathname;
+      // Reachable without a session. Anything that a signed-out person must be
+      // able to open — invitation and reset links above all — belongs here, or
+      // it bounces to /login and the token in the query string is lost.
+      const publicPaths = [
+        "/login",
+        "/forgot-password",
+        "/reset-password",
+        "/accept-invite",
+        "/share",
+        "/api/auth/",
+      ];
+      if (publicPaths.some((p) => path.startsWith(p))) return true;
       return !!auth?.user;
     },
   },

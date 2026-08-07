@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkProjectAccess } from "@/lib/project-access";
-import { deleteUploadFile } from "@/lib/uploads";
+import { deleteUploadFile, parseCommentAttachments } from "@/lib/uploads";
 import { createNotificationForMany } from "@/lib/notifications";
 
 export async function GET(
@@ -149,16 +149,11 @@ export async function DELETE(
   }
 
   // Delete any attached files stored on disk
-  const attachMatch = comment.content.match(/<!--attachments:(\[.*?\])-->/s);
-  if (attachMatch) {
-    try {
-      const attachments: { url: string }[] = JSON.parse(attachMatch[1]);
-      for (const a of attachments) {
-        if (a.url?.startsWith("/uploads/")) {
-          await deleteUploadFile(a.url.slice(1)).catch(() => {});
-        }
-      }
-    } catch { /* ignore parse errors */ }
+  const attachmentPaths = parseCommentAttachments(comment.content);
+  if (attachmentPaths.length > 0) {
+    const results = await Promise.all(attachmentPaths.map((p) => deleteUploadFile(p)));
+    const removed = results.filter(Boolean).length;
+    console.log(`[uploads] comment ${commentId} delete: removed ${removed}/${attachmentPaths.length} attachment(s)`);
   }
 
   await prisma.comment.delete({ where: { id: commentId } });

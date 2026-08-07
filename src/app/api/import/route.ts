@@ -5,6 +5,7 @@ import { CORE_FIELDS, coerceCoreValue } from "@/lib/core-fields";
 import { checkProjectAccess } from "@/lib/project-access";
 import { parseUploadedWorkbook } from "@/lib/xlsx-parse";
 import { logActivity } from "@/lib/activity";
+import { invalidateInventoryStatuses } from "@/lib/filter-options";
 
 const CORE_FIELD_BY_KEY = Object.fromEntries(CORE_FIELDS.map((f) => [f.key, f]));
 
@@ -337,6 +338,10 @@ export async function POST(req: NextRequest) {
   });
 
   await prisma.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } });
+
+  // An import can introduce inventory statuses the cached filter list has
+  // never seen, so drop it rather than wait out the TTL.
+  invalidateInventoryStatuses();
 
   return NextResponse.json({
     importId: importRecord.id,

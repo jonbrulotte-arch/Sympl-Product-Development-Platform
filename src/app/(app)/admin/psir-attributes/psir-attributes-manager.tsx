@@ -119,14 +119,14 @@ export function PsirAttributesManager() {
     setAttrs((prev) => prev.filter((a) => a.id !== id));
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Loading…</div>;
+  if (loading) return <div className="flex items-center justify-center h-64 text-gray-500 text-sm">Loading…</div>;
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">PSIR Custom Attributes</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Define additional fields to capture on pre-shipment inspection reports.</p>
+          <h1 className="text-xl font-semibold text-gray-900">Inspection Attributes</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Define additional fields to capture on inspection reports.</p>
         </div>
         {!creating && (
           <Button size="sm" onClick={() => setCreating(true)}>
@@ -174,7 +174,7 @@ export function PsirAttributesManager() {
 
       <div className="space-y-2">
         {attrs.length === 0 && !creating && (
-          <div className="text-center py-12 text-gray-400 text-sm">
+          <div className="text-center py-12 text-gray-500 text-sm">
             No custom attributes yet. Add one to start capturing additional data on PSIRs.
           </div>
         )}
@@ -217,11 +217,11 @@ export function PsirAttributesManager() {
                   <p className="text-sm font-medium text-gray-900">{attr.label}</p>
                   <span className="text-xs bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded font-mono">{attr.attributeType}</span>
                   {attr.options.length > 0 && (
-                    <span className="text-xs text-gray-400">{attr.options.length} options</span>
+                    <span className="text-xs text-gray-500">{attr.options.length} options</span>
                   )}
                 </div>
-                {attr.description && <p className="text-xs text-gray-400 mt-0.5">{attr.description}</p>}
-                <p className="text-xs text-gray-300 mt-0.5 font-mono">{attr.key}</p>
+                {attr.description && <p className="text-xs text-gray-500 mt-0.5">{attr.description}</p>}
+                <p className="text-xs text-gray-500 mt-0.5 font-mono">{attr.key}</p>
               </div>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button onClick={() => setEditing(attr)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400"><Pencil className="h-3.5 w-3.5" /></button>

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CheckCircle, User, Lock, Shield, Bell } from "lucide-react";
+import { CheckCircle, User, Lock, Shield, Bell, KeyRound } from "lucide-react";
 import { getInitials } from "@/lib/utils";
 
 const PREF_CATEGORIES: { key: string; label: string; description: string }[] = [
@@ -48,12 +48,56 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
   const [prefsMsg, setPrefsMsg] = useState<string | null>(null);
   const [savingPrefs, setSavingPrefs] = useState(false);
 
+  const [salsifyKey, setSalsifyKey] = useState("");
+  const [salsifyMasked, setSalsifyMasked] = useState("");
+  const [savingSalsify, setSavingSalsify] = useState(false);
+  const [salsifyMsg, setSalsifyMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   useEffect(() => {
     fetch("/api/users/me/notification-prefs")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (d) setPrefs(d); })
       .catch(() => {});
+    fetch("/api/users/me/salsify-key")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setSalsifyMasked(d.masked ?? ""); })
+      .catch(() => {});
   }, []);
+
+  async function saveSalsifyKey(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingSalsify(true);
+    setSalsifyMsg(null);
+    const res = await fetch("/api/users/me/salsify-key", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey: salsifyKey }),
+    });
+    const d = await res.json();
+    if (res.ok) {
+      setSalsifyMasked(d.masked ?? "");
+      setSalsifyKey("");
+      setSalsifyMsg({ ok: true, text: "Salsify API key saved." });
+    } else {
+      setSalsifyMsg({ ok: false, text: d.error ?? "Failed to save API key" });
+    }
+    setSavingSalsify(false);
+  }
+
+  async function removeSalsifyKey() {
+    if (!confirm("Remove your Salsify API key? You will not be able to sync until you add a new one.")) return;
+    setSavingSalsify(true);
+    setSalsifyMsg(null);
+    const res = await fetch("/api/users/me/salsify-key", { method: "DELETE" });
+    if (res.ok) {
+      setSalsifyMasked("");
+      setSalsifyKey("");
+      setSalsifyMsg({ ok: true, text: "Salsify API key removed." });
+    } else {
+      setSalsifyMsg({ ok: false, text: "Failed to remove API key" });
+    }
+    setSavingSalsify(false);
+  }
 
   const togglePref = (category: string, channel: "inbox" | "email") => {
     setPrefs((prev) => prev ? {
@@ -176,9 +220,9 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
         <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-1">
           <Bell className="h-4 w-4 text-gray-400" /> Notification Preferences
         </h2>
-        <p className="text-xs text-gray-400 mb-4">Choose what lands in your Inbox and what is also emailed to you.</p>
+        <p className="text-xs text-gray-500 mb-4">Choose what lands in your Inbox and what is also emailed to you.</p>
         {!prefs ? (
-          <p className="text-sm text-gray-400 py-4">Loading…</p>
+          <p className="text-sm text-gray-500 py-4">Loading…</p>
         ) : (
           <>
             <div className="divide-y divide-gray-100">
@@ -191,7 +235,7 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
                 <div key={key} className="grid grid-cols-[1fr_64px_64px] gap-2 py-2.5 items-center">
                   <div>
                     <p className="text-sm text-gray-800 font-medium">{label}</p>
-                    <p className="text-xs text-gray-400">{description}</p>
+                    <p className="text-xs text-gray-500">{description}</p>
                   </div>
                   <div className="text-center">
                     <input
@@ -220,9 +264,64 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
                 {savingPrefs ? "Saving…" : "Save Preferences"}
               </Button>
             </div>
-            <p className="text-xs text-gray-400 mt-3">Email requires the server to have SMTP configured. Urgent overdue alerts may still email approvers directly.</p>
+            <p className="text-xs text-gray-500 mt-3">Email requires the server to have SMTP configured. Urgent overdue alerts may still email approvers directly.</p>
           </>
         )}
+      </div>
+
+      {/* Salsify API key */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-1">
+          <KeyRound className="h-4 w-4 text-gray-400" /> Salsify API Key
+        </h2>
+        <p className="text-xs text-gray-500 mb-4">
+          Your personal Salsify key. Every sync and pull you run authenticates as you.
+          Find it in Salsify → User Settings → API Access.
+        </p>
+
+        {salsifyMasked && (
+          <div className="flex items-center justify-between rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 mb-3">
+            <span className="text-sm font-mono text-gray-700">{salsifyMasked}</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={savingSalsify}
+              onClick={removeSalsifyKey}
+              className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+            >
+              Remove
+            </Button>
+          </div>
+        )}
+
+        <form onSubmit={saveSalsifyKey} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              {salsifyMasked ? "Replace API Key" : "API Key"}
+            </label>
+            <Input
+              type="password"
+              value={salsifyKey}
+              onChange={(e) => setSalsifyKey(e.target.value)}
+              placeholder="Paste your Salsify API key"
+              autoComplete="off"
+            />
+          </div>
+
+          {salsifyMsg && (
+            <div className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm ${salsifyMsg.ok ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+              {salsifyMsg.ok && <CheckCircle className="h-4 w-4 shrink-0" />}
+              {salsifyMsg.text}
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <Button type="submit" size="sm" disabled={savingSalsify || !salsifyKey.trim()}>
+              {savingSalsify ? "Saving…" : salsifyMasked ? "Replace Key" : "Save Key"}
+            </Button>
+          </div>
+        </form>
       </div>
 
       {/* Change password */}
@@ -238,7 +337,7 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">New Password</label>
             <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" required autoComplete="new-password" />
-            <p className="text-xs text-gray-400 mt-1">Minimum 8 characters.</p>
+            <p className="text-xs text-gray-500 mt-1">Minimum 8 characters.</p>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Confirm New Password</label>
@@ -260,7 +359,7 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
         </form>
       </div>
 
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-gray-500">
         Member since {new Date(user.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
       </p>
     </div>

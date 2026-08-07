@@ -12,10 +12,12 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { projectSchema, type ProjectInput } from "@/lib/validation";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface CategoryOption { id: string; name: string; }
 
 export function CreateProjectDialog() {
+  const { can } = usePermissions();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -56,6 +58,9 @@ export function CreateProjectDialog() {
       setLoading(false);
     }
   }
+
+  // Hidden entirely without the grant; POST /api/projects enforces it too.
+  if (!can("projects:create")) return null;
 
   return (
     <>

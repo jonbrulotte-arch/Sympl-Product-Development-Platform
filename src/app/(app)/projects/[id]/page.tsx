@@ -7,6 +7,7 @@ import { CORE_FIELD_KEYS, REMOVED_CORE_KEYS } from "@/lib/core-fields";
 import { findDuplicatesForProducts } from "@/lib/duplicate-check";
 import { checkProjectAccess } from "@/lib/project-access";
 import { expandWithAncestors } from "@/lib/category-tree";
+import { isInspectionsEnabled } from "@/lib/app-config";
 
 const CORE_COLUMN_KEYS = new Set(CORE_FIELD_KEYS);
 
@@ -131,6 +132,7 @@ export default async function ProjectDetailPage({
       canEdit={canEdit}
       currentUserId={session.user.id}
       userRole={session.user.role as string}
+      inspectionsEnabled={await isInspectionsEnabled()}
     />
   );
 }

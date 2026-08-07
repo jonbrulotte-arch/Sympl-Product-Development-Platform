@@ -6,18 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface SalsifyConfig {
-  apiKey: string;
   organizationId: string;
-  channelId: string;
   isEnabled: boolean;
   salsifyDebugEnabled: boolean;
 }
 
 export function SalsifySettingsClient() {
   const [config, setConfig] = useState<SalsifyConfig>({
-    apiKey: "",
     organizationId: "",
-    channelId: "",
     isEnabled: false,
     salsifyDebugEnabled: false,
   });
@@ -95,15 +91,11 @@ export function SalsifySettingsClient() {
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">API Key</label>
-            <Input
-              type="password"
-              placeholder="Enter Salsify API key..."
-              value={config.apiKey}
-              onChange={(e) => setConfig((c) => ({ ...c, apiKey: e.target.value }))}
-            />
-            <p className="text-xs text-gray-400 mt-1">
-              Found in Salsify → User Settings → API Access
-            </p>
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-800">
+              Salsify API keys are set per user, not here. Each person adds their own key
+              under <strong>My Profile → Salsify API Key</strong>, and every sync authenticates
+              as the user who ran it. Users without a key will be prompted to add one.
+            </div>
           </div>
 
           <div>
@@ -118,14 +110,6 @@ export function SalsifySettingsClient() {
             </p>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Channel ID (optional)</label>
-            <Input
-              placeholder="Leave blank to use default channel"
-              value={config.channelId ?? ""}
-              onChange={(e) => setConfig((c) => ({ ...c, channelId: e.target.value }))}
-            />
-          </div>
         </div>
 
         <div className="pt-2 flex items-center gap-3">

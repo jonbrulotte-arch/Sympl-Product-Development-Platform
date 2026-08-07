@@ -1,8 +1,9 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { canMutateQaRecords } from "@/lib/project-access";
+
 import { createNotificationForMany, getOwnerIdsForProducts } from "@/lib/notifications";
+import { can } from "@/lib/permissions";
 
 export const EVENT_INCLUDE = {
   type: true,
@@ -69,7 +70,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!canMutateQaRecords(session.user.role)) {
+  if (!(await can(session.user.role, "compliance:manage"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

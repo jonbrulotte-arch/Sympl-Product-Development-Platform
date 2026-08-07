@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { randomBytes } from "crypto";
 
 const SHAREABLE_TYPES = new Set(["PRODUCT", "PSIR", "COMPLIANCE"]);
-const CAN_SHARE_ROLES = new Set(["ADMIN", "PRODUCT_MANAGER"]);
+const CAN_SHARE_ROLES = new Set(["ADMIN", "DIRECTOR", "PRODUCT_MANAGER"]);
 
 // Create an expiring read-only share link for a product or PSIR.
 export async function POST(req: NextRequest) {

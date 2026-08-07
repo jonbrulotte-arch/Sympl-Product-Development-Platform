@@ -1,13 +1,14 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ProjectsClient } from "./projects-client";
+import { seesAllProjects } from "@/lib/permissions";
 
 export default async function ProjectsPage() {
   const session = await auth();
   if (!session?.user?.id) return null;
 
   const userId = session.user.id;
-  const isAdmin = session.user.role === "ADMIN";
+  const isAdmin = seesAllProjects(session.user.role);
 
   const projects = await prisma.project.findMany({
     where: {

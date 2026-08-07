@@ -6,13 +6,41 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { createDecipheriv } from "crypto";
 import { getBackupKey } from "@/lib/backup-key";
-import { readFileSync, writeFileSync, unlinkSync, readdirSync, statSync } from "fs";
+import { readFileSync, writeFileSync, unlinkSync, readdirSync, statSync, mkdirSync } from "fs";
 import path from "path";
 import os from "os";
+import { PRIVATE_UPLOAD_ROOT } from "@/lib/uploads";
+import { classifyBackupFile, resolveBackupFile, type BackupKind } from "@/lib/backup-files";
+import { pgConnectionUrl } from "@/lib/pg-url";
 
 const execFileAsync = promisify(execFile);
 
-// GET — list available backup files
+type RestoredCounts = { projects: number; products: number };
+
+// Post-restore sanity check. Best-effort: a snapshot that legitimately holds
+// zero rows is still a valid restore, so this reports rather than validates.
+async function countRestored(): Promise<RestoredCounts | null> {
+  try {
+    const [projects, products] = await Promise.all([
+      prisma.project.count(),
+      prisma.productRecord.count(),
+    ]);
+    return { projects, products };
+  } catch {
+    return null;
+  }
+}
+
+// execFile rejections carry the child's stderr separately from the message,
+// and for pg_restore that stderr is the only useful part.
+function execErrorMessage(err: unknown): string {
+  const stderr = (err as { stderr?: unknown })?.stderr;
+  const detail = typeof stderr === "string" ? stderr.trim() : "";
+  const base = err instanceof Error ? err.message : String(err);
+  return detail ? `${base}\n${detail.slice(-2000)}` : base;
+}
+
+// GET — list available backup artifacts (database dumps and upload archives)
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id || !(await can(session.user.role, "admin:backup")))
@@ -22,12 +50,32 @@ export async function GET() {
   if (!config) return NextResponse.json({ files: [] });
 
   try {
-    const files = readdirSync(config.backupPath)
-      .filter((f) => f.startsWith("sympl-backup-") && f.endsWith(".pgenc"))
-      .map((f) => {
+    // Stat each file individually: a file pruned or renamed between readdir
+    // and stat (cron backups, concurrent uploads) must only drop that one
+    // entry, not blank the whole listing.
+    const entries = readdirSync(config.backupPath);
+
+    // Sweep leftovers from uploads that died mid-stream (server restart,
+    // dropped connection): .part files older than a day are unfinishable.
+    for (const f of entries.filter((f) => f.endsWith(".part"))) {
+      try {
         const full = path.join(config.backupPath, f);
-        const stat = statSync(full);
-        return { name: f, path: full, sizeBytes: stat.size, createdAt: stat.mtime.toISOString() };
+        if (Date.now() - statSync(full).mtime.getTime() > 24 * 60 * 60 * 1000) unlinkSync(full);
+      } catch { /* best-effort */ }
+    }
+
+    const files = entries
+      .map((f) => ({ name: f, kind: classifyBackupFile(f) }))
+      .filter((f): f is { name: string; kind: BackupKind } => f.kind !== null)
+      .flatMap(({ name, kind }) => {
+        const full = path.join(config.backupPath, name);
+        try {
+          const stat = statSync(full);
+          if (!stat.isFile()) return [];
+          return [{ name, kind, path: full, sizeBytes: stat.size, createdAt: stat.mtime.toISOString() }];
+        } catch {
+          return [];
+        }
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
@@ -37,73 +85,157 @@ export async function GET() {
   }
 }
 
-// POST — restore from a specific backup file
+// DELETE — remove a backup artifact from the backup directory.
+export async function DELETE(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id || !(await can(session.user.role, "admin:backup")))
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const body = await req.json().catch(() => ({}));
+  const name: string = typeof body.name === "string" ? body.name : "";
+  if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
+
+  const config = await prisma.backupConfig.findFirst();
+  if (!config) return NextResponse.json({ error: "Backup not configured" }, { status: 400 });
+
+  // Same sanitization as restore: bare filename matching a known backup
+  // pattern, resolving inside the backup directory.
+  const target = resolveBackupFile(config.backupPath, name);
+  if (!target) return NextResponse.json({ error: "Invalid file name" }, { status: 400 });
+
+  try {
+    unlinkSync(target.path);
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code === "ENOENT")
+      return NextResponse.json({ error: "File not found — it may have already been deleted." }, { status: 404 });
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
+}
+
+// POST — restore from a snapshot. Database dumps replace the database;
+// upload archives are extracted back over data/uploads.
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id || !(await can(session.user.role, "admin:backup")))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { filePath } = await req.json();
-  if (!filePath) return NextResponse.json({ error: "filePath required" }, { status: 400 });
+  const body = await req.json().catch(() => ({}));
+  // `name` is preferred; `filePath` is still accepted for older callers.
+  const name: string =
+    body.name ?? (typeof body.filePath === "string" ? path.basename(body.filePath) : "");
+  if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
 
   const config = await prisma.backupConfig.findFirst();
   if (!config) return NextResponse.json({ error: "Backup not configured" }, { status: 400 });
 
-  let keyBuf: Buffer;
-  try { keyBuf = getBackupKey(); } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
+  const target = resolveBackupFile(config.backupPath, name);
+  if (!target) return NextResponse.json({ error: "Invalid file name" }, { status: 400 });
 
-  // Safety: only allow files inside the configured backup directory
-  const resolvedPath = path.resolve(filePath);
-  const resolvedDir = path.resolve(config.backupPath);
-  if (!resolvedPath.startsWith(resolvedDir + path.sep)) {
-    return NextResponse.json({ error: "Invalid file path" }, { status: 400 });
-  }
+  let restored: RestoredCounts | null = null;
+  // Once the schema is dropped there is no going back to the pre-restore state,
+  // so a later failure has to say so rather than look like a no-op.
+  let schemaDropped = false;
 
   try {
-    const payload = readFileSync(resolvedPath);
-    const iv = payload.subarray(0, 16);
-    const authTag = payload.subarray(16, 32);
-    const ciphertext = payload.subarray(32);
+    const sizeBytes = statSync(target.path).size;
 
-    const decipher = createDecipheriv("aes-256-gcm", keyBuf, iv);
-    decipher.setAuthTag(authTag);
-    const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    if (target.kind === "uploads") {
+      // Extract over the existing tree: files in the archive win, files only
+      // present on this server are left alone.
+      mkdirSync(path.join(PRIVATE_UPLOAD_ROOT, "uploads"), { recursive: true });
+      await execFileAsync("tar", ["-xzf", target.path, "-C", PRIVATE_UPLOAD_ROOT], {
+        maxBuffer: 64 * 1024 * 1024,
+      });
+    } else {
+      let keyBuf: Buffer;
+      try { keyBuf = getBackupKey(); } catch (e) {
+        return NextResponse.json({ error: String(e) }, { status: 500 });
+      }
 
-    const dbUrl = process.env.DATABASE_URL ?? "";
+      const payload = readFileSync(target.path);
+      const iv = payload.subarray(0, 16);
+      const authTag = payload.subarray(16, 32);
+      const ciphertext = payload.subarray(32);
 
-    // Write decrypted dump to a temp file — pg_restore custom format requires random access (can't use stdin)
-    const tmpFile = path.join(os.tmpdir(), `sympl-restore-${Date.now()}.pgdump`);
-    writeFileSync(tmpFile, decrypted);
-    try {
-      await execFileAsync(
-        "pg_restore",
-        ["--no-password", "--clean", "--if-exists", "--format=custom", "--dbname", dbUrl, tmpFile],
-        { maxBuffer: 512 * 1024 * 1024 }
-      );
-    } finally {
-      unlinkSync(tmpFile);
+      const decipher = createDecipheriv("aes-256-gcm", keyBuf, iv);
+      decipher.setAuthTag(authTag);
+      const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+
+      const dbUrl = pgConnectionUrl(process.env.DATABASE_URL ?? "");
+
+      // pg_restore custom format requires random access — it can't read stdin.
+      const tmpFile = path.join(os.tmpdir(), `sympl-restore-${Date.now()}.pgdump`);
+      writeFileSync(tmpFile, decrypted);
+      try {
+        // Validate the archive BEFORE touching the live database — everything
+        // after this point is destructive, so a corrupt upload must fail here.
+        await execFileAsync("pg_restore", ["--list", tmpFile], { maxBuffer: 64 * 1024 * 1024 });
+
+        // Restore onto an empty schema rather than using --clean. --clean drops
+        // objects one by one and silently skips whatever it cannot drop; the
+        // subsequent COPY then fails on duplicate keys, leaving the old data in
+        // place. Dropping the schema outright guarantees the snapshot applies
+        // exactly as captured.
+        await prisma.$executeRawUnsafe(`SET lock_timeout = '30s'`);
+        await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS public CASCADE`);
+        await prisma.$executeRawUnsafe(`CREATE SCHEMA public`);
+        schemaDropped = true;
+
+        // --single-transaction implies --exit-on-error: without it pg_restore
+        // continues past failures and still exits 0, reporting a restore that
+        // never happened as a success.
+        const { stderr } = await execFileAsync(
+          "pg_restore",
+          [
+            "--no-password", "--no-owner", "--no-acl",
+            "--single-transaction", "--format=custom",
+            "--dbname", dbUrl, tmpFile,
+          ],
+          { maxBuffer: 512 * 1024 * 1024 }
+        );
+
+        const ignored = stderr.match(/errors ignored on restore: (\d+)/i);
+        if (ignored) {
+          throw new Error(
+            `pg_restore skipped ${ignored[1]} objects — the snapshot did not fully apply.\n${stderr.trim().slice(-2000)}`
+          );
+        }
+      } finally {
+        try { unlinkSync(tmpFile); } catch { /* must not mask the real error */ }
+      }
+
+      // Report what actually landed so a no-op restore is visible immediately.
+      restored = await countRestored();
     }
 
+    // Non-fatal: the restore already succeeded, and this row lives in the
+    // freshly restored schema. Failing to log it must not report failure.
     await prisma.backupLog.create({
       data: {
         status: "RESTORE_SUCCESS",
-        filePath: resolvedPath,
-        fileSizeBytes: BigInt(payload.length),
-        triggeredBy: "MANUAL_RESTORE",
+        filePath: target.path,
+        fileSizeBytes: BigInt(sizeBytes),
+        triggeredBy: target.kind === "uploads" ? "FILES_RESTORE" : "MANUAL_RESTORE",
       },
-    });
+    }).catch(() => {});
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, kind: target.kind, restored });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    let message = execErrorMessage(err);
+    if (schemaDropped) {
+      message = `${message}\n\nThe existing schema was already dropped, so the database is now empty. Restore a known-good snapshot before using the application.`;
+    }
     await prisma.backupLog.create({
       data: {
         status: "RESTORE_FAILED",
-        filePath: resolvedPath,
+        filePath: target.path,
         errorMessage: message,
-        triggeredBy: "MANUAL_RESTORE",
+        triggeredBy: target.kind === "uploads" ? "FILES_RESTORE" : "MANUAL_RESTORE",
       },
     }).catch(() => {});
     return NextResponse.json({ error: message }, { status: 500 });

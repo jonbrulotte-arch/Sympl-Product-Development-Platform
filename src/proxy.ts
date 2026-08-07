@@ -9,9 +9,18 @@ export default auth((req: NextRequest & { auth: unknown }) => {
   const { pathname } = req.nextUrl;
 
   // API routes and auth routes pass through — they handle auth themselves.
-  // /share/<token> pages are intentionally public: access is controlled by
-  // the unguessable, expiring token itself.
-  if (pathname.startsWith("/api/") || pathname.startsWith("/login") || pathname.startsWith("/share/")) {
+  // /share/<token>, /reset-password and /accept-invite pages are intentionally
+  // public: access is controlled by the unguessable, expiring token in the
+  // URL. Guarding them would bounce the recipient to /login and drop the
+  // token, making the emailed link useless.
+  if (
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/accept-invite") ||
+    pathname.startsWith("/share/")
+  ) {
     return NextResponse.next();
   }
 

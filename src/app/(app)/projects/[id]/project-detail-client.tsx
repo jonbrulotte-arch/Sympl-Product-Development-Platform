@@ -18,6 +18,7 @@ import { EventCard, type ComplianceEventCardData } from "@/components/compliance
 import { PsirCard, type PsirCardData } from "@/components/psir/psir-card";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface AttributeDef {
   id: string;
@@ -45,9 +46,10 @@ interface Props {
   canEdit: boolean;
   currentUserId: string;
   userRole?: string;
+  inspectionsEnabled?: boolean;
 }
 
-export function ProjectDetailClient({ project, initialProducts, allAttrDefs = [], coreAttrDefs = [], eavAttrDefs = [], allCategories = [], canEdit, currentUserId, userRole }: Props) {
+export function ProjectDetailClient({ project, initialProducts, allAttrDefs = [], coreAttrDefs = [], eavAttrDefs = [], allCategories = [], canEdit, currentUserId, userRole, inspectionsEnabled = true }: Props) {
   const [activeTab, setActiveTab] = useState("grid");
   const [salsifySyncing, setSalsifySyncing] = useState(false);
   const [salsifySyncResult, setSalsifySyncResult] = useState<string | null>(null);
@@ -213,7 +215,7 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
             { id: "grid", label: "Products", icon: Package },
             { id: "workflow", label: "Workflow", icon: CheckCircle },
             { id: "compliance", label: "Compliance", icon: ShieldCheck },
-            { id: "inspections", label: "Inspections", icon: ClipboardCheck },
+            ...(inspectionsEnabled ? [{ id: "inspections", label: "Inspections", icon: ClipboardCheck }] : []),
             { id: "comments", label: "Comments", icon: MessageSquare },
             { id: "activity", label: "Activity", icon: Clock },
             { id: "members", label: "Members", icon: Users },
@@ -254,7 +256,7 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
         </div>
 
         {activeTab === "workflow" && (
-          <WorkflowView project={project} canEdit={canEdit} currentUserId={currentUserId} />
+          <WorkflowView project={project} canEdit={canEdit} currentUserId={currentUserId} inspectionsEnabled={inspectionsEnabled} />
         )}
 
         {activeTab === "compliance" && (
@@ -292,6 +294,7 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
       {showSalsifyModal && (
         <SalsifySyncModal
           mode="project"
+          projectId={project.id}
           syncProductCount={salsifySelectedIds?.length}
           syncing={salsifySyncing}
           onConfirm={handleSalsifySync}
@@ -354,9 +357,9 @@ function statusColor(status: string) {
 }
 
 function WorkflowView({
-  project, canEdit, currentUserId,
+  project, canEdit, currentUserId, inspectionsEnabled = true,
 }: {
-  project: ProjectWithRelations; canEdit: boolean; currentUserId: string;
+  project: ProjectWithRelations; canEdit: boolean; currentUserId: string; inspectionsEnabled?: boolean;
 }) {
   const router = useRouter();
   const [stages, setStages] = useState<Stage[]>((project.workflowStages ?? []) as unknown as Stage[]);
@@ -595,7 +598,7 @@ function WorkflowView({
         {/* Template picker toggle */}
         {canEdit && templates.length > 0 && (
           <div className="flex items-center justify-between">
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-500">
               {stages.length} stage{stages.length !== 1 ? "s" : ""}
             </p>
             <button
@@ -621,8 +624,8 @@ function WorkflowView({
                   className="w-full text-left px-3 py-2.5 bg-white border border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors group"
                 >
                   <p className="text-sm font-medium text-gray-900 group-hover:text-blue-700">{t.name}</p>
-                  {t.description && <p className="text-xs text-gray-400 mt-0.5">{t.description}</p>}
-                  <p className="text-xs text-gray-400 mt-1">
+                  {t.description && <p className="text-xs text-gray-500 mt-0.5">{t.description}</p>}
+                  <p className="text-xs text-gray-500 mt-1">
                     {t.stageTemplates.map((s) => s.name).join(" → ")}
                   </p>
                 </button>
@@ -635,7 +638,7 @@ function WorkflowView({
         )}
 
         {stages.length === 0 && !addingStage && !showTemplatePicker && (
-          <div className="text-center py-8 text-gray-400">
+          <div className="text-center py-8 text-gray-500">
             <CheckCircle className="h-10 w-10 mx-auto mb-3 text-gray-300" />
             <p className="text-sm">No workflow stages yet.</p>
             {canEdit && templates.length > 0 && (
@@ -737,7 +740,7 @@ function WorkflowView({
                         {stage.description ? (
                           <p className="text-sm text-gray-500">{stage.description}</p>
                         ) : (
-                          <p className="text-sm text-gray-300 italic">No description</p>
+                          <p className="text-sm text-gray-500 italic">No description</p>
                         )}
                         {canEdit && stage.status !== "APPROVED" && stage.status !== "REJECTED" && (
                           <button
@@ -805,7 +808,7 @@ function WorkflowView({
                     </div>
 
                     {stage.completedAt && (
-                      <p className="text-xs text-gray-400 mt-1">Completed: {formatDate(stage.completedAt as string)}</p>
+                      <p className="text-xs text-gray-500 mt-1">Completed: {formatDate(stage.completedAt as string)}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -887,7 +890,7 @@ function WorkflowView({
                 {canEdit && stage.status !== "APPROVED" && stage.status !== "REJECTED" && (
                   <div className="border-t border-gray-100 px-4 py-2 bg-gray-50 flex flex-wrap items-center gap-x-6 gap-y-1.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400 shrink-0">On approval →</span>
+                      <span className="text-xs text-gray-500 shrink-0">On approval →</span>
                       <select
                         value={stage.onApproveSetStatus ?? ""}
                         onChange={(e) => patchStage(stage.id, { onApproveSetStatus: e.target.value || null })}
@@ -900,7 +903,7 @@ function WorkflowView({
                       </select>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400 shrink-0">On rejection →</span>
+                      <span className="text-xs text-gray-500 shrink-0">On rejection →</span>
                       <select
                         value={stage.onRejectSetStatus ?? ""}
                         onChange={(e) => patchStage(stage.id, { onRejectSetStatus: e.target.value || null })}
@@ -913,7 +916,7 @@ function WorkflowView({
                       </select>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400 shrink-0">Depends on →</span>
+                      <span className="text-xs text-gray-500 shrink-0">Depends on →</span>
                       <select
                         value={stage.dependsOnStageId ?? ""}
                         onChange={(e) => patchStage(stage.id, { dependsOnStageId: e.target.value || null })}
@@ -928,7 +931,7 @@ function WorkflowView({
 
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
-                      <span className="text-xs text-gray-400 shrink-0">Compliance →</span>
+                      <span className="text-xs text-gray-500 shrink-0">Compliance →</span>
                       <select
                         value={stage.complianceEventId ?? ""}
                         onChange={(e) => patchStage(stage.id, { complianceEventId: e.target.value || null })}
@@ -942,13 +945,13 @@ function WorkflowView({
                         ))}
                       </select>
                       {complianceEvents.length === 0 && (
-                        <span className="text-xs text-gray-400 italic">No compliance events for this project&apos;s products</span>
+                        <span className="text-xs text-gray-500 italic">No compliance events for this project&apos;s products</span>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    {inspectionsEnabled && <div className="flex items-center gap-2">
                       <ClipboardCheck className="h-3.5 w-3.5 text-violet-400 shrink-0" />
-                      <span className="text-xs text-gray-400 shrink-0">Inspection →</span>
+                      <span className="text-xs text-gray-500 shrink-0">Inspection →</span>
                       <select
                         value={stage.psirId ?? ""}
                         onChange={(e) => patchStage(stage.id, { psirId: e.target.value || null })}
@@ -962,9 +965,9 @@ function WorkflowView({
                         ))}
                       </select>
                       {psirOptions.length === 0 && (
-                        <span className="text-xs text-gray-400 italic">No inspections for this project&apos;s products</span>
+                        <span className="text-xs text-gray-500 italic">No inspections for this project&apos;s products</span>
                       )}
-                    </div>
+                    </div>}
                   </div>
                 )}
 
@@ -1013,7 +1016,7 @@ function WorkflowView({
                   </div>
 
                   {stage.approvals.length === 0 && !isAssigning && (
-                    <p className="text-xs text-gray-400 italic">No approvers assigned</p>
+                    <p className="text-xs text-gray-500 italic">No approvers assigned</p>
                   )}
 
                   {/* Approver chips */}
@@ -1048,7 +1051,7 @@ function WorkflowView({
                   {isAssigning && (
                     <div className="mt-2 border border-blue-200 rounded-lg bg-white shadow-sm overflow-hidden">
                       {allUsers.filter((u) => !assignedIds.has(u.id)).length === 0 ? (
-                        <p className="text-xs text-gray-400 p-3">All users are already assigned.</p>
+                        <p className="text-xs text-gray-500 p-3">All users are already assigned.</p>
                       ) : (
                         <div className="max-h-56 overflow-y-auto">
                           {allUsers
@@ -1064,9 +1067,9 @@ function WorkflowView({
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium text-gray-800">{u.name ?? u.email}</p>
-                                  <p className="text-xs text-gray-400">{u.email}</p>
+                                  <p className="text-xs text-gray-500">{u.email}</p>
                                 </div>
-                                <span className="text-xs text-gray-400 shrink-0">{u.role.replace("_", " ")}</span>
+                                <span className="text-xs text-gray-500 shrink-0">{u.role.replace("_", " ")}</span>
                               </button>
                             ))
                           }
@@ -1371,7 +1374,7 @@ function CommentsView({ projectId, currentUserId, userRole, team = [] }: { proje
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{u.name ?? u.email}</p>
-                  <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                  <p className="text-xs text-gray-500 truncate">{u.email}</p>
                 </div>
               </button>
             ))}
@@ -1427,7 +1430,7 @@ function CommentsView({ projectId, currentUserId, userRole, team = [] }: { proje
         </div>
       </div>
 
-      {!loaded && <p className="text-sm text-gray-400">Loading…</p>}
+      {!loaded && <p className="text-sm text-gray-500">Loading…</p>}
 
       <div className="space-y-4">
         {comments.map((comment) => {
@@ -1439,7 +1442,7 @@ function CommentsView({ projectId, currentUserId, userRole, team = [] }: { proje
                   {comment.author.name?.[0] ?? "?"}
                 </div>
                 <span className="text-sm font-medium">{comment.author.name ?? comment.author.email}</span>
-                <span className="text-xs text-gray-400">{formatDate(comment.createdAt)}</span>
+                <span className="text-xs text-gray-500">{formatDate(comment.createdAt)}</span>
                 {canDelete(comment.author.id) && (
                   <button
                     onClick={() => deleteComment(comment.id)}
@@ -1464,7 +1467,7 @@ function CommentsView({ projectId, currentUserId, userRole, team = [] }: { proje
                       <span className="text-base">{fileIcon(a.type)}</span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-800 group-hover:text-blue-700 truncate">{a.name}</p>
-                        <p className="text-xs text-gray-400">{formatBytes(a.size)}</p>
+                        <p className="text-xs text-gray-500">{formatBytes(a.size)}</p>
                       </div>
                       <span className="text-xs text-gray-400 group-hover:text-blue-500 shrink-0">Download ↓</span>
                     </a>
@@ -1615,20 +1618,20 @@ function ActivityView({ projectId, members }: { projectId: string; members: Arra
               </p>
               {(log.oldValue || log.newValue) && log.action === "UPDATED" && (
                 <p className="text-xs text-gray-500 mt-0.5">
-                  <span className={log.oldValue ? "line-through text-gray-400" : "italic text-gray-400"}>{log.oldValue || "(empty)"}</span>
+                  <span className={log.oldValue ? "line-through text-gray-500" : "italic text-gray-500"}>{log.oldValue || "(empty)"}</span>
                   {" → "}
-                  <span className={log.newValue ? "text-gray-700" : "italic text-gray-400"}>{log.newValue || "(empty)"}</span>
+                  <span className={log.newValue ? "text-gray-700" : "italic text-gray-500"}>{log.newValue || "(empty)"}</span>
                 </p>
               )}
-              <p className="text-xs text-gray-400 mt-0.5">{formatDate(log.createdAt)}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{formatDate(log.createdAt)}</p>
             </div>
           </div>
         ))}
         {loaded && logs.length === 0 && (
-          <p className="text-sm text-gray-400 text-center py-6">No activity found.</p>
+          <p className="text-sm text-gray-500 text-center py-6">No activity found.</p>
         )}
         {!loaded && (
-          <p className="text-sm text-gray-400 text-center py-6">Loading...</p>
+          <p className="text-sm text-gray-500 text-center py-6">Loading...</p>
         )}
       </div>
     </div>
@@ -1643,6 +1646,8 @@ function SettingsView({
   project: ProjectWithRelations; canEdit: boolean; onSaved: () => void; allCategories?: CategoryOption[]; userRole?: string;
 }) {
   const router = useRouter();
+  const { can: hasPermission } = usePermissions();
+  const canOverrideStatus = hasPermission("projects:override_status");
 
   // Project fields
   const [name, setName] = useState(project.name);
@@ -1965,7 +1970,7 @@ function SettingsView({
                     onChange={(e) => updateMember(member.user.id, { role: e.target.value })}
                     className="text-xs text-gray-900 border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
                   >
-                    {["VIEWER","CONTRIBUTOR","REVIEWER","APPROVER","PRODUCT_MANAGER"].map((r) => (
+                    {["VIEWER","CONTRIBUTOR","REVIEWER","APPROVER","PRODUCT_MANAGER","DIRECTOR"].map((r) => (
                       <option key={r} value={r}>{r.replace("_", " ")}</option>
                     ))}
                   </select>
@@ -2017,7 +2022,7 @@ function SettingsView({
                   {userSearch.length > 0 && (
                     <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm max-h-48 overflow-y-auto">
                       {filteredUsers.length === 0 ? (
-                        <p className="text-xs text-gray-400 p-3">No users found.</p>
+                        <p className="text-xs text-gray-500 p-3">No users found.</p>
                       ) : (
                         filteredUsers.map((u) => (
                           <button
@@ -2031,7 +2036,7 @@ function SettingsView({
                             </div>
                             <div>
                               <p className="text-sm font-medium text-gray-800">{u.name ?? u.email}</p>
-                              <p className="text-xs text-gray-400">{u.email} · {u.role.replace("_", " ")}</p>
+                              <p className="text-xs text-gray-500">{u.email} · {u.role.replace("_", " ")}</p>
                             </div>
                           </button>
                         ))
@@ -2056,7 +2061,7 @@ function SettingsView({
       </section>
 
       {/* Status Override */}
-      {(userRole === "ADMIN" || userRole === "PRODUCT_MANAGER") && (
+      {canOverrideStatus && (
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Project Status</h2>
           <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-3">
@@ -2230,13 +2235,13 @@ function ProjectComplianceView({ projectId }: { projectId: string }) {
       <div className="flex items-center justify-between mb-4">
         <div>
           <p className="text-sm font-medium text-gray-700">{total} compliance event{total !== 1 ? "s" : ""}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Regulatory and compliance issues linked to products in this project.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Regulatory and compliance issues linked to products in this project.</p>
         </div>
         <Link href="/compliance" className="text-xs text-blue-600 hover:underline">Manage in Compliance module →</Link>
       </div>
-      {loading && <p className="text-sm text-gray-400">Loading…</p>}
+      {loading && <p className="text-sm text-gray-500">Loading…</p>}
       {!loading && events.length === 0 && (
-        <p className="text-sm text-gray-400">No compliance events linked to products in this project.</p>
+        <p className="text-sm text-gray-500">No compliance events linked to products in this project.</p>
       )}
       <div className="space-y-2">
         {events.map((ev) => (
@@ -2295,13 +2300,13 @@ function ProjectInspectionsView({ projectId }: { projectId: string }) {
       <div className="flex items-center justify-between mb-4">
         <div>
           <p className="text-sm font-medium text-gray-700">{total} inspection report{total !== 1 ? "s" : ""}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Pre-shipment inspection reports linked to products in this project.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Pre-shipment inspection reports linked to products in this project.</p>
         </div>
         <Link href="/psir" className="text-xs text-blue-600 hover:underline">Manage in Inspections module →</Link>
       </div>
-      {loading && <p className="text-sm text-gray-400">Loading…</p>}
+      {loading && <p className="text-sm text-gray-500">Loading…</p>}
       {!loading && psirs.length === 0 && (
-        <p className="text-sm text-gray-400">No inspection reports linked to products in this project.</p>
+        <p className="text-sm text-gray-500">No inspection reports linked to products in this project.</p>
       )}
       <div className="space-y-2">
         {psirs.map((psir) => (

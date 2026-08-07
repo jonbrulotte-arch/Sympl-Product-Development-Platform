@@ -2,6 +2,7 @@ import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveSalsifyCredentials } from "@/lib/salsify-auth";
 
 export type SalsifyAttrConfig = {
   key: string;
@@ -97,10 +98,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const config = await prisma.salsifyConfig.findFirst({ where: { isEnabled: true } });
-  if (!config) {
-    return NextResponse.json({ error: "Salsify is not configured or not enabled." }, { status: 400 });
+  // The debug tool calls Salsify as the admin using it, with their own key.
+  const resolved = await resolveSalsifyCredentials(session.user.id);
+  if (!resolved.ok) {
+    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
   }
+  const config = resolved.credentials;
 
   const { action, productId, values, rawPayload } = await req.json() as {
     action: string;

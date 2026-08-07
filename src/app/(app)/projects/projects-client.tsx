@@ -128,11 +128,11 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectIt
         <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
           <Package className="h-12 w-12 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-700 mb-1">No projects yet</h3>
-          <p className="text-gray-400 text-sm mb-6">Create your first product development project to get started.</p>
+          <p className="text-gray-500 text-sm mb-6">Create your first product development project to get started.</p>
           <CreateProjectDialog />
         </div>
       ) : projects.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 text-sm">
+        <div className="text-center py-12 text-gray-500 text-sm">
           No projects match your search.
         </div>
       ) : view === "card" ? (
@@ -214,7 +214,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectIt
                       {project.name}
                     </Link>
                     {project.description && (
-                      <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{project.description}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{project.description}</p>
                     )}
                   </td>
                   <td className="px-4 py-3">

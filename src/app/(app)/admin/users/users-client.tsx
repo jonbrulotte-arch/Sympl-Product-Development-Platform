@@ -8,19 +8,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Search, UserCheck, UserX, KeyRound, Clock } from "lucide-react";
+import { Plus, Search, UserCheck, UserX, KeyRound, Clock, ExternalLink, Mail, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { formatDate, getInitials } from "@/lib/utils";
 import type { UserRole } from "@prisma/client";
 
 type UserRow = {
   id: string; email: string; name: string | null; role: UserRole;
   isActive: boolean; createdAt: Date;
+  /** Account created but never activated — no password set yet. */
+  pendingInvite?: boolean;
 };
 
-const ROLES: UserRole[] = ["ADMIN", "PRODUCT_MANAGER", "CONTRIBUTOR", "REVIEWER", "APPROVER", "VIEWER"];
+const ROLES: UserRole[] = ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER", "CONTRIBUTOR", "REVIEWER", "APPROVER", "VIEWER"];
 
 const roleColors: Record<UserRole, string> = {
   ADMIN: "bg-red-100 text-red-700",
+  DIRECTOR: "bg-indigo-100 text-indigo-700",
   PRODUCT_MANAGER: "bg-blue-100 text-blue-700",
   CONTRIBUTOR: "bg-green-100 text-green-700",
   REVIEWER: "bg-yellow-100 text-yellow-700",
@@ -32,7 +36,10 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
   const [users, setUsers] = useState(initialUsers);
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "CONTRIBUTOR" as UserRole });
+  const [form, setForm] = useState({ name: "", email: "", role: "CONTRIBUTOR" as UserRole });
+  const [inviteMsg, setInviteMsg] = useState<{ email: string; url?: string; expiresInDays?: number } | null>(null);
+  const [resending, setResending] = useState<string | null>(null);
+  const [resendMsg, setResendMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pwUser, setPwUser] = useState<UserRow | null>(null);
@@ -40,7 +47,13 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
   const [pwLoading, setPwLoading] = useState(false);
   const [pwMsg, setPwMsg] = useState<string | null>(null);
   const [activityUser, setActivityUser] = useState<UserRow | null>(null);
-  type ActivityEntry = { id: string; action: string; entityType: string; fieldKey: string | null; source: string | null; createdAt: string };
+  type ActivityEntry = {
+    id: string; action: string; entityType: string; entityId: string;
+    fieldKey: string | null; oldValue: string | null; newValue: string | null;
+    source: string | null; createdAt: string;
+    project: { id: string; name: string } | null;
+    product: { id: string; partNumber: string | null; itemName: string | null } | null;
+  };
   const [activityLogs, setActivityLogs] = useState<ActivityEntry[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
 
@@ -66,11 +79,27 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
       const user = await res.json();
       setUsers((prev) => [...prev, user]);
       setCreateOpen(false);
-      setForm({ name: "", email: "", password: "", role: "CONTRIBUTOR" });
+      setInviteMsg({ email: user.email, url: user.inviteUrl, expiresInDays: user.expiresInDays });
+      setForm({ name: "", email: "", role: "CONTRIBUTOR" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function resendInvite(user: UserRow) {
+    setResending(user.id);
+    setResendMsg(null);
+    try {
+      const res = await fetch(`/api/users/${user.id}/invite`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      setResendMsg(res.ok ? `Invitation re-sent to ${user.email}.` : (data.error ?? "Could not send invitation."));
+    } catch {
+      setResendMsg("Could not send invitation.");
+    } finally {
+      setResending(null);
+      setTimeout(() => setResendMsg(null), 6000);
     }
   }
 
@@ -140,6 +169,28 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
         </Button>
       </div>
 
+      {inviteMsg && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          <p className="font-medium">Invitation sent to {inviteMsg.email}.</p>
+          <p className="mt-0.5 text-xs text-green-700">
+            They have {inviteMsg.expiresInDays ?? 7} days to set a password. If email isn&apos;t configured on this
+            server, copy the link below and send it yourself.
+          </p>
+          {inviteMsg.url && (
+            <code className="mt-2 block break-all rounded bg-white/70 px-2 py-1 text-[11px] text-green-900">
+              {inviteMsg.url}
+            </code>
+          )}
+          <button onClick={() => setInviteMsg(null)} className="mt-2 text-xs underline">Dismiss</button>
+        </div>
+      )}
+
+      {resendMsg && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
+          {resendMsg}
+        </div>
+      )}
+
       <div className="relative">
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
         <Input
@@ -186,13 +237,32 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
                     </select>
                   </td>
                   <td className="px-4 py-3">
-                    <Badge variant={user.isActive ? "success" : "secondary"}>
-                      {user.isActive ? "Active" : "Inactive"}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant={user.isActive ? "success" : "secondary"}>
+                        {user.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                      {user.pendingInvite && (
+                        <Badge variant="warning" title="Invitation sent — no password set yet">
+                          Invite pending
+                        </Badge>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-gray-500">{formatDate(user.createdAt)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
+                      {user.pendingInvite && (
+                        <button
+                          onClick={() => resendInvite(user)}
+                          disabled={resending === user.id}
+                          className="text-gray-400 hover:text-gray-700 disabled:opacity-50"
+                          title="Resend invitation"
+                        >
+                          {resending === user.id
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <Mail className="h-4 w-4" />}
+                        </button>
+                      )}
                       <button
                         onClick={() => { setPwUser(user); setNewPassword(""); setPwMsg(null); }}
                         className="text-gray-400 hover:text-gray-700"
@@ -225,8 +295,12 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add New User</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Invite User</DialogTitle></DialogHeader>
           <div className="space-y-4">
+            <p className="text-sm text-gray-500">
+              We&apos;ll email an invitation link. The account stays inactive until they set their
+              own password — you never handle it.
+            </p>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
               <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Full name" />
@@ -234,10 +308,6 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
               <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="user@company.com" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password <span className="text-red-500">*</span></label>
-              <Input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Temporary password" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
@@ -253,8 +323,8 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={createUser} disabled={loading || !form.email || !form.password}>
-              {loading ? "Creating..." : "Create User"}
+            <Button onClick={createUser} disabled={loading || !form.email}>
+              {loading ? "Sending…" : "Send Invitation"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -289,21 +359,57 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
         <DialogContent className="max-w-lg max-h-[70vh] flex flex-col">
           <DialogHeader><DialogTitle>Activity — {activityUser?.name ?? activityUser?.email}</DialogTitle></DialogHeader>
           <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
-            {activityLoading && <p className="text-sm text-gray-400 text-center py-6">Loading...</p>}
-            {!activityLoading && activityLogs.length === 0 && <p className="text-sm text-gray-400 text-center py-6">No activity found.</p>}
-            {activityLogs.map((log) => (
-              <div key={log.id} className="py-2.5 px-1">
-                <p className="text-sm text-gray-700">
-                  {log.action} {log.entityType}{log.fieldKey ? ` (${log.fieldKey})` : ""}
-                  {log.source && (
-                    <span className="ml-1.5 inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
-                      via {log.source}
+            {activityLoading && <p className="text-sm text-gray-500 text-center py-6">Loading...</p>}
+            {!activityLoading && activityLogs.length === 0 && <p className="text-sm text-gray-500 text-center py-6">No activity found.</p>}
+            {activityLogs.map((log) => {
+              const productLabel = log.product?.partNumber ?? log.product?.itemName ?? null;
+              const truncate = (v: string, n = 60) => v.length > n ? v.slice(0, n) + "…" : v;
+              return (
+                <div key={log.id} className="py-2.5 px-1 space-y-1">
+                  <p className="text-sm text-gray-700">
+                    <span className={`inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded mr-1.5 ${log.action === "DELETED" ? "bg-red-50 text-red-600" : log.action === "CREATED" ? "bg-green-50 text-green-600" : "bg-blue-50 text-blue-600"}`}>
+                      {log.action}
                     </span>
+                    {log.entityType}{log.fieldKey ? ` · ${log.fieldKey}` : ""}
+                    {log.source && (
+                      <span className="ml-1.5 inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                        via {log.source}
+                      </span>
+                    )}
+                  </p>
+                  {log.project && (
+                    <p className="text-xs text-gray-600">
+                      Project:{" "}
+                      <Link
+                        href={`/projects/${log.project.id}`}
+                        className="font-medium text-blue-700 hover:text-blue-900 hover:underline inline-flex items-center gap-0.5"
+                        onClick={() => setActivityUser(null)}
+                      >
+                        {log.project.name}
+                        <ExternalLink className="h-2.5 w-2.5" />
+                      </Link>
+                    </p>
                   )}
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">{formatDate(log.createdAt)}</p>
-              </div>
-            ))}
+                  {productLabel && (
+                    <p className="text-xs text-gray-600">
+                      Product: <span className="font-medium text-gray-800">{productLabel}</span>
+                    </p>
+                  )}
+                  {log.fieldKey && (log.oldValue != null || log.newValue != null) && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      {log.oldValue != null && (
+                        <span className="bg-red-50 text-red-700 px-1.5 py-0.5 rounded line-through">{truncate(log.oldValue)}</span>
+                      )}
+                      {log.oldValue != null && log.newValue != null && <span className="text-gray-500">→</span>}
+                      {log.newValue != null && (
+                        <span className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded">{truncate(log.newValue)}</span>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500">{formatDate(log.createdAt)}</p>
+                </div>
+              );
+            })}
           </div>
         </DialogContent>
       </Dialog>

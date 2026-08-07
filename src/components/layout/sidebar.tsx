@@ -24,6 +24,7 @@ import {
   ClipboardCheck,
   HardDrive,
   KeyRound,
+  BarChart3,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -36,6 +37,7 @@ const navItems = [
   { href: "/products", label: "Products", icon: Package },
   { href: "/psir", label: "Inspections", icon: ClipboardCheck },
   { href: "/compliance", label: "Compliance", icon: ShieldCheck },
+  { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/import", label: "Import", icon: Upload },
   { href: "/help", label: "Help & Docs", icon: HelpCircle },
 ];
@@ -47,7 +49,7 @@ const adminNavItems: { href: string; label: string; icon: React.ElementType; per
   { href: "/admin/attributes",         label: "Attributes",         icon: ListFilter,     permission: "admin:attributes" },
   { href: "/admin/workflow-templates", label: "Workflows",          icon: GitBranch,      permission: "admin:workflow_templates" },
   { href: "/admin/compliance-types",   label: "Compliance Types",   icon: ShieldCheck,    permission: "admin:compliance_types" },
-  { href: "/admin/psir-attributes",    label: "PSIR Attributes",    icon: ClipboardCheck, permission: "admin:psir_attributes" },
+  { href: "/admin/psir-attributes",    label: "Inspection Attributes",    icon: ClipboardCheck, permission: "admin:psir_attributes" },
   { href: "/admin/backup",             label: "Backup & Restore",   icon: HardDrive,      permission: "admin:backup" },
   { href: "/admin/settings",           label: "Settings",           icon: Settings,       permission: "admin:settings" },
   { href: "/admin/api-tokens",         label: "API Tokens",         icon: KeyRound,       permission: "admin:settings" },
@@ -69,6 +71,7 @@ export function Sidebar({ user, grantedPermissions }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [salsifyDebugEnabled, setSalsifyDebugEnabled] = useState(false);
+  const [inspectionsEnabled, setInspectionsEnabled] = useState(true);
 
   useEffect(() => {
     fetch("/api/notifications?unread=true")
@@ -80,7 +83,12 @@ export function Sidebar({ user, grantedPermissions }: SidebarProps) {
   useEffect(() => {
     fetch("/api/config")
       .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data) setSalsifyDebugEnabled(data.salsifyDebugEnabled ?? false); })
+      .then((data) => {
+        if (data) {
+          setSalsifyDebugEnabled(data.salsifyDebugEnabled ?? false);
+          setInspectionsEnabled(data.inspectionsEnabled ?? true);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -103,7 +111,7 @@ export function Sidebar({ user, grantedPermissions }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4 space-y-1 px-2">
-        {navItems.map(({ href, label, icon: Icon }) => (
+        {navItems.filter(({ href }) => inspectionsEnabled || href !== "/psir").map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}
@@ -120,11 +128,12 @@ export function Sidebar({ user, grantedPermissions }: SidebarProps) {
         ))}
 
         {(() => {
-          const visibleAdminItems = adminNavItems.filter(({ permission }) =>
-            permission === null
+          const visibleAdminItems = adminNavItems.filter(({ href, permission }) => {
+            if (!inspectionsEnabled && href === "/admin/psir-attributes") return false;
+            return permission === null
               ? user.role === "ADMIN"
-              : grantedPermissions.has(permission)
-          );
+              : grantedPermissions.has(permission);
+          });
           const visibleDebugItems = user.role === "ADMIN" && salsifyDebugEnabled ? salsifyDebugItems : [];
           const allVisible = [...visibleAdminItems, ...visibleDebugItems];
           if (allVisible.length === 0) return null;

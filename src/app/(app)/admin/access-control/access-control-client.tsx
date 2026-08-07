@@ -15,6 +15,7 @@ interface Props {
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Admin",
+  DIRECTOR: "Director",
   PRODUCT_MANAGER: "Product Manager",
   CONTRIBUTOR: "Contributor",
   REVIEWER: "Reviewer",

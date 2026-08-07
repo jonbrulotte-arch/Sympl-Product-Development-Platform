@@ -1,49 +1,35 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ProductsBrowser } from "./products-browser";
+import { seesAllProjects } from "@/lib/permissions";
+import { getInventoryStatuses } from "@/lib/filter-options";
 
 export default async function ProductsPage() {
   const session = await auth();
   if (!session?.user?.id) return null;
 
   const userId = session.user.id;
-  const isAdmin = session.user.role === "ADMIN";
+  const isAdmin = seesAllProjects(session.user.role);
 
-  // Load projects for the filter dropdown
-  const projects = await prisma.project.findMany({
-    where: {
-      isArchived: false,
-      ...(!isAdmin
-        ? { OR: [{ ownerId: userId }, { members: { some: { userId } } }] }
-        : {}),
-    },
-    select: { id: true, name: true, brand: true },
-    orderBy: { name: "asc" },
-  });
-
-  // Load categories for the filter dropdown
-  const categories = await prisma.category.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-
-  // Distinct inventory statuses in use (both fields)
-  const [statusRows, erpStatusRows] = await Promise.all([
-    prisma.productRecord.findMany({
-      where: { isArchived: false, inventoryStatus: { not: null } },
-      select: { inventoryStatus: true },
-      distinct: ["inventoryStatus"],
+  // All three feed filter dropdowns and are independent — run them together
+  // rather than waterfalling, since nothing renders until the slowest returns.
+  const [projects, categories, inventoryStatuses] = await Promise.all([
+    prisma.project.findMany({
+      where: {
+        isArchived: false,
+        ...(!isAdmin
+          ? { OR: [{ ownerId: userId }, { members: { some: { userId } } }] }
+          : {}),
+      },
+      select: { id: true, name: true, brand: true },
+      orderBy: { name: "asc" },
     }),
-    prisma.productRecord.findMany({
-      where: { isArchived: false, inventoryStatusErp: { not: null } },
-      select: { inventoryStatusErp: true },
-      distinct: ["inventoryStatusErp"],
+    prisma.category.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
     }),
+    getInventoryStatuses(),
   ]);
-  const inventoryStatuses = [...new Set([
-    ...statusRows.flatMap((r) => r.inventoryStatus!.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean)),
-    ...erpStatusRows.flatMap((r) => r.inventoryStatusErp!.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean)),
-  ])].sort();
 
   return (
     <ProductsBrowser

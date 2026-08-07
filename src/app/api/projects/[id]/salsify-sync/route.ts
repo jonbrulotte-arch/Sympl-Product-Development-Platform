@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveSalsifyCredentials } from "@/lib/salsify-auth";
 import { can } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
 import type { ProductRecord } from "@prisma/client";
@@ -82,10 +83,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Project must be in EXPORT_READY status to sync" }, { status: 400 });
   }
 
-  const config = await prisma.salsifyConfig.findFirst({ where: { isEnabled: true } });
-  if (!config) {
-    return NextResponse.json({ error: "Salsify is not configured or not enabled. Configure it in Admin → Settings." }, { status: 400 });
+  const resolved = await resolveSalsifyCredentials(session.user.id);
+  if (!resolved.ok) {
+    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
   }
+  const config = resolved.credentials;
 
   // Get all salsify-enabled attribute definitions, excluding any the user opted out of
   const salsifyAttrs = await prisma.attributeDefinition.findMany({
@@ -106,6 +108,22 @@ export async function POST(req: NextRequest, { params }: Params) {
     },
   });
 
+  // Category scoping: an attribute tied to a category only applies to products
+  // in that category (or a descendant). Since blank values now clear Salsify
+  // data, sending another category's attributes would wipe them — they must be
+  // excluded per product, not just left empty.
+  const allCats = await prisma.category.findMany({ select: { id: true, parentId: true } });
+  const parentOf = new Map(allCats.map((c) => [c.id, c.parentId]));
+  const categoryWithAncestors = (start: string | null) => {
+    const set = new Set<string>();
+    let current: string | null | undefined = start;
+    while (current && !set.has(current)) {
+      set.add(current);
+      current = parentOf.get(current);
+    }
+    return set;
+  };
+
   const errors: string[] = [];
   let synced = 0;
 
@@ -118,17 +136,22 @@ export async function POST(req: NextRequest, { params }: Params) {
       "salsify:id": productId,
     };
 
+    const applicableCategories = categoryWithAncestors(product.categoryId ?? project.categoryId);
+
     // Map salsify-enabled attributes — core fields read from ProductRecord directly,
     // EAV fields read from attributeValues
     for (const attr of salsifyAttrs) {
       if (!attr.salsifyPropertyId) continue;
+      if (attr.categoryId && !applicableCategories.has(attr.categoryId)) continue;
 
       const coreAccessor = CORE_FIELD_ACCESSOR[attr.key];
       let rawValue: unknown;
 
+      // Empty values are sent as null, not omitted: Salsify clears a property
+      // when it receives null, so blanking a field in Sympl clears it there too.
       if (coreAccessor) {
         rawValue = coreAccessor(product);
-        if (rawValue === null || rawValue === undefined || rawValue === "") continue;
+        if (rawValue === undefined || rawValue === "") rawValue = null;
         if (typeof rawValue === "string" && rawValue.includes("\n") && (attr.attributeType === "MULTI_SELECT" || attr.maxValues > 1)) {
           rawValue = rawValue.split("\n").map((s) => s.trim()).filter(Boolean);
         }
@@ -136,9 +159,10 @@ export async function POST(req: NextRequest, { params }: Params) {
         const avs = product.attributeValues
           .filter((v) => v.attributeDefinitionId === attr.id)
           .sort((a, b) => a.valueIndex - b.valueIndex);
-        if (avs.length === 0) continue;
-        const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
-        rawValue = values.length > 1 ? values : values[0];
+        const values = avs
+          .map((v) => v.textValue ?? v.numberValue ?? v.booleanValue)
+          .filter((v) => v !== null && v !== undefined && v !== "");
+        rawValue = values.length === 0 ? null : values.length > 1 ? values : values[0];
       }
 
       // Salsify localizable properties: the v1 API expects a map keyed

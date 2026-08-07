@@ -14,9 +14,11 @@ function getTransport() {
 }
 
 const FROM = process.env.SMTP_FROM ?? "Sympl <no-reply@sympl.app>";
-const BASE_URL = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+// NextAuth v5 reads AUTH_URL; NEXTAUTH_URL kept as a v4-era fallback.
+const BASE_URL = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:4000";
 
-function wrap(title: string, body: string) {
+// Branded email shell shared by every outgoing email (header bar + card + footer).
+export function wrap(title: string, body: string) {
   return `<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;background:#f3f4f6;margin:0;padding:32px">
 <div style="max-width:520px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
   <div style="background:#1e40af;padding:24px 32px">
@@ -46,6 +48,24 @@ export function passwordResetEmail(resetUrl: string) {
     <p style="color:#374151;font-size:14px;line-height:1.6">We received a request to reset the password for your Sympl account. Click the button below to set a new password. This link expires in <strong>1 hour</strong>.</p>
     <a href="${resetUrl}" style="display:inline-block;margin:16px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600">Reset Password</a>
     <p style="color:#6b7280;font-size:12px">If you didn't request this, you can safely ignore this email. Your password won't change.</p>
+  `);
+}
+
+// Sent when an admin creates an account. The account exists but has no
+// password until the recipient follows this link, so the wording is a welcome
+// rather than a reset.
+export function invitationEmail(opts: {
+  inviteUrl: string;
+  inviterName: string;
+  roleLabel: string;
+  expiresInDays: number;
+}) {
+  return wrap("You've been invited to Sympl PM", `
+    <p style="color:#374151;font-size:14px;line-height:1.6"><strong>${opts.inviterName}</strong> has created an account for you on Sympl PM, the product development platform.</p>
+    <p style="color:#374151;font-size:14px;line-height:1.6">Your role is <strong>${opts.roleLabel}</strong>. Set a password to activate your account and sign in.</p>
+    <a href="${opts.inviteUrl}" style="display:inline-block;margin:16px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600">Set Your Password</a>
+    <p style="color:#6b7280;font-size:12px">This invitation expires in ${opts.expiresInDays} days. If it lapses, ask your administrator to send a new one.</p>
+    <p style="color:#6b7280;font-size:12px">If you weren't expecting this, you can ignore this email — the account can't be used until a password is set.</p>
   `);
 }
 
@@ -111,6 +131,23 @@ export function stageAssignedEmail(opts: {
     <p style="color:#374151;font-size:14px;line-height:1.6">You have been assigned as an approver for the stage <strong>${opts.stageName}</strong> in project <strong>${opts.projectName}</strong>.</p>
     <p style="color:#374151;font-size:14px;line-height:1.6">When the stage is ready for review, you will be able to cast your vote directly from the project page.</p>
     <a href="${BASE_URL}/projects/${opts.projectId}" style="display:inline-block;margin:16px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">View Project</a>
+  `);
+}
+
+// Generic branded notification email — used as the default body for any
+// notification that doesn't build its own template, so every email shares
+// the same Sympl PM header/card formatting.
+export function notificationEmail(opts: {
+  title: string;
+  message: string;
+  /** App-relative link, e.g. "/compliance" or "/projects/abc" */
+  link?: string | null;
+  /** Button label; defaults to "Open in Sympl" */
+  linkLabel?: string;
+}) {
+  return wrap(opts.title, `
+    <p style="color:#374151;font-size:14px;line-height:1.6">${opts.message}</p>
+    ${opts.link ? `<a href="${BASE_URL}${opts.link}" style="display:inline-block;margin:16px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">${opts.linkLabel ?? "Open in Sympl"}</a>` : ""}
   `);
 }
 

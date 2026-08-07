@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   BookOpen, Package, FolderKanban, Upload, CheckCircle,
   ListFilter, Tag, ChevronDown, ChevronRight, Code2, Zap,
-  Info, Search, ShieldCheck, ClipboardCheck, HardDrive,
+  Info, Search, ShieldCheck, ClipboardCheck, HardDrive, BarChart3,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ const ApiBlock = ({ method, path, description, params, body, response }: {
               {params.map((p) => (
                 <div key={p.name} className="flex gap-2 text-sm">
                   <code className="text-xs font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">{p.name}</code>
-                  <span className="text-xs text-gray-400 shrink-0 pt-0.5">{p.type}</span>
+                  <span className="text-xs text-gray-500 shrink-0 pt-0.5">{p.type}</span>
                   <span className="text-gray-600 text-xs pt-0.5">{p.desc}</span>
                 </div>
               ))}
@@ -84,7 +84,7 @@ const ApiBlock = ({ method, path, description, params, body, response }: {
               {body.map((b) => (
                 <div key={b.name} className="flex gap-2 text-sm">
                   <code className="text-xs font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">{b.name}</code>
-                  <span className="text-xs text-gray-400 shrink-0 pt-0.5">{b.type}</span>
+                  <span className="text-xs text-gray-500 shrink-0 pt-0.5">{b.type}</span>
                   {b.required && <span className="text-xs text-red-500 shrink-0 pt-0.5">required</span>}
                   <span className="text-gray-600 text-xs pt-0.5">{b.desc}</span>
                 </div>
@@ -131,12 +131,31 @@ const sections: Section[] = [
         <H3>Roles</H3>
         <UL>
           <LI><strong>Admin</strong> — full access to all projects, users, attributes, settings, and backup.</LI>
+          <LI><strong>Director</strong> — sees every project without being added to it: the project and product browsers, the dashboard, and all reports show the whole organization. Carries the same permissions as a Product Manager, so editing a project still requires owning it or being a member.</LI>
           <LI><strong>Product Manager</strong> — can create and manage projects; access to admin attribute/category pages; can sync products to Salsify.</LI>
           <LI><strong>Contributor</strong> — can edit products in projects they belong to.</LI>
           <LI><strong>Reviewer</strong> — can view and comment on projects; cannot edit product data.</LI>
           <LI><strong>Approver</strong> — can cast approval votes on workflow stages they are assigned to.</LI>
           <LI><strong>Viewer</strong> — read-only access to their projects.</LI>
         </UL>
+
+        <H3>What a role can do</H3>
+        <P>Roles carry two separate kinds of access, and it&apos;s worth keeping them apart:</P>
+        <UL>
+          <LI><strong>Permissions</strong> — global capabilities like creating projects, managing compliance events, or syncing to Salsify. Admins map these to roles in <strong>Admin &rarr; Access Control</strong>, and changes take effect within 30 seconds.</LI>
+          <LI><strong>Project membership</strong> — what you can do <em>inside</em> a given project. Editing products, workflow stages, and members requires being the project owner or a member with edit rights, regardless of your role. A Contributor edits products in projects they belong to and nothing in projects they don&apos;t.</LI>
+        </UL>
+        <Callout>Every permission is enforced by the server, not just hidden in the interface. If a button isn&apos;t visible, the underlying API refuses the request too.</Callout>
+
+        <H3>Adding people to Sympl</H3>
+        <P>Admins add users from <strong>Admin &rarr; Users &rarr; Add User</strong> by entering a name, email, and role. Sympl creates the account without a password and emails an invitation link — administrators never set or handle anyone else&apos;s password.</P>
+        <UL>
+          <LI>The invitee opens the email and clicks <strong>Set Your Password</strong>.</LI>
+          <LI>They enter a password twice on the invitation page and submit.</LI>
+          <LI>They are redirected to sign in, and land on their dashboard.</LI>
+        </UL>
+        <P>Invitation links are single-use and expire after 7 days. Until the password is set the account cannot sign in, and the user list marks it <strong>Invite pending</strong> — the envelope icon on that row sends a fresh invitation and cancels the old link.</P>
+        <Callout>Invitations need email to be configured on the server. If it isn&apos;t, the invitation link is shown to the admin right after the account is created so it can be passed along another way.</Callout>
 
         <Callout>All product data is project-scoped. The global Products page lets you search and edit across all your projects at once.</Callout>
       </>
@@ -176,12 +195,12 @@ const sections: Section[] = [
           <LI>Use <strong>On Approval → set project status</strong> to automatically advance the project status when a stage is approved.</LI>
           <LI>Use workflow templates (admin) to apply a pre-built set of stages in one click.</LI>
           <LI>Use the <strong>▲ / ▼</strong> buttons on each stage to reorder stages within the workflow.</LI>
-          <LI>Set a <strong>Dependency</strong> on a stage to indicate it relies on another workflow stage, a compliance event, or a PSIR being resolved first. Dependencies are informational — they show a lock icon but do not prevent voting or advancing the stage.</LI>
+          <LI>Set a <strong>Dependency</strong> on a stage to indicate it relies on another workflow stage, a compliance event, or an inspection report being resolved first. Dependencies are informational — they show a lock icon but do not prevent voting or advancing the stage.</LI>
           <LI>Set a <strong>due date</strong> on any open stage using the date picker under its description. Stages past their date show a red <strong>overdue</strong> chip, the project header shows a red <em>&quot;N stages overdue&quot;</em> badge, and pending approvers are notified (in-app and email) when the overdue-check cron runs.</LI>
         </UL>
 
         <H3>Manual status override</H3>
-        <P>Admins and Product Managers can override a project&apos;s status at any time from the project <strong>Settings</strong> tab. Select the desired status from the dropdown and click <strong>Save Status</strong>. This is useful for correcting status without waiting for a workflow stage to complete.</P>
+        <P>Admins, Directors, and Product Managers can override a project&apos;s status at any time from the project <strong>Settings</strong> tab. Select the desired status from the dropdown and click <strong>Save Status</strong>. This is useful for correcting status without waiting for a workflow stage to complete.</P>
 
         <H3>Comments &amp; attachments</H3>
         <P>The <strong>Comments</strong> tab on any project lets team members leave notes and attach files. Click the paperclip icon or drag a file onto the comment box to attach it. Supported file types: images, PDFs, spreadsheets, and most document formats (up to 20 MB per file).</P>
@@ -264,8 +283,8 @@ const sections: Section[] = [
         </UL>
 
         <H3>Full product edit page</H3>
-        <P>Click any row to open the full product edit page at <Code>/products/[id]</Code>. This page shows every core field and every EAV attribute organized by section, plus tabs for <strong>Compliance</strong> events, <strong>Inspections</strong> (PSIRs), and <strong>History</strong> — the full field-level change log showing who changed what, when, and the old → new values.</P>
-        <P>The header shows a <strong>% complete</strong> chip (required fields filled in) and, for Admins and Product Managers, <strong>Share</strong>, <strong>Pull from Salsify</strong>, and <strong>Sync to Salsify</strong> buttons.</P>
+        <P>Click any row to open the full product edit page at <Code>/products/[id]</Code>. This page shows every core field and every EAV attribute organized by section, plus tabs for <strong>Compliance</strong> events, <strong>Inspections</strong>, and <strong>History</strong> — the full field-level change log showing who changed what, when, and the old → new values.</P>
+        <P>The header shows a <strong>% complete</strong> chip (required fields filled in) and, for Admins, Directors, and Product Managers, <strong>Share</strong>, <strong>Pull from Salsify</strong>, and <strong>Sync to Salsify</strong> buttons.</P>
       </>
     ),
   },
@@ -318,18 +337,18 @@ const sections: Section[] = [
     ),
   },
   {
-    id: "psir",
+    id: "inspections",
     icon: ClipboardCheck,
-    title: "Pre-Shipment Inspections (PSIR)",
+    title: "Inspections",
     color: "text-violet-600 bg-violet-50",
     content: (
       <>
-        <H3>What is a PSIR?</H3>
+        <H3>What is an inspection report?</H3>
         <P>
-          A Pre-Shipment Inspection Report documents the quality inspection performed at a factory
+          An inspection report documents the quality inspection performed at a factory
           before goods ship. Each report captures the inspector, inspection company, factory, date,
           result (PASS / FAIL / CONDITIONAL / PENDING), and any supporting documents.
-          A single PSIR can cover multiple products from one or more projects.
+          A single report can cover multiple products from one or more projects.
         </P>
 
         <H3>Creating a report</H3>
@@ -360,22 +379,26 @@ const sections: Section[] = [
         <P>The search bar on the Inspections list matches the report title, reference number, inspector, inspection company, factory, <strong>part number</strong>, and product name. Searching by part number returns all reports that include a product with that part number.</P>
 
         <H3>Custom attributes</H3>
-        <P>Admins can define additional fields to capture on every PSIR — for example AQL level, sample size, or inspection standard — at <strong>Admin → PSIR Attributes</strong>. Supported types: Text, Text Area, Number, Date, Select (dropdown), and Yes/No.</P>
+        <P>Admins can define additional fields to capture on every inspection report — for example AQL level, sample size, or inspection standard — at <strong>Admin → Inspection Attributes</strong>. Supported types: Text, Text Area, Number, Date, Select (dropdown), and Yes/No.</P>
 
         <H3>File uploads</H3>
         <P>Drag and drop files directly onto the Documents section or click Upload File. Files are stored on the server and can be downloaded at any time. Deleting a document removes it from disk immediately.</P>
 
         <H3>Bulk Add products</H3>
-        <P>In the Products section of a PSIR, click <strong>Bulk Add</strong> to open a paste panel. Paste part numbers separated by commas, semicolons, or newlines — or click <strong>Upload .xlsx</strong> to fill the list from a spreadsheet&apos;s Part Number column — then click <strong>Look Up</strong>. Sympl resolves each part number and shows a green (found) or red (not found) preview. Click <strong>Add N Products</strong> to link all resolved products at once.</P>
+        <P>In the Products section of an inspection report, click <strong>Bulk Add</strong> to open a paste panel. Paste part numbers separated by commas, semicolons, or newlines — or click <strong>Upload .xlsx</strong> to fill the list from a spreadsheet&apos;s Part Number column — then click <strong>Look Up</strong>. Sympl resolves each part number and shows a green (found) or red (not found) preview. Click <strong>Add N Products</strong> to link all resolved products at once.</P>
 
         <H3>Inspections list</H3>
         <P>Reports on the Inspections page expand in place — click the chevron to see notes, linked products, and attachments (with image thumbnails), and change status with one click, without opening the full report. The pencil icon opens the full detail page.</P>
 
         <H3>Sharing a report</H3>
-        <P>Admins and Product Managers can create an expiring read-only <strong>share link</strong> from the report detail page — see the <em>Notifications, Sharing &amp; Alerts</em> section below.</P>
+        <P>Admins, Directors, and Product Managers can create an expiring read-only <strong>share link</strong> from the report detail page — see the <em>Notifications, Sharing &amp; Alerts</em> section below.</P>
 
         <H3>Product tab on product edit page</H3>
-        <P>When viewing a product at <Code>/products/[id]</Code>, switch to the <strong>Inspections</strong> tab to see all PSIRs linked to that product.</P>
+        <P>When viewing a product at <Code>/products/[id]</Code>, switch to the <strong>Inspections</strong> tab to see all inspection reports linked to that product.</P>
+
+        <H3>Turning the module off</H3>
+        <P>Admins can switch the whole module off under <strong>Admin → Settings → Modules</strong>. The Inspections pages, the inspection attribute admin, the Inspections tabs on products and projects, the inspection dependency option in workflow stages, and the Inspections report all disappear platform-wide.</P>
+        <Callout>Nothing is deleted. Existing inspection reports, attachments, and links stay in the database and reappear intact the moment the module is switched back on.</Callout>
       </>
     ),
   },
@@ -406,6 +429,9 @@ const sections: Section[] = [
 
         <H3>Max Values</H3>
         <P>Setting Max Values &gt; 1 makes an attribute multi-value (e.g. multiple team members). In the grid, values appear joined by <Code>·</Code>.</P>
+
+        <H3>Reordering Lists of Values</H3>
+        <P>For SELECT and MULTI_SELECT attributes, use the <strong>▲ / ▼</strong> buttons next to each List of Values entry in the attribute editor to control the order options appear in the dropdown.</P>
 
         <H3>Descriptions / Tooltips</H3>
         <P>The <strong>Description</strong> field on each attribute becomes the tooltip shown when hovering the column header in the product grid. Use it to explain what the field means, acceptable formats, or where the value comes from.</P>
@@ -476,6 +502,73 @@ const sections: Section[] = [
           <LI><strong>Action</strong> — Approved, Rejected, Status changed, Created, Updated, Deleted, Commented, Assigned.</LI>
           <LI><strong>User</strong> — any project member.</LI>
         </UL>
+
+        <H3>Old → new values</H3>
+        <P>Field edits show the previous and new value side by side (e.g. <em>Model Number: 1010 → 1020</em>), with field keys shown in readable form. A <strong>via</strong> badge on each entry shows where the change came from.</P>
+
+        <H3>Source of change</H3>
+        <UL>
+          <LI><strong>Project Grid</strong> — edited inline in the product grid, including bulk edit.</LI>
+          <LI><strong>Product Record</strong> — edited on the full product edit page.</LI>
+          <LI><strong>Import</strong> — created or updated via an Excel import.</LI>
+        </UL>
+
+        <H3>Per-user activity (Admin)</H3>
+        <P>Admins can view any user&apos;s recent activity from <strong>Admin → Users</strong> — click the clock icon on a user&apos;s row to open their last 100 actions across all projects.</P>
+      </>
+    ),
+  },
+  {
+    id: "reports",
+    icon: BarChart3,
+    title: "Reports",
+    color: "text-cyan-600 bg-cyan-50",
+    content: (
+      <>
+        <H3>What Reports does</H3>
+        <P>The <strong>Reports</strong> page pulls operational data that normally lives scattered across the dashboard, the browsers, and email alerts into one filterable table you can export to Excel. Pick a report from the cards at the top; the table below refreshes immediately.</P>
+
+        <H3>Who sees what</H3>
+        <P>Reports are open to every signed-in user, but the rows are scoped: you see only data from projects you own or are a member of. Admins see everything. Nobody gains visibility they did not already have — the scoping is applied in the queries, not just hidden in the table.</P>
+
+        <H3>The seven reports</H3>
+        <UL>
+          <LI><strong>Inspections</strong> — every inspection report with result, status, inspection date, inspector, company, factory, country, and linked product count. Filter by result.</LI>
+          <LI><strong>Compliance</strong> — compliance events with type, severity, status, due date, computed days overdue, and resolution date. Filter by status, severity, or overdue-only.</LI>
+          <LI><strong>Overdue Stages</strong> — workflow stages past their due date, with the approvers still holding them up and the project owner to chase.</LI>
+          <LI><strong>Overdue Projects</strong> — active projects past their target launch date, with days overdue, open stage count, and product count.</LI>
+          <LI><strong>Roadblocks</strong> — four kinds of blockage in one list, each tagged with a Roadblock Type: stages waiting on an unmet dependency, stalled projects (Needs Review / Changes Requested, or no activity for 14 days), failed inspections, and aging pending approvals. Sorted by how long each has been stuck.</LI>
+          <LI><strong>Out-of-Sync Products</strong> — products edited since their last Salsify push, or never pushed while the project is Export Ready. See below.</LI>
+          <LI><strong>Pipeline Summary</strong> — project and product counts by status and owner, with average days since last update. Built for leadership check-ins.</LI>
+        </UL>
+
+        <H3>Clicking a row</H3>
+        <P>Every row opens a side panel with the context behind it — the related records, who owns them, what is blocking, and links to jump straight there. What you get depends on the report:</P>
+        <UL>
+          <LI><strong>Inspections</strong> — full result and inspection details, the products covered, any workflow stage waiting on this inspection, and attachments.</LI>
+          <LI><strong>Compliance</strong> — severity, days overdue, description and notes, the affected projects (with owner and how many of their products are hit), the individual products, and any stage held up by the event.</LI>
+          <LI><strong>Overdue Stages</strong> — every approver with their vote and how long they have been sitting on it, plus the stage&apos;s declared dependencies colour-coded by whether each is satisfied or still blocking.</LI>
+          <LI><strong>Overdue Projects</strong> — the open stages with due dates and pending approver counts, the team roster with edit rights, and the last few activity entries so you can see whether it is genuinely stalled or just quiet.</LI>
+          <LI><strong>Roadblocks</strong> — opens whichever panel fits the roadblock type: the stage, the project, or the inspection.</LI>
+          <LI><strong>Pipeline Summary</strong> — every project in that status-and-owner bucket, with product counts, open stages, and how long each has been idle.</LI>
+        </UL>
+        <P>Anything in a panel that links somewhere is clickable — products open the product record, projects open the project, stages open the workflow tab, inspections open the report.</P>
+
+        <H3>Export to Excel</H3>
+        <P>The <strong>Export to Excel</strong> button downloads exactly the rows on screen, with your filters applied, as an <Code>.xlsx</Code> file named for the report and today&apos;s date. Column widths are sized to the content.</P>
+
+        <H3>Out-of-Sync Products: drilling into drift</H3>
+        <P>Click any row in the Out-of-Sync Products report to open a detail panel showing:</P>
+        <UL>
+          <LI><strong>Changes since last sync</strong> — one card per field, with the old value struck through beside the new one, who changed it, when, and whether it came from the Project Grid, the Product Record, or an Import.</LI>
+          <LI><strong>Links</strong> — jump straight to the product record, the project, or the product&apos;s page in Salsify.</LI>
+          <LI><strong>Per-field sync</strong> — users who can sync to Salsify get a <strong>Sync</strong> button on each field that maps to a Salsify property. It pushes that one property and leaves the rest of the Salsify record untouched.</LI>
+        </UL>
+        <P>The <strong>Unsynced Fields</strong> column counts what is still outstanding, so it ticks down as you resolve fields. Once the last one is pushed, the product is marked synced and drops off the report — the panel closes and the table refreshes on its own.</P>
+        <Callout>Fields not mapped to a Salsify property are listed for context but labelled as non-syncing. A product that has never had a full sync will not clear itself this way: one pushed property is no evidence the rest of the record matches, so run a full sync from the product record instead.</Callout>
+
+        <H3>When the panel shows no changes</H3>
+        <P>The diff is built from the Activity Log, which records core product fields. A product that drifted only through custom-attribute edits, or through changes made before change tracking was in place, will show no field-level detail. A full sync from the product record brings it back in line.</P>
       </>
     ),
   },
@@ -717,7 +810,15 @@ const sections: Section[] = [
     content: (
       <>
         <H3>Setup</H3>
-        <P>Go to <strong>Admin → Settings</strong> and enter your Salsify API Key and Organization ID. Enable Salsify globally to allow syncing.</P>
+        <P>Salsify setup has two halves — one global, one per person:</P>
+        <UL>
+          <LI><strong>Admin → Settings</strong> (admins) — enter the Organization ID and switch on <strong>Enable Salsify Sync</strong>.</LI>
+          <LI><strong>My Profile → Salsify API Key</strong> (every user who syncs) — paste your own Salsify API key, found in Salsify → User Settings → API Access.</LI>
+        </UL>
+
+        <H3>Personal API keys</H3>
+        <P>Salsify API keys are issued per person, so Sympl stores them per user rather than once for the whole installation. Every sync, pull, and debug call authenticates as the user who triggered it, which means Salsify&apos;s own audit trail attributes each change to the right individual and each user only reaches what their Salsify account permits.</P>
+        <P>If you try to sync without a key on file, Sympl stops and points you to your profile. Replacing or removing your key from the profile page takes effect on your next sync; the key is never shown again after saving — only its last four characters.</P>
 
         <H3>Mapping attributes</H3>
         <P>In <strong>Admin → Attributes</strong>, open any attribute, enable the Salsify toggle, and enter the Salsify Property ID. This is the property name in Salsify that this attribute's value will be written to.</P>
@@ -743,8 +844,13 @@ const sections: Section[] = [
         <H3>Drift detection</H3>
         <P>Each successful sync records a per-product timestamp. The grid&apos;s <strong>Salsify</strong> column compares it against the product&apos;s last edit: <strong>Synced</strong> (green) means Salsify is current, <strong>Changed</strong> (yellow) means the product has been edited since its last sync and Salsify is stale.</P>
 
+        <H3>Resolving drift field by field</H3>
+        <P>The <strong>Out-of-Sync Products</strong> report (under <strong>Reports</strong>) lists every drifted product across your projects. Clicking a row shows exactly which fields changed, what they were before, and who changed them — and lets anyone who can sync push a single field back to Salsify without touching the rest of the record.</P>
+        <P>Each per-field push is recorded, and a field counts as resolved once it has been pushed more recently than it was last edited. Resolve the last outstanding field and the product flips from <strong>Changed</strong> back to <strong>Synced</strong> everywhere — the grid column included — exactly as a full sync would. Edit that field again afterwards and it reappears as unsynced.</P>
+        <Callout>A product that has never been fully synced is excluded from this: pushing one property proves nothing about the other fifty, so it stays flagged until a full sync runs. Drift caused only by custom-attribute edits also has no field-level detail to resolve, since the change history tracks core product fields.</Callout>
+
         <H3>Pull from Salsify</H3>
-        <P>On the product edit page, Admins and Product Managers can click <strong>Pull from Salsify</strong> to fetch the product&apos;s current state from Salsify. An <strong>In Salsify</strong> panel then shows digital-asset thumbnails, Salsify&apos;s last-updated date, version, and property count — so you can see what retail has without leaving Sympl.</P>
+        <P>On the product edit page, Admins, Directors, and Product Managers can click <strong>Pull from Salsify</strong> to fetch the product&apos;s current state from Salsify. An <strong>In Salsify</strong> panel then shows digital-asset thumbnails, Salsify&apos;s last-updated date, version, and property count — so you can see what retail has without leaving Sympl.</P>
 
         <Callout type="tip">After a project or row-selection sync, the result (how many products sent and any errors) appears next to the Sync button in the project header.</Callout>
       </>
@@ -763,14 +869,27 @@ const sections: Section[] = [
         <H3>@mentions</H3>
         <P>In project comments, type <Code>@</Code> followed by a teammate&apos;s first name, full name, or email prefix to send them a dedicated <em>&quot;mentioned you&quot;</em> notification.</P>
 
+        <H3>Email notifications (SMTP)</H3>
+        <P>Sympl can send email for workflow votes, stage completions, approver assignments, project status changes, and password resets. Email is <strong>optional</strong> — without SMTP configured, the app works normally with in-app notifications only.</P>
+        <P>To enable email, set the following environment variables in your <Code>.env</Code> file and restart the server:</P>
+        <UL>
+          <LI><Code>SMTP_HOST</Code> — SMTP server hostname (e.g. <Code>smtp.gmail.com</Code>). <strong>Required</strong> to enable email.</LI>
+          <LI><Code>SMTP_PORT</Code> — port number (default: <Code>587</Code>).</LI>
+          <LI><Code>SMTP_SECURE</Code> — set to <Code>true</Code> for implicit TLS (port 465). Default uses STARTTLS.</LI>
+          <LI><Code>SMTP_USER</Code> / <Code>SMTP_PASS</Code> — credentials for SMTP authentication. For Gmail, use an <strong>App Password</strong>, not your account password.</LI>
+          <LI><Code>SMTP_FROM</Code> — sender address (default: <Code>Sympl &lt;no-reply@sympl.app&gt;</Code>).</LI>
+        </UL>
+        <P>Go to <strong>Admin → Settings → Email Notifications (SMTP)</strong> to verify the connection status and send a test email.</P>
+        <P>Users control which notification categories they receive via email in <strong>My Profile → Notification Preferences</strong>. Mentions and assignments default to email on; other categories default to inbox only.</P>
+
         <H3>Overdue alerts (cron)</H3>
         <P>Compliance events and workflow stages with a due date trigger a one-time in-app notification (and email, when SMTP is configured) once they go overdue. This requires an external cron job hitting <Code>POST /api/cron/overdue-check</Code> with the backup API token — see the README for the exact crontab entry. Changing an item&apos;s due date re-arms its alert.</P>
 
         <H3>Leadership digest</H3>
-        <P>A scheduled email summary for Admins and Product Managers: pipeline by status, open compliance events by severity with overdue count, and an approvals-aging table. Triggered by cron via <Code>POST /api/cron/digest</Code>; Admins can preview the HTML by opening <Code>/api/cron/digest</Code> in the browser.</P>
+        <P>A scheduled email summary for Admins, Directors, and Product Managers: pipeline by status, open compliance events by severity with overdue count, and an approvals-aging table. Triggered by cron via <Code>POST /api/cron/digest</Code>; Admins can preview the HTML by opening <Code>/api/cron/digest</Code> in the browser.</P>
 
         <H3>Read-only share links</H3>
-        <P>Admins and Product Managers can click <strong>Share</strong> on a product or inspection report to create an expiring link (7 / 30 / 90 days). Anyone with the URL sees a clean read-only view — no account, no attachments, no navigation into the app. Links can be copied and revoked from the same menu; expired or revoked links stop working immediately.</P>
+        <P>Admins, Directors, and Product Managers can click <strong>Share</strong> on a product or inspection report to create an expiring link (7 / 30 / 90 days). Anyone with the URL sees a clean read-only view — no account, no attachments, no navigation into the app. Links can be copied and revoked from the same menu; expired or revoked links stop working immediately.</P>
 
         <H3>API tokens for integrations</H3>
         <P>From <strong>Admin → API Tokens</strong>, create scoped <Code>spt_</Code> tokens that let external tools (ERP, BI) call <Code>GET /api/products</Code> with a <Code>Bearer</Code> header — read-only access to product data with full search, filter, and pagination. Tokens are shown once at creation and can be revoked at any time; last-used time is tracked.</P>
@@ -811,12 +930,29 @@ const sections: Section[] = [
         </UL>
 
         <H3>Running a backup manually</H3>
-        <P>Click <strong>Run Now</strong> at the top of the Backup & Restore page. The backup runs immediately and the result (file size, duration) appears as a banner. All runs are recorded in the <strong>Activity Log</strong> tab.</P>
+        <P>Two buttons at the top of the Backup & Restore page create snapshots on demand:</P>
+        <UL>
+          <LI><strong>Back Up Database</strong> — dumps and encrypts the PostgreSQL database to a <Code>.pgenc</Code> file.</LI>
+          <LI><strong>Archive Files</strong> — packs the <Code>data/uploads/</Code> directory (all attachments) into a <Code>.tar.gz</Code> archive.</LI>
+        </UL>
+        <P>The result (file name, size, duration) appears as a banner, and all runs are recorded in the <strong>Activity Log</strong> tab. Both artifact types are subject to the same <strong>Retain last N</strong> setting.</P>
 
         <H3>Restoring from a backup</H3>
-        <P>Go to the <strong>Restore</strong> tab. Available <Code>.pgenc</Code> files in the backup directory are listed newest-first. Click <strong>Restore</strong> next to the snapshot you want to restore from.</P>
+        <P>Go to the <strong>Restore</strong> tab. Every snapshot in the backup directory is listed newest-first with a <strong>Database</strong> or <strong>Files</strong> badge. Click <strong>Restore</strong> next to the one you want.</P>
+        <UL>
+          <LI><strong>Database</strong> snapshots drop the entire <Code>public</Code> schema and restore the snapshot into it as a single transaction. <strong>All current data is overwritten</strong> — anything created since the backup is gone. On success the banner reports how many projects and products the database now holds; reload the application afterwards.</LI>
+          <LI><strong>Files</strong> archives extract back over <Code>data/uploads/</Code>. Files in the archive overwrite files of the same name; files that exist only on this server are left in place.</LI>
+        </UL>
+
+        <H3>Download &amp; upload (server migration)</H3>
+        <P>Every snapshot has a <strong>Download</strong> button, and the Restore tab has an <strong>Upload a Snapshot</strong> panel. Together these let you move an entire Sympl instance to a new server without shell access:</P>
+        <UL>
+          <LI>On the <em>old</em> server, click <strong>Back Up Database</strong> and <strong>Archive Files</strong>, then <strong>Download</strong> both artifacts.</LI>
+          <LI>On the <em>new</em> server, open Backup &amp; Restore → Restore and upload both files. Large uploads stream with a progress bar.</LI>
+          <LI>Restore the database snapshot first, reload the app, then restore the files archive.</LI>
+        </UL>
         <Callout type="tip">
-          Restore uses <Code>pg_restore --clean --if-exists</Code>, which drops and recreates all objects before restoring. <strong>All current data will be overwritten.</strong> Reload the application after a successful restore.
+          The new server must have the same <Code>BACKUP_ENCRYPTION_KEY</Code> (or, if that is unset, the same <Code>NEXTAUTH_SECRET</Code>) as the server that created the database backup — otherwise decryption fails and the restore cannot proceed. Copy that value across before migrating.
         </Callout>
 
         <H3>API Token (for automation)</H3>
@@ -829,15 +965,22 @@ const sections: Section[] = [
   -H "Content-Type: application/json"`}</pre>
         <P>Tokens can be regenerated (invalidating the old one) or revoked entirely from the same section. The token hash is stored server-side — the plaintext is never saved and cannot be recovered after the initial display.</P>
 
-        <H3>Scheduled backups</H3>
+        <H3>Scheduled backups (database only)</H3>
         <P>
-          Sympl does not run a built-in scheduler. To automate backups, generate an API token (above) and add a cron entry on your server:
+          Sympl does not run a built-in scheduler. To automate database-only backups, generate an API token (above) and add a cron entry on your server:
         </P>
         <pre className="text-xs font-mono bg-gray-900 text-gray-100 rounded-lg p-3 overflow-x-auto mb-3">{`# Example: daily at 2:00 AM
 0 2 * * * curl -s -X POST https://your-server/api/admin/backup/run \\
   -H "Authorization: Bearer sbk_<your-token>" \\
   -H "Content-Type: application/json" \\
   -d '{"triggeredBy":"SCHEDULE"}'`}</pre>
+
+        <H3>Scheduled full backups (database + uploaded files)</H3>
+        <P>
+          The <strong>Cron Job Setup</strong> section on this page (once an API token is active) shows the exact command for your server. It runs the bundled <Code>scripts/backup.sh</Code>, which calls the same backup API for the database dump and additionally archives <Code>data/uploads/</Code> as a <Code>.tar.gz</Code>, pruning old upload archives to match your retention setting.
+        </P>
+        <pre className="text-xs font-mono bg-gray-900 text-gray-100 rounded-lg p-3 overflow-x-auto mb-3">{`# Example: daily at 2:00 AM
+0 2 * * * /opt/sympl/scripts/backup.sh https://your-server sbk_<your-token> /var/backups/sympl >> /var/log/sympl-backup.log 2>&1`}</pre>
       </>
     ),
   },
@@ -867,7 +1010,7 @@ export default function HelpPage() {
     <div className="flex h-full overflow-hidden">
       {/* TOC sidebar */}
       <nav className="w-56 shrink-0 border-r border-gray-200 bg-gray-50 overflow-y-auto py-4 px-3 space-y-0.5">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-2 mb-3">Contents</p>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-2 mb-3">Contents</p>
         {sections.map(({ id, icon: Icon, title, color }) => (
           <button
             key={id}
@@ -941,7 +1084,7 @@ export default function HelpPage() {
             );
           })}
           {filtered.length === 0 && (
-            <p className="text-sm text-gray-400 text-center py-12">No sections match &ldquo;{search}&rdquo;</p>
+            <p className="text-sm text-gray-500 text-center py-12">No sections match &ldquo;{search}&rdquo;</p>
           )}
         </div>
       </div>

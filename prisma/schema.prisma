@@ -10,6 +10,7 @@ datasource db {
 
 enum UserRole {
   ADMIN
+  DIRECTOR
   PRODUCT_MANAGER
   CONTRIBUTOR
   REVIEWER
@@ -98,6 +99,9 @@ model User {
   passwordHash  String?
   role          UserRole  @default(CONTRIBUTOR)
   isActive      Boolean   @default(true)
+  // Salsify credentials are per-person, not per-installation: every sync
+  // authenticates as the user who triggered it.
+  salsifyApiKey String?   @db.Text
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -253,12 +257,27 @@ model AttributeDefinition {
   values   ProductAttributeValue[]
 }
 
+// ─── App-wide module toggles ─────────────────────────────────────────────────
+
+model AppConfig {
+  id                  String   @id @default(cuid())
+  /// When false, the Inspections (PSIR) module is hidden platform-wide.
+  /// Data is retained; re-enabling restores everything.
+  inspectionsEnabled  Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
 // ─── Salsify Integration ────────────────────────────────────────────────────────
 
 model SalsifyConfig {
   id                   String   @id @default(cuid())
-  apiKey               String   @db.Text
+  /// Deprecated — API keys now live on User.salsifyApiKey. Retained so the
+  /// previously configured key is not destroyed on upgrade; nothing reads it.
+  apiKey               String   @default("") @db.Text
   organizationId       String
+  /// Deprecated — never referenced by any Salsify API call. Retained so the
+  /// column is not dropped from existing databases; nothing reads or writes it.
   channelId            String?
   isEnabled            Boolean  @default(false)
   salsifyDebugEnabled  Boolean  @default(false)
@@ -323,6 +342,10 @@ model Project {
   savedViews     SavedGridView[]
   notifications  Notification[]
   salsifySyncLogs SalsifySyncLog[]
+
+  @@index([isArchived, updatedAt(sort: Desc)])
+  @@index([ownerId])
+  @@index([status])
 }
 
 model ProjectMember {
@@ -453,6 +476,13 @@ model ProductRecord {
   @@index([projectId])
   @@index([partNumber])
   @@index([upc])
+  // The global product browser filters on isArchived and sorts by updatedAt;
+  // without this it full-scans and sorts the whole table for every page.
+  @@index([isArchived, updatedAt(sort: Desc)])
+  @@index([projectId, isArchived])
+  @@index([categoryId])
+  @@index([brand])
+  @@index([partNumber, isArchived])
 }
 
 model ProductAttributeValue {
@@ -634,6 +664,9 @@ model ActivityLog {
   @@index([productId])
   @@index([userId])
   @@index([createdAt])
+  // Per-product history and Salsify drift both read one product's log newest-first
+  @@index([productId, createdAt(sort: Desc)])
+  @@index([projectId, createdAt(sort: Desc)])
 }
 
 // ─── Import / Export ──────────────────────────────────────────────────────────

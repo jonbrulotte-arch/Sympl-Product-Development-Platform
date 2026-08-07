@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { CORE_FIELDS } from "@/lib/core-fields";
 import {
   ArrowLeft, ExternalLink, Save, CheckCircle2, AlertCircle, RefreshCw,
@@ -80,9 +80,27 @@ interface Props {
   effectiveCategoryId: string | null;
   projectCategory: { id: string; name: string } | null;
   userRole: string;
+  salsifyOrgId: string | null;
+  inspectionsEnabled: boolean;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function salsifyThumbUrl(url: string): string {
+  const m = url.match(/^(https:\/\/images\.salsify\.com\/image\/upload\/)(s--[A-Za-z0-9_-]+--\/)(.+)$/);
+  if (m) return `${m[1]}${m[2]}c_lpad,cs_srgb,d_thumb_default,h_100,w_100/${m[3]}`;
+  const m2 = url.match(/^(https:\/\/images\.salsify\.com\/image\/upload\/)(.+)$/);
+  if (m2) return `${m2[1]}c_lpad,cs_srgb,d_thumb_default,h_100,w_100/${m2[2]}`;
+  return url;
+}
+
+function salsifySquareUrl(url: string): string {
+  const m = url.match(/^(https:\/\/images\.salsify\.com\/image\/upload\/)(s--[A-Za-z0-9_-]+--\/)(.+)$/);
+  if (m) return `${m[1]}${m[2]}c_lpad,cs_srgb,d_thumb_default,h_600,w_600/${m[3]}`;
+  const m2 = url.match(/^(https:\/\/images\.salsify\.com\/image\/upload\/)(.+)$/);
+  if (m2) return `${m2[1]}c_lpad,cs_srgb,d_thumb_default,h_600,w_600/${m2[2]}`;
+  return url;
+}
 
 function productToCore(p: Product): Record<string, string | boolean> {
   const out: Record<string, string | boolean> = {};
@@ -124,16 +142,28 @@ function FieldInput({
   const isMulti = attr.maxValues > 1 || attr.attributeType === "MULTI_SELECT";
 
   if (isBoolean) {
+    const checked = value === true;
     return (
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={value === true}
-          onChange={(e) => onChange(e.target.checked)}
-          className="h-4 w-4 rounded accent-blue-600"
-        />
-        <span className="text-sm text-gray-700">Yes</span>
-      </label>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        className="flex items-center gap-2 cursor-pointer"
+        onClick={() => onChange(!checked)}
+      >
+        <span className={cn(
+          "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
+          checked ? "bg-green-500" : "bg-gray-300"
+        )}>
+          <span className={cn(
+            "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
+            checked ? "translate-x-4" : "translate-x-0.5"
+          )} />
+        </span>
+        <span className={cn("text-sm font-medium", checked ? "text-green-600" : "text-gray-500")}>
+          {checked ? "Yes" : "No"}
+        </span>
+      </button>
     );
   }
 
@@ -326,14 +356,14 @@ function CompliancePanel({ productId }: { productId: string }) {
     setEvents((prev) => prev.filter((e) => e.id !== id));
   }
 
-  if (loading) return <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading…</div>;
+  if (loading) return <div className="flex items-center justify-center h-48 text-gray-500 text-sm">Loading…</div>;
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-700">{events.length} compliance event{events.length !== 1 ? "s" : ""}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Track regulatory and compliance issues for this product.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Track regulatory and compliance issues for this product.</p>
         </div>
         {!showCreate && (
           <Button size="sm" onClick={() => setShowCreate(true)}>
@@ -398,7 +428,7 @@ function CompliancePanel({ productId }: { productId: string }) {
         <div className="flex flex-col items-center justify-center py-16 bg-white border border-gray-200 rounded-xl text-center">
           <ShieldCheck className="h-10 w-10 text-gray-200 mb-2" />
           <p className="text-sm text-gray-500 font-medium">No compliance events</p>
-          <p className="text-xs text-gray-400 mt-1">Log an event to start tracking compliance for this product.</p>
+          <p className="text-xs text-gray-500 mt-1">Log an event to start tracking compliance for this product.</p>
         </div>
       )}
 
@@ -413,14 +443,14 @@ function CompliancePanel({ productId }: { productId: string }) {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-sm font-medium text-gray-900">{event.title}</p>
-                    <p className="text-xs text-gray-400">{event.type.name}</p>
+                    <p className="text-xs text-gray-500">{event.type.name}</p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${SEVERITY_STYLES[event.severity] ?? ""}`}>{event.severity}</span>
                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${STATUS_STYLES[event.status] ?? ""}`}>{event.status.replace("_", " ")}</span>
                   </div>
                 </div>
-                <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
+                <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
                   {event.dueDate && (
                     <span className={isOverdue ? "text-red-500 font-medium" : ""}>
                       <Clock className="inline h-3 w-3 mr-0.5" />
@@ -496,14 +526,14 @@ function PsirPanel({ productId }: { productId: string }) {
       .then((d) => { setPsirs(d.psirs ?? []); setLoading(false); });
   }, [productId]);
 
-  if (loading) return <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading…</div>;
+  if (loading) return <div className="flex items-center justify-center h-48 text-gray-500 text-sm">Loading…</div>;
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-700">{psirs.length} inspection report{psirs.length !== 1 ? "s" : ""} linked</p>
-          <p className="text-xs text-gray-400 mt-0.5">Pre-shipment inspection reports associated with this product.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Pre-shipment inspection reports associated with this product.</p>
         </div>
         <Link href="/psir" className="text-xs text-violet-600 hover:underline flex items-center gap-1">
           <Plus className="h-3.5 w-3.5" /> Create in Inspections module
@@ -514,7 +544,7 @@ function PsirPanel({ productId }: { productId: string }) {
         <div className="flex flex-col items-center justify-center py-16 bg-white border border-gray-200 rounded-xl text-center">
           <ClipboardCheck className="h-10 w-10 text-gray-200 mb-2" />
           <p className="text-sm text-gray-500 font-medium">No inspection reports linked</p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-500 mt-1">
             Go to <Link href="/psir" className="text-violet-600 hover:underline">Inspections</Link> to create a PSIR and link this product.
           </p>
         </div>
@@ -531,7 +561,7 @@ function PsirPanel({ productId }: { productId: string }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900">{psir.title}</p>
-                    <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
+                    <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
                       {psir.referenceNumber && <span className="font-mono">{psir.referenceNumber}</span>}
                       {psir.inspectionCompany && <span>{psir.inspectionCompany}</span>}
                       {psir.inspectionDate && <span>{formatDate(psir.inspectionDate)}</span>}
@@ -546,7 +576,7 @@ function PsirPanel({ productId }: { productId: string }) {
                     <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full font-medium ${meta.cls}`}>
                       {meta.icon} {psir.result}
                     </span>
-                    <span className="text-xs text-gray-400">{psir.status}</span>
+                    <span className="text-xs text-gray-500">{psir.status}</span>
                   </div>
                 </div>
               </Link>
@@ -562,7 +592,7 @@ function PsirPanel({ productId }: { productId: string }) {
 
 type Tab = "details" | "compliance" | "psir" | "history";
 
-export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory, userRole }: Props) {
+export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory, userRole, salsifyOrgId, inspectionsEnabled }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<Tab>("details");
@@ -578,8 +608,9 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
   const [syncStatus, setSyncStatus] = useState<"idle" | "synced" | "error">("idle");
   const [syncError, setSyncError] = useState<string | null>(null);
   const [showSalsifyModal, setShowSalsifyModal] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
-  const canSync = userRole === "ADMIN" || userRole === "PRODUCT_MANAGER";
+  const canSync = ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER"].includes(userRole);
 
   // % of REQUIRED attributes with a value — drives the completeness chip
   const completeness = useMemo(() => {
@@ -809,7 +840,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
           {([
             { key: "details", label: "Details", icon: null },
             { key: "compliance", label: "Compliance", icon: <ShieldCheck className="h-3.5 w-3.5" /> },
-            { key: "psir", label: "Inspections", icon: <ClipboardCheck className="h-3.5 w-3.5" /> },
+            ...(inspectionsEnabled ? [{ key: "psir" as Tab, label: "Inspections", icon: <ClipboardCheck className="h-3.5 w-3.5" /> }] : []),
             { key: "history", label: "History", icon: <Clock className="h-3.5 w-3.5" /> },
           ] as { key: Tab; label: string; icon: React.ReactNode }[]).map((tab) => (
             <button
@@ -843,7 +874,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
               </div>
             )}
             {/* Product meta */}
-            <div className="text-xs text-gray-400 flex flex-wrap gap-4">
+            <div className="text-xs text-gray-500 flex flex-wrap gap-4">
               <span>Created by {product.createdBy.name ?? product.createdBy.email} · {formatDate(product.createdAt)}</span>
               {product.updatedBy && (
                 <span>Last updated by {product.updatedBy.name ?? product.updatedBy.email} · {formatDate(product.updatedAt)}</span>
@@ -851,44 +882,119 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
             </div>
 
             {/* Salsify pull-back panel */}
-            {product.salsifyData && (
-              <div className="bg-sky-50/60 border border-sky-200 rounded-lg p-4 space-y-2">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <p className="text-sm font-semibold text-sky-900">In Salsify</p>
-                  <p className="text-xs text-sky-700">
-                    {product.salsifyData.updatedAt && `Salsify last updated ${formatDate(product.salsifyData.updatedAt)} · `}
-                    {typeof product.salsifyData.propertyCount === "number" && `${product.salsifyData.propertyCount} properties · `}
-                    Pulled {product.salsifyLastPulledAt ? formatDate(product.salsifyLastPulledAt) : "—"}
-                  </p>
-                </div>
-                {(product.salsifyData.digitalAssets?.length ?? 0) > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {product.salsifyData.digitalAssets!.map((a, i) => (
-                      <a
-                        key={i}
-                        href={a.url ?? "#"}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="group border border-sky-200 rounded-lg overflow-hidden bg-white hover:border-sky-400 transition-colors"
-                        title={a.name ?? undefined}
-                      >
-                        {a.url && /\.(png|jpe?g|gif|webp)($|\?)/i.test(a.url) ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={a.url} alt={a.name ?? ""} className="h-20 w-20 object-cover" />
+            {product.salsifyData && (() => {
+              const imageAssets = (product.salsifyData.digitalAssets ?? [])
+                .map((a, i) => ({ ...a, _idx: i }))
+                .filter((a) => a.url && /\.(png|jpe?g|gif|webp)($|\?)/i.test(a.url));
+              return (
+                <div className="bg-sky-50/60 border border-sky-200 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-sky-900">In Salsify</p>
+                      {salsifyOrgId && product.partNumber && (
+                        <a
+                          href={`https://app.salsify.com/app/orgs/${encodeURIComponent(salsifyOrgId)}/products/v2/${encodeURIComponent(product.partNumber)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-sky-700 hover:text-sky-900 font-medium"
+                        >
+                          View in Salsify <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                    <p className="text-xs text-sky-700">
+                      {product.salsifyData.updatedAt && `Salsify last updated ${formatDate(product.salsifyData.updatedAt)} · `}
+                      {typeof product.salsifyData.propertyCount === "number" && `${product.salsifyData.propertyCount} properties · `}
+                      Pulled {product.salsifyLastPulledAt ? formatDate(product.salsifyLastPulledAt) : "—"}
+                    </p>
+                  </div>
+                  {(product.salsifyData.digitalAssets?.length ?? 0) > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {product.salsifyData.digitalAssets!.map((a, i) => {
+                        const isImage = a.url && /\.(png|jpe?g|gif|webp)($|\?)/i.test(a.url);
+                        const imageIdx = isImage ? imageAssets.findIndex((ia) => ia._idx === i) : -1;
+                        return isImage ? (
+                          <button
+                            key={i}
+                            onClick={() => setLightboxIndex(imageIdx)}
+                            className="group border border-sky-200 rounded-lg overflow-hidden bg-white hover:border-sky-400 transition-colors cursor-pointer"
+                            title={a.name ?? undefined}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={salsifyThumbUrl(a.url!)} alt={a.name ?? ""} className="h-20 w-20 object-contain" />
+                          </button>
                         ) : (
-                          <div className="h-20 w-20 flex flex-col items-center justify-center text-sky-600 text-xs gap-1 px-1 text-center">
-                            <FileText className="h-5 w-5" />
-                            <span className="truncate w-full">{a.format ?? "asset"}</span>
+                          <a
+                            key={i}
+                            href={a.url ?? "#"}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="group border border-sky-200 rounded-lg overflow-hidden bg-white hover:border-sky-400 transition-colors"
+                            title={a.name ?? undefined}
+                          >
+                            <div className="h-20 w-20 flex flex-col items-center justify-center text-sky-600 text-xs gap-1 px-1 text-center">
+                              <FileText className="h-5 w-5" />
+                              <span className="truncate w-full">{a.format ?? "asset"}</span>
+                            </div>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-sky-700">No digital assets on the Salsify side.</p>
+                  )}
+
+                  {/* Lightbox */}
+                  {lightboxIndex !== null && imageAssets.length > 0 && (
+                    <div
+                      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center"
+                      onClick={() => setLightboxIndex(null)}
+                    >
+                      <div
+                        className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          onClick={() => setLightboxIndex(null)}
+                          className="absolute -top-3 -right-3 z-10 bg-white rounded-full p-1.5 shadow-lg text-gray-600 hover:text-gray-900"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={salsifySquareUrl(imageAssets[lightboxIndex]?.url ?? "")}
+                          alt={imageAssets[lightboxIndex]?.name ?? ""}
+                          className="rounded-xl shadow-2xl object-contain bg-white"
+                          style={{ maxWidth: "min(600px, 85vw)", maxHeight: "min(600px, 75vh)", aspectRatio: "1/1" }}
+                        />
+                        {imageAssets.length > 1 && (
+                          <div className="flex items-center gap-4 mt-4">
+                            <button
+                              onClick={() => setLightboxIndex((lightboxIndex - 1 + imageAssets.length) % imageAssets.length)}
+                              className="bg-white/90 hover:bg-white rounded-full p-2 shadow text-gray-700"
+                            >
+                              <ChevronUp className="h-5 w-5 -rotate-90" />
+                            </button>
+                            <span className="text-white text-sm font-medium">
+                              {lightboxIndex + 1} / {imageAssets.length}
+                            </span>
+                            <button
+                              onClick={() => setLightboxIndex((lightboxIndex + 1) % imageAssets.length)}
+                              className="bg-white/90 hover:bg-white rounded-full p-2 shadow text-gray-700"
+                            >
+                              <ChevronDown className="h-5 w-5 -rotate-90" />
+                            </button>
                           </div>
                         )}
-                      </a>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-sky-700">No digital assets on the Salsify side.</p>
-                )}
-              </div>
-            )}
+                        <p className="text-white/80 text-xs mt-2 max-w-md text-center truncate">
+                          {imageAssets[lightboxIndex]?.name ?? ""}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Attribute sections (core + EAV merged) */}
             {allGroups.map((group) => (
@@ -909,7 +1015,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
                         onChange={isCore ? (v) => setField(attr.key, v) : (v) => setEavField(attr.id, String(v))}
                       />
                       {attr.description && (
-                        <p className="text-xs text-gray-400 mt-0.5">{attr.description}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{attr.description}</p>
                       )}
                     </div>
                   );
@@ -984,6 +1090,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
     {showSalsifyModal && (
       <SalsifySyncModal
         mode="product"
+        projectId={product.projectId}
         syncing={syncing}
         onConfirm={syncToSalsify}
         onClose={() => setShowSalsifyModal(false)}
@@ -1017,9 +1124,9 @@ function HistoryPanel({ projectId, productId }: { projectId: string; productId: 
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-6">
-      {loading && <p className="text-sm text-gray-400 py-8 text-center">Loading history…</p>}
+      {loading && <p className="text-sm text-gray-500 py-8 text-center">Loading history…</p>}
       {!loading && logs.length === 0 && (
-        <p className="text-sm text-gray-400 py-8 text-center">No recorded changes for this product yet.</p>
+        <p className="text-sm text-gray-500 py-8 text-center">No recorded changes for this product yet.</p>
       )}
       {!loading && logs.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100">
@@ -1039,7 +1146,7 @@ function HistoryPanel({ projectId, productId }: { projectId: string; productId: 
                     <span className="text-green-700">{log.newValue || "—"}</span>
                   </p>
                 )}
-                <p className="text-xs text-gray-400 mt-0.5">{formatDate(log.createdAt)}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{formatDate(log.createdAt)}</p>
               </div>
             </div>
           ))}
@@ -1054,7 +1161,7 @@ function HistoryPanel({ projectId, productId }: { projectId: string; productId: 
           >
             ← Newer
           </button>
-          <span className="text-gray-400">Page {page} of {Math.ceil(total / 50)}</span>
+          <span className="text-gray-500">Page {page} of {Math.ceil(total / 50)}</span>
           <button
             className="text-blue-600 hover:underline disabled:text-gray-300"
             disabled={page >= Math.ceil(total / 50)}
