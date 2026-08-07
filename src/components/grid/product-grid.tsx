@@ -1520,7 +1520,7 @@ function GridRow({
                 />
               );
             })() : (
-              <div className={cn("px-2 py-1 text-sm truncate min-h-[32px] flex items-center gap-1 flex-wrap", isEav ? "text-amber-900" : "text-gray-700")}>
+              <div className={cn("px-2 py-1 text-sm truncate min-h-[32px] flex items-center gap-1 flex-wrap", "text-amber-900")}>
                 {colId === "partNumber" && (row.original as ProductRow).duplicateOf && (
                   <span
                     title={`Duplicate Part Number — also used in project "${(row.original as ProductRow).duplicateOf!.projectName}"`}
@@ -1534,9 +1534,7 @@ function GridRow({
                     const vals = isEav
                       ? ((row.original as ProductRow)._eavArrays?.[attrDef.key] ?? [])
                       : String(value).split("\n").filter(Boolean);
-                    const chipClass = isEav
-                      ? "inline-block bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded"
-                      : "inline-block bg-gray-100 text-gray-700 text-xs px-1.5 py-0.5 rounded";
+                    const chipClass = "inline-block bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded";
                     if (attrDef.lovItems?.length) {
                       return vals.map((v, i) => {
                         const label = attrDef.lovItems.find((l) => l.value === v)?.label ?? v;
