@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { formatDate } from "@/lib/utils";
-import { FolderKanban, Package, Clock, CheckCircle2, AlertCircle, ShieldAlert } from "lucide-react";
+import { FolderKanban, Package, Clock, CheckCircle2, AlertCircle, ShieldAlert, ExternalLink } from "lucide-react";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -333,40 +333,59 @@ export default async function DashboardPage() {
                   <p className="px-4 py-4 text-sm text-gray-400">No recent activity.</p>
                 )}
                 {recentActivity.map((log) => {
-                  const meta = log.metadata as Record<string, string> | null;
-                  const subject =
-                    log.product
-                      ? log.product.itemName ?? log.product.partNumber
-                      : meta?.stageName ?? meta?.templateName ?? null;
-                  const detail =
-                    log.fieldKey && log.newValue
-                      ? `${log.fieldKey.replace(/_/g, " ")}: ${log.newValue.slice(0, 30)}`
-                      : log.newValue
-                      ? log.newValue.slice(0, 40)
-                      : null;
-                  const actionLabel = log.action.replace(/_/g, " ").toLowerCase();
+                  const productLabel = log.product?.partNumber ?? log.product?.itemName ?? null;
                   const entityLabel =
                     log.entityType === "ProductRecord" ? "product" :
                     log.entityType === "WorkflowStage" ? "workflow stage" :
                     log.entityType === "Project" ? "project" :
                     log.entityType.toLowerCase();
+                  const actionColor =
+                    log.action === "DELETED" ? "bg-red-50 text-red-600" :
+                    log.action === "CREATED" ? "bg-green-50 text-green-600" :
+                    "bg-blue-50 text-blue-600";
+                  const truncate = (v: string, n = 40) => v.length > n ? v.slice(0, n) + "…" : v;
                   return (
-                    <div key={log.id} className="flex items-start gap-3 px-4 py-3">
-                      <Clock className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-xs text-gray-700 leading-relaxed">
-                          <span className="font-medium capitalize">{actionLabel}</span>
-                          {" "}<span className="text-gray-500">{entityLabel}</span>
-                          {subject && <span className="font-medium text-gray-800"> · {subject}</span>}
-                        </p>
-                        {detail && (
-                          <p className="text-xs text-gray-400 truncate">{detail}</p>
+                    <div key={log.id} className="px-4 py-2.5 space-y-1">
+                      <p className="text-xs text-gray-700">
+                        <span className={`inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded mr-1.5 ${actionColor}`}>
+                          {log.action}
+                        </span>
+                        {entityLabel}
+                        {log.fieldKey && <span className="text-gray-500"> · {log.fieldKey}</span>}
+                        {log.source && (
+                          <span className="ml-1.5 inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                            via {log.source}
+                          </span>
                         )}
-                        <p className="text-xs text-gray-400">
-                          {log.project?.name && <span className="mr-1">{log.project.name} ·</span>}
-                          {formatDate(log.createdAt)}
+                      </p>
+                      {log.project && (
+                        <p className="text-xs text-gray-600">
+                          <Link
+                            href={`/projects/${log.project.id}`}
+                            className="font-medium text-blue-700 hover:text-blue-900 hover:underline inline-flex items-center gap-0.5"
+                          >
+                            {log.project.name}
+                            <ExternalLink className="h-2.5 w-2.5" />
+                          </Link>
                         </p>
-                      </div>
+                      )}
+                      {productLabel && (
+                        <p className="text-xs text-gray-600">
+                          Product: <span className="font-medium text-gray-800">{productLabel}</span>
+                        </p>
+                      )}
+                      {log.fieldKey && (log.oldValue != null || log.newValue != null) && (
+                        <div className="flex items-center gap-1.5 text-xs flex-wrap">
+                          {log.oldValue != null && (
+                            <span className="bg-red-50 text-red-700 px-1.5 py-0.5 rounded line-through">{truncate(log.oldValue)}</span>
+                          )}
+                          {log.oldValue != null && log.newValue != null && <span className="text-gray-500">→</span>}
+                          {log.newValue != null && (
+                            <span className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded">{truncate(log.newValue)}</span>
+                          )}
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-500">{formatDate(log.createdAt)}</p>
                     </div>
                   );
                 })}
