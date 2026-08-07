@@ -41,6 +41,19 @@ export function ReportsClient() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [inspectionsEnabled, setInspectionsEnabled] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && data.inspectionsEnabled === false) {
+          setInspectionsEnabled(false);
+          setActive((prev) => (prev === "inspections" ? "compliance" : prev));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const query = useCallback((f: Record<string, string>) => {
     const params = new URLSearchParams();
@@ -83,6 +96,7 @@ export function ReportsClient() {
 
   const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
   const activeFilters = FILTERS[active] ?? [];
+  const visibleReports = REPORTS.filter((r) => inspectionsEnabled || r.type !== "inspections");
   const activeReport = REPORTS.find((r) => r.type === active)!;
 
   return (
@@ -96,7 +110,7 @@ export function ReportsClient() {
 
       {/* Report picker */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-        {REPORTS.map(({ type, label, icon: Icon }) => (
+        {visibleReports.map(({ type, label, icon: Icon }) => (
           <button
             key={type}
             onClick={() => selectReport(type)}

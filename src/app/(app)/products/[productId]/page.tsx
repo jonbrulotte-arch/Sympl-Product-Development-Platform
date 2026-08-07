@@ -8,6 +8,7 @@ import { CORE_FIELD_KEYS, REMOVED_CORE_KEYS } from "@/lib/core-fields";
 import { findDuplicateForProduct } from "@/lib/duplicate-check";
 import { checkProjectAccess } from "@/lib/project-access";
 import { getCategoryAndAncestorIds } from "@/lib/category-tree";
+import { isInspectionsEnabled } from "@/lib/app-config";
 
 const CORE_COLUMN_KEYS = new Set(CORE_FIELD_KEYS);
 const EXCLUDED_GLOBAL_KEYS = [...CORE_FIELD_KEYS, ...REMOVED_CORE_KEYS];
@@ -75,7 +76,10 @@ export default async function ProductEditPage({
     }),
   ]);
 
-  const salsifyConfig = await prisma.salsifyConfig.findFirst({ select: { organizationId: true, isEnabled: true } });
+  const [salsifyConfig, inspectionsEnabled] = await Promise.all([
+    prisma.salsifyConfig.findFirst({ select: { organizationId: true, isEnabled: true } }),
+    isInspectionsEnabled(),
+  ]);
 
   const duplicateOf = await findDuplicateForProduct(product.partNumber, product.projectId, product.id);
 
@@ -93,6 +97,7 @@ export default async function ProductEditPage({
       projectCategory={serialized.product.project.category ?? null}
       userRole={session.user.role}
       salsifyOrgId={salsifyConfig?.organizationId ?? null}
+      inspectionsEnabled={inspectionsEnabled}
     />
   );
 }

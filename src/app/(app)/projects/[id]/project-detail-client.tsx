@@ -45,9 +45,10 @@ interface Props {
   canEdit: boolean;
   currentUserId: string;
   userRole?: string;
+  inspectionsEnabled?: boolean;
 }
 
-export function ProjectDetailClient({ project, initialProducts, allAttrDefs = [], coreAttrDefs = [], eavAttrDefs = [], allCategories = [], canEdit, currentUserId, userRole }: Props) {
+export function ProjectDetailClient({ project, initialProducts, allAttrDefs = [], coreAttrDefs = [], eavAttrDefs = [], allCategories = [], canEdit, currentUserId, userRole, inspectionsEnabled = true }: Props) {
   const [activeTab, setActiveTab] = useState("grid");
   const [salsifySyncing, setSalsifySyncing] = useState(false);
   const [salsifySyncResult, setSalsifySyncResult] = useState<string | null>(null);
@@ -213,7 +214,7 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
             { id: "grid", label: "Products", icon: Package },
             { id: "workflow", label: "Workflow", icon: CheckCircle },
             { id: "compliance", label: "Compliance", icon: ShieldCheck },
-            { id: "inspections", label: "Inspections", icon: ClipboardCheck },
+            ...(inspectionsEnabled ? [{ id: "inspections", label: "Inspections", icon: ClipboardCheck }] : []),
             { id: "comments", label: "Comments", icon: MessageSquare },
             { id: "activity", label: "Activity", icon: Clock },
             { id: "members", label: "Members", icon: Users },
@@ -254,7 +255,7 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
         </div>
 
         {activeTab === "workflow" && (
-          <WorkflowView project={project} canEdit={canEdit} currentUserId={currentUserId} />
+          <WorkflowView project={project} canEdit={canEdit} currentUserId={currentUserId} inspectionsEnabled={inspectionsEnabled} />
         )}
 
         {activeTab === "compliance" && (
@@ -355,9 +356,9 @@ function statusColor(status: string) {
 }
 
 function WorkflowView({
-  project, canEdit, currentUserId,
+  project, canEdit, currentUserId, inspectionsEnabled = true,
 }: {
-  project: ProjectWithRelations; canEdit: boolean; currentUserId: string;
+  project: ProjectWithRelations; canEdit: boolean; currentUserId: string; inspectionsEnabled?: boolean;
 }) {
   const router = useRouter();
   const [stages, setStages] = useState<Stage[]>((project.workflowStages ?? []) as unknown as Stage[]);
@@ -947,7 +948,7 @@ function WorkflowView({
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    {inspectionsEnabled && <div className="flex items-center gap-2">
                       <ClipboardCheck className="h-3.5 w-3.5 text-violet-400 shrink-0" />
                       <span className="text-xs text-gray-500 shrink-0">Inspection →</span>
                       <select
@@ -965,7 +966,7 @@ function WorkflowView({
                       {psirOptions.length === 0 && (
                         <span className="text-xs text-gray-500 italic">No inspections for this project&apos;s products</span>
                       )}
-                    </div>
+                    </div>}
                   </div>
                 )}
 

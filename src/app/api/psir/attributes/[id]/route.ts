@@ -2,8 +2,11 @@ import { can } from "@/lib/permissions";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { requireInspectionsEnabled } from "@/lib/app-config";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const disabled = await requireInspectionsEnabled();
+  if (disabled) return disabled;
   const session = await auth();
   if (!session?.user?.id || !(await can(session.user.role, "admin:psir_attributes"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -27,6 +30,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const disabled = await requireInspectionsEnabled();
+  if (disabled) return disabled;
   const session = await auth();
   if (!session?.user?.id || !(await can(session.user.role, "admin:psir_attributes"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

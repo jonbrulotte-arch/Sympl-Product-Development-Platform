@@ -4,8 +4,11 @@ import { NextResponse } from "next/server";
 import { PSIR_INCLUDE } from "../route";
 import { canMutateQaRecords } from "@/lib/project-access";
 import { createNotificationForMany, getOwnerIdsForProducts } from "@/lib/notifications";
+import { requireInspectionsEnabled } from "@/lib/app-config";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const disabled = await requireInspectionsEnabled();
+  if (disabled) return disabled;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
@@ -15,6 +18,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const disabled = await requireInspectionsEnabled();
+  if (disabled) return disabled;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!canMutateQaRecords(session.user.role)) {
@@ -101,6 +106,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const disabled = await requireInspectionsEnabled();
+  if (disabled) return disabled;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!canMutateQaRecords(session.user.role)) {

@@ -5,6 +5,7 @@
 // Non-admin users only see data from projects they own or are members of.
 
 import { prisma } from "@/lib/prisma";
+import { isInspectionsEnabled } from "@/lib/app-config";
 import type { Prisma } from "@prisma/client";
 
 export const REPORT_TYPES = [
@@ -256,8 +257,8 @@ export async function roadblocksReport(ctx: ReportContext): Promise<ReportRow[]>
     });
   }
 
-  // 3. Failed inspections
-  const failed = await prisma.psir.findMany({
+  // 3. Failed inspections (skipped when the Inspections module is disabled)
+  const failed = !(await isInspectionsEnabled()) ? [] : await prisma.psir.findMany({
     where: {
       result: "FAIL",
       ...(ctx.isAdmin ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),

@@ -81,6 +81,7 @@ interface Props {
   projectCategory: { id: string; name: string } | null;
   userRole: string;
   salsifyOrgId: string | null;
+  inspectionsEnabled: boolean;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -591,7 +592,7 @@ function PsirPanel({ productId }: { productId: string }) {
 
 type Tab = "details" | "compliance" | "psir" | "history";
 
-export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory, userRole, salsifyOrgId }: Props) {
+export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory, userRole, salsifyOrgId, inspectionsEnabled }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<Tab>("details");
@@ -839,7 +840,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
           {([
             { key: "details", label: "Details", icon: null },
             { key: "compliance", label: "Compliance", icon: <ShieldCheck className="h-3.5 w-3.5" /> },
-            { key: "psir", label: "Inspections", icon: <ClipboardCheck className="h-3.5 w-3.5" /> },
+            ...(inspectionsEnabled ? [{ key: "psir" as Tab, label: "Inspections", icon: <ClipboardCheck className="h-3.5 w-3.5" /> }] : []),
             { key: "history", label: "History", icon: <Clock className="h-3.5 w-3.5" /> },
           ] as { key: Tab; label: string; icon: React.ReactNode }[]).map((tab) => (
             <button

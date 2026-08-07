@@ -71,6 +71,7 @@ export function Sidebar({ user, grantedPermissions }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [salsifyDebugEnabled, setSalsifyDebugEnabled] = useState(false);
+  const [inspectionsEnabled, setInspectionsEnabled] = useState(true);
 
   useEffect(() => {
     fetch("/api/notifications?unread=true")
@@ -82,7 +83,12 @@ export function Sidebar({ user, grantedPermissions }: SidebarProps) {
   useEffect(() => {
     fetch("/api/config")
       .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data) setSalsifyDebugEnabled(data.salsifyDebugEnabled ?? false); })
+      .then((data) => {
+        if (data) {
+          setSalsifyDebugEnabled(data.salsifyDebugEnabled ?? false);
+          setInspectionsEnabled(data.inspectionsEnabled ?? true);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -105,7 +111,7 @@ export function Sidebar({ user, grantedPermissions }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4 space-y-1 px-2">
-        {navItems.map(({ href, label, icon: Icon }) => (
+        {navItems.filter(({ href }) => inspectionsEnabled || href !== "/psir").map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}
@@ -122,11 +128,12 @@ export function Sidebar({ user, grantedPermissions }: SidebarProps) {
         ))}
 
         {(() => {
-          const visibleAdminItems = adminNavItems.filter(({ permission }) =>
-            permission === null
+          const visibleAdminItems = adminNavItems.filter(({ href, permission }) => {
+            if (!inspectionsEnabled && href === "/admin/psir-attributes") return false;
+            return permission === null
               ? user.role === "ADMIN"
-              : grantedPermissions.has(permission)
-          );
+              : grantedPermissions.has(permission);
+          });
           const visibleDebugItems = user.role === "ADMIN" && salsifyDebugEnabled ? salsifyDebugItems : [];
           const allVisible = [...visibleAdminItems, ...visibleDebugItems];
           if (allVisible.length === 0) return null;

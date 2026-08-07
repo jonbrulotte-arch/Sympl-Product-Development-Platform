@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { SalsifySettingsClient } from "./salsify-settings-client";
 import { SmtpSettingsClient } from "./smtp-settings-client";
 import { ProjectStatusesClient } from "./project-statuses-client";
+import { ModulesSettingsClient } from "./modules-settings-client";
 
 export default async function AdminSettingsPage() {
   const session = await auth();
@@ -29,6 +30,11 @@ export default async function AdminSettingsPage() {
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Integrations</h2>
         <SalsifySettingsClient />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Modules</h2>
+        <ModulesSettingsClient />
       </section>
     </div>
   );

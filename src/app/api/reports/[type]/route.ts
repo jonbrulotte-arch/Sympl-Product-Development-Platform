@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { buildReport, REPORT_TYPES, type ReportType } from "@/lib/reports";
+import { isInspectionsEnabled } from "@/lib/app-config";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ type: string }> }) {
   const session = await auth();
@@ -9,6 +10,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ type
   const { type } = await params;
   if (!REPORT_TYPES.includes(type as ReportType)) {
     return NextResponse.json({ error: "Unknown report type" }, { status: 400 });
+  }
+  if (type === "inspections" && !(await isInspectionsEnabled())) {
+    return NextResponse.json({ error: "Inspections module is disabled" }, { status: 404 });
   }
 
   const filters: Record<string, string> = {};
