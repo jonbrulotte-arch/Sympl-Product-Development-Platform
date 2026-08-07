@@ -139,6 +139,16 @@ const sections: Section[] = [
           <LI><strong>Viewer</strong> — read-only access to their projects.</LI>
         </UL>
 
+        <H3>Adding people to Sympl</H3>
+        <P>Admins add users from <strong>Admin &rarr; Users &rarr; Add User</strong> by entering a name, email, and role. Sympl creates the account without a password and emails an invitation link — administrators never set or handle anyone else&apos;s password.</P>
+        <UL>
+          <LI>The invitee opens the email and clicks <strong>Set Your Password</strong>.</LI>
+          <LI>They enter a password twice on the invitation page and submit.</LI>
+          <LI>They are redirected to sign in, and land on their dashboard.</LI>
+        </UL>
+        <P>Invitation links are single-use and expire after 7 days. Until the password is set the account cannot sign in, and the user list marks it <strong>Invite pending</strong> — the envelope icon on that row sends a fresh invitation and cancels the old link.</P>
+        <Callout>Invitations need email to be configured on the server. If it isn&apos;t, the invitation link is shown to the admin right after the account is created so it can be passed along another way.</Callout>
+
         <Callout>All product data is project-scoped. The global Products page lets you search and edit across all your projects at once.</Callout>
       </>
     ),

@@ -24,7 +24,8 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Security** — Project-level authorization on every route, authenticated file serving with an upload-type allowlist, login rate limiting, immediate session invalidation for deactivated accounts, and last-admin lockout protection.
 - **Reports** — Seven operational reports (Inspections, Compliance, Overdue Stages, Overdue Projects, Roadblocks, Out-of-Sync Products, Pipeline Summary) with filters and one-click Excel export, scoped to the projects each user can see. Out-of-Sync rows drill into a field-level drift panel (old → new, who and when) with links to the product, project, and Salsify record, and a per-field push back to Salsify.
 - **Module toggles** — Admin → Settings → Modules can disable the Inspections module platform-wide (sidebar, pages, product/project tabs, reports, API). All inspection data is retained; re-enabling restores everything.
-- **Admin** — Users (including per-user password reset and activity log viewer), categories, attributes (with EAV and reorderable Lists of Values), workflow templates, compliance types, inspection attributes, API tokens, backup, access control, and settings.
+- **User invitations** — Adding a user takes name, email, and role; an emailed single-use link (7 days) lets them set their own password. Admins never handle a password. Un-activated accounts show as "Invite pending" with a resend action.
+- **Admin** — Users (including invitations, per-user password reset, and activity log viewer), categories, attributes (with EAV and reorderable Lists of Values), workflow templates, compliance types, inspection attributes, API tokens, backup, access control, and settings.
 
 ---
 
@@ -101,6 +102,21 @@ Open [http://localhost:4000](http://localhost:4000).
 ### File storage
 
 Uploaded attachments are stored in `data/uploads` (outside the public web root) and served through an authenticated route. Back this directory up separately from the database.
+
+---
+
+## Adding Users
+
+1. **Admin → Users → Add User** — enter name, email, and role.
+2. Sympl creates the account with **no password** and emails an invitation. Until the invitee sets one, the account cannot sign in.
+3. The invitee clicks **Set Your Password**, lands on `/accept-invite`, enters a password twice, and is redirected to sign in.
+4. They log in and land on their dashboard.
+
+Invitation links are single-use and expire after **7 days**. The user list shows un-activated accounts as *Invite pending*; the envelope icon on those rows re-sends the invitation and invalidates the previous link.
+
+Requires SMTP (see [Email Notifications](#email-notifications-smtp)). Without it the invitation email is silently skipped — the create response returns the invite URL so an admin can copy and send it manually.
+
+Accounts that already have a password can't be re-invited; use **Change password** on the row, or have the user go through **Forgot password**.
 
 ---
 
@@ -197,6 +213,7 @@ Add the SMTP variables to your `.env` file (see Environment Variables above) and
 | Stage completed | Instant | Project owner |
 | Approver assigned | Instant | Assigned user |
 | Project status change | Instant | Project team members |
+| Account invitation | Admin adds a user | Invited user |
 | Password reset | On demand | Requesting user |
 | Overdue alerts | Cron (`/api/cron/overdue-check`) | Event creator, project owners, pending approvers |
 | Leadership digest | Cron (`/api/cron/digest`) | All active Admins, Directors, and Product Managers |
