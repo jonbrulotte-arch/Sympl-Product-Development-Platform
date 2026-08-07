@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { sendMail } from "@/lib/email";
+import { sendMail, notificationEmail } from "@/lib/email";
 
 // Inbox categories — drive the filter tabs on /inbox and the per-user
 // preference toggles in Profile → Notification Preferences.
@@ -86,7 +86,7 @@ export async function createNotificationForMany(userIds: string[], data: Notific
       });
     }
 
-    const html = data.emailHtml ?? `<p><strong>${data.title}</strong></p><p>${data.message}</p><p style="font-size:12px;color:#888">Sent by Sympl PM${data.link ? ` — open the app and go to ${data.link}` : ""}. Manage notification preferences in your profile.</p>`;
+    const html = data.emailHtml ?? notificationEmail({ title: data.title, message: data.message, link: data.link });
     for (const to of emailTo) {
       await sendMail(to, data.title, html);
     }

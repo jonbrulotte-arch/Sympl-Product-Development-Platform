@@ -65,7 +65,6 @@ export async function POST(req: NextRequest) {
       type: "error",
       category: "COMPLIANCE",
       link: "/compliance",
-      emailHtml: `<p>The compliance event <strong>${ev.title}</strong> was due ${ev.dueDate!.toLocaleDateString()} and is still open.</p><p>Review it in Sympl PM → Compliance.</p>`,
     });
 
     await prisma.complianceEvent.update({
@@ -106,7 +105,6 @@ export async function POST(req: NextRequest) {
       category: "WORKFLOW",
       link: `/projects/${stage.project.id}?tab=workflow`,
       projectId: stage.project.id,
-      emailHtml: `<p>The workflow stage <strong>${stage.name}</strong> in project <strong>${stage.project.name}</strong> was due ${stage.dueDate!.toLocaleDateString()} and is waiting on approval.</p>`,
     });
 
     await prisma.workflowStage.update({
