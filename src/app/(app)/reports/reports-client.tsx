@@ -70,6 +70,7 @@ type DetailItem = {
   subtitle?: string | null;
   meta?: string | null;
   href?: string | null;
+  external?: boolean;
   tone?: Tone;
 };
 
@@ -142,7 +143,10 @@ function DetailItemRow({ item }: { item: DetailItem }) {
   const body = (
     <>
       <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-medium text-gray-900">{item.title}</p>
+        <p className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-gray-900">
+          <span className="truncate">{item.title}</span>
+          {item.external && <Download className="h-3 w-3 shrink-0 text-gray-400" />}
+        </p>
         {item.meta && (
           <span
             className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${
@@ -157,17 +161,23 @@ function DetailItemRow({ item }: { item: DetailItem }) {
     </>
   );
 
-  return item.href ? (
+  const className =
+    "block rounded-lg border border-gray-200 p-3 transition-colors hover:border-blue-300 hover:bg-blue-50/40";
+
+  if (!item.href) return <li className="rounded-lg border border-gray-200 p-3">{body}</li>;
+
+  // Attachments are served by the /uploads handler, not a Next route — a plain
+  // anchor lets the browser handle the download or preview.
+  return (
     <li>
-      <Link
-        href={item.href}
-        className="block rounded-lg border border-gray-200 p-3 transition-colors hover:border-blue-300 hover:bg-blue-50/40"
-      >
-        {body}
-      </Link>
+      {item.external ? (
+        <a href={item.href} target="_blank" rel="noopener noreferrer" className={className}>
+          {body}
+        </a>
+      ) : (
+        <Link href={item.href} className={className}>{body}</Link>
+      )}
     </li>
-  ) : (
-    <li className="rounded-lg border border-gray-200 p-3">{body}</li>
   );
 }
 

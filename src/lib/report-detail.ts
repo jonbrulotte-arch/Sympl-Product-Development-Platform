@@ -21,6 +21,8 @@ export type DetailItem = {
   subtitle?: string | null;
   meta?: string | null;
   href?: string | null;
+  /** Open in a new tab rather than client-side navigation (file downloads). */
+  external?: boolean;
   tone?: Tone;
 };
 
@@ -51,6 +53,28 @@ function daysBetween(from: Date, to: Date): number {
 
 function person(u: { name: string | null; email: string }): string {
   return u.name ?? u.email;
+}
+
+function fmtBytes(bytes: number | null): string | null {
+  if (bytes == null) return null;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Attachments are served by the authenticated /uploads handler, which sets
+// Content-Disposition from the stored name. Link out rather than routing so
+// the download doesn't try to render as a page.
+function attachmentItems(
+  docs: { originalName: string; filePath: string; fileSize: number | null; createdAt: Date }[]
+): DetailItem[] {
+  return docs.map((d) => ({
+    title: d.originalName,
+    subtitle: fmtDate(d.createdAt),
+    meta: fmtBytes(d.fileSize),
+    href: `/${d.filePath}`,
+    external: true,
+  }));
 }
 
 function titleCase(s: string): string {
@@ -88,7 +112,7 @@ async function inspectionDetail(id: string, ctx: ReportContext): Promise<ReportD
           },
         },
       },
-      documents: { select: { id: true, fileName: true, createdAt: true } },
+      documents: { select: { id: true, originalName: true, filePath: true, fileSize: true, createdAt: true } },
       workflowStages: {
         select: { id: true, name: true, status: true, project: { select: { id: true, name: true } } },
       },
@@ -138,10 +162,7 @@ async function inspectionDetail(id: string, ctx: ReportContext): Promise<ReportD
       {
         title: `Attachments (${psir.documents.length})`,
         empty: "No attachments.",
-        items: psir.documents.map((d) => ({
-          title: d.fileName,
-          meta: fmtDate(d.createdAt),
-        })),
+        items: attachmentItems(psir.documents),
       },
     ],
   };
@@ -169,7 +190,7 @@ async function complianceDetail(id: string, ctx: ReportContext): Promise<ReportD
           },
         },
       },
-      documents: { select: { id: true, fileName: true, createdAt: true } },
+      documents: { select: { id: true, originalName: true, filePath: true, fileSize: true, createdAt: true } },
       workflowStages: {
         select: { id: true, name: true, status: true, project: { select: { id: true, name: true } } },
       },
@@ -242,7 +263,7 @@ async function complianceDetail(id: string, ctx: ReportContext): Promise<ReportD
       {
         title: `Attachments (${event.documents.length})`,
         empty: "No attachments.",
-        items: event.documents.map((d) => ({ title: d.fileName, meta: fmtDate(d.createdAt) })),
+        items: attachmentItems(event.documents),
       },
     ],
   };
