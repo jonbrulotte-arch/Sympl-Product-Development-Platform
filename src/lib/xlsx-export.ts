@@ -5,10 +5,15 @@ import * as XLSX from "xlsx";
 import { NextResponse } from "next/server";
 
 export function buildXlsxResponse(
-  rows: Record<string, string | number | null>[],
+  inputRows: Record<string, string | number | null>[],
   sheetName: string,
   filename: string
 ): NextResponse {
+  // Underscore-prefixed keys carry IDs for the UI (row drill-down) and are not
+  // part of the exported sheet.
+  const rows = inputRows.map((row) =>
+    Object.fromEntries(Object.entries(row).filter(([k]) => !k.startsWith("_")))
+  );
   const ws = XLSX.utils.json_to_sheet(rows);
   // Auto column widths from header + cell content
   const headers = rows.length > 0 ? Object.keys(rows[0]) : [];

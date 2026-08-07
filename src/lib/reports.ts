@@ -322,6 +322,8 @@ export async function outOfSyncReport(ctx: ReportContext): Promise<ReportRow[]> 
       ],
     },
     select: {
+      id: true,
+      projectId: true,
       partNumber: true,
       itemName: true,
       updatedAt: true,
@@ -329,25 +331,46 @@ export async function outOfSyncReport(ctx: ReportContext): Promise<ReportRow[]> 
       project: { select: { name: true, status: true } },
     },
   });
-  const rows: ReportRow[] = [];
-  for (const p of products) {
-    const drift = p.salsifyLastSyncedAt
-      ? p.updatedAt > p.salsifyLastSyncedAt
-        ? "Changed"
-        : null
-      : "Never synced";
-    if (!drift) continue;
-    rows.push({
-      "Part Number": p.partNumber ?? null,
-      "Item Name": p.itemName ?? null,
-      Project: p.project.name,
-      "Project Status": p.project.status,
-      "Drift Status": drift,
-      "Last Synced": fmtDate(p.salsifyLastSyncedAt),
-      "Last Updated": fmtDate(p.updatedAt),
-    });
+
+  const drifted = products.filter((p) =>
+    p.salsifyLastSyncedAt ? p.updatedAt > p.salsifyLastSyncedAt : true
+  );
+  if (drifted.length === 0) return [];
+
+  // Count field-level edits recorded since each product's last sync, so the
+  // row can advertise how much has drifted before the user opens the detail.
+  const logs = await prisma.activityLog.findMany({
+    where: {
+      productId: { in: drifted.map((p) => p.id) },
+      entityType: "ProductRecord",
+      fieldKey: { not: null },
+    },
+    select: { productId: true, fieldKey: true, createdAt: true },
+  });
+  const changedFields = new Map<string, Set<string>>();
+  for (const log of logs) {
+    if (!log.productId || !log.fieldKey) continue;
+    const product = drifted.find((p) => p.id === log.productId);
+    if (product?.salsifyLastSyncedAt && log.createdAt <= product.salsifyLastSyncedAt) continue;
+    const set = changedFields.get(log.productId) ?? new Set<string>();
+    set.add(log.fieldKey);
+    changedFields.set(log.productId, set);
   }
-  return rows;
+
+  return drifted.map((p) => ({
+    "Part Number": p.partNumber ?? null,
+    "Item Name": p.itemName ?? null,
+    Project: p.project.name,
+    "Project Status": p.project.status,
+    "Drift Status": p.salsifyLastSyncedAt ? "Changed" : "Never synced",
+    "Changed Fields": changedFields.get(p.id)?.size ?? 0,
+    "Last Synced": fmtDate(p.salsifyLastSyncedAt),
+    "Last Updated": fmtDate(p.updatedAt),
+    // Underscore-prefixed keys are internal: the client uses them to open the
+    // detail drawer, and the Excel export strips them.
+    _productId: p.id,
+    _projectId: p.projectId,
+  }));
 }
 
 // ─── Pipeline Summary ─────────────────────────────────────────────────────────

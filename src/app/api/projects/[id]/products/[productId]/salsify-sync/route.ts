@@ -73,6 +73,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const reqBody = await req.json().catch(() => ({}));
   const skipAttributeKeys: string[] = Array.isArray(reqBody.skipAttributeKeys) ? reqBody.skipAttributeKeys : [];
+  // Partial push: send only these attribute keys (used by the Out-of-Sync
+  // report to update a single drifted field). Salsify leaves properties it
+  // isn't sent alone, so the rest of the record is untouched.
+  const onlyAttributeKeys: string[] = Array.isArray(reqBody.onlyAttributeKeys) ? reqBody.onlyAttributeKeys : [];
+  const isPartial = onlyAttributeKeys.length > 0;
 
   const resolved = await resolveSalsifyCredentials(session.user.id);
   if (!resolved.ok) {
@@ -97,9 +102,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     where: {
       salsifyEnabled: true,
       isActive: true,
+      ...(isPartial ? { key: { in: onlyAttributeKeys } } : {}),
       ...(skipAttributeKeys.length > 0 ? { key: { notIn: skipAttributeKeys } } : {}),
     },
   });
+  if (isPartial && salsifyAttrs.length === 0) {
+    return NextResponse.json({ error: "No Salsify-enabled attributes match that field" }, { status: 400 });
+  }
 
   // Category scoping: an attribute tied to a category only applies to products
   // in that category (or a descendant). Since blank values now clear Salsify
@@ -167,6 +176,14 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   let res = await fetch(`${baseUrl}/${encoded}`, { method: "PUT", headers, body: payload });
   if (res.status === 404) {
+    // A partial push must never create the record — it would land in Salsify
+    // with only the one property set. Ask for a full sync instead.
+    if (isPartial) {
+      return NextResponse.json(
+        { error: `${salsifyId} does not exist in Salsify yet — run a full sync first.` },
+        { status: 409 }
+      );
+    }
     res = await fetch(baseUrl, { method: "POST", headers, body: payload });
   }
 
@@ -182,7 +199,17 @@ export async function POST(req: NextRequest, { params }: Params) {
   // the two). Bind a JS Date (UTC) rather than NOW() — NOW() cast into a
   // timestamp column uses the DB server's local timezone, skewing the
   // comparison against Prisma's UTC-written updatedAt.
-  await prisma.$executeRaw`UPDATE "ProductRecord" SET "salsifyLastSyncedAt" = ${new Date()} WHERE id = ${product.id}`.catch(() => {});
+  //
+  // A partial push deliberately leaves the timestamp alone: the other fields
+  // are still stale, so the product must stay flagged as out of sync.
+  if (!isPartial) {
+    await prisma.$executeRaw`UPDATE "ProductRecord" SET "salsifyLastSyncedAt" = ${new Date()} WHERE id = ${product.id}`.catch(() => {});
+  }
 
-  return NextResponse.json({ synced: true, salsifyId });
+  return NextResponse.json({
+    synced: true,
+    salsifyId,
+    partial: isPartial,
+    fields: isPartial ? salsifyAttrs.map((a) => a.key) : undefined,
+  });
 }
