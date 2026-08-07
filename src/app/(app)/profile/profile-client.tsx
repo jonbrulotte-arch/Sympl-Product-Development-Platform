@@ -220,9 +220,9 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
         <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-1">
           <Bell className="h-4 w-4 text-gray-400" /> Notification Preferences
         </h2>
-        <p className="text-xs text-gray-400 mb-4">Choose what lands in your Inbox and what is also emailed to you.</p>
+        <p className="text-xs text-gray-500 mb-4">Choose what lands in your Inbox and what is also emailed to you.</p>
         {!prefs ? (
-          <p className="text-sm text-gray-400 py-4">Loading…</p>
+          <p className="text-sm text-gray-500 py-4">Loading…</p>
         ) : (
           <>
             <div className="divide-y divide-gray-100">
@@ -235,7 +235,7 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
                 <div key={key} className="grid grid-cols-[1fr_64px_64px] gap-2 py-2.5 items-center">
                   <div>
                     <p className="text-sm text-gray-800 font-medium">{label}</p>
-                    <p className="text-xs text-gray-400">{description}</p>
+                    <p className="text-xs text-gray-500">{description}</p>
                   </div>
                   <div className="text-center">
                     <input
@@ -264,7 +264,7 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
                 {savingPrefs ? "Saving…" : "Save Preferences"}
               </Button>
             </div>
-            <p className="text-xs text-gray-400 mt-3">Email requires the server to have SMTP configured. Urgent overdue alerts may still email approvers directly.</p>
+            <p className="text-xs text-gray-500 mt-3">Email requires the server to have SMTP configured. Urgent overdue alerts may still email approvers directly.</p>
           </>
         )}
       </div>
@@ -274,7 +274,7 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
         <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-1">
           <KeyRound className="h-4 w-4 text-gray-400" /> Salsify API Key
         </h2>
-        <p className="text-xs text-gray-400 mb-4">
+        <p className="text-xs text-gray-500 mb-4">
           Your personal Salsify key. Every sync and pull you run authenticates as you.
           Find it in Salsify → User Settings → API Access.
         </p>
@@ -337,7 +337,7 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">New Password</label>
             <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" required autoComplete="new-password" />
-            <p className="text-xs text-gray-400 mt-1">Minimum 8 characters.</p>
+            <p className="text-xs text-gray-500 mt-1">Minimum 8 characters.</p>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Confirm New Password</label>
@@ -359,7 +359,7 @@ export function ProfileClient({ user }: { user: ProfileUser }) {
         </form>
       </div>
 
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-gray-500">
         Member since {new Date(user.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
       </p>
     </div>

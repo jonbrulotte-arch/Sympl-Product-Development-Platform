@@ -192,7 +192,7 @@ function ProductPicker({
                     <span className="font-mono text-xs text-gray-500 shrink-0">{p.partNumber ?? "—"}</span>
                     <span className="text-gray-900 truncate">{p.itemName ?? ""}</span>
                   </span>
-                  <span className="text-xs text-gray-400 shrink-0">{p.project.name}</span>
+                  <span className="text-xs text-gray-500 shrink-0">{p.project.name}</span>
                 </button>
               ))}
             </div>
@@ -339,7 +339,7 @@ function AttachmentSection({
           >
             {d.originalName}
           </a>
-          {d.fileSize && <span className="text-xs text-gray-400">{formatBytes(d.fileSize)}</span>}
+          {d.fileSize && <span className="text-xs text-gray-500">{formatBytes(d.fileSize)}</span>}
           <button type="button" onClick={() => deleteDoc(d.id)} className="text-gray-300 hover:text-red-500">
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -693,13 +693,13 @@ export function ComplianceBrowser() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
         {loading && (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Loading…</div>
+          <div className="flex items-center justify-center py-16 text-gray-500 text-sm">Loading…</div>
         )}
         {!loading && events.length === 0 && (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <ShieldCheck className="h-12 w-12 text-gray-200 mb-3" />
             <p className="text-gray-500 font-medium">No compliance events found</p>
-            <p className="text-gray-400 text-sm mt-1">Create an event to track product compliance issues</p>
+            <p className="text-gray-500 text-sm mt-1">Create an event to track product compliance issues</p>
             <Button className="mt-4" onClick={() => setShowModal(true)} size="sm">
               <Plus className="h-4 w-4 mr-1.5" /> New Event
             </Button>

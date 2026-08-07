@@ -91,7 +91,7 @@ function QuickCreateModal({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Factory XYZ — Spring 2025 Inspection"
             />
-            <p className="text-xs text-gray-400 mt-1">You can fill in all details on the next screen.</p>
+            <p className="text-xs text-gray-500 mt-1">You can fill in all details on the next screen.</p>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
@@ -214,12 +214,12 @@ export function PsirBrowser() {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
-        {loading && <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Loading…</div>}
+        {loading && <div className="flex items-center justify-center py-16 text-gray-500 text-sm">Loading…</div>}
         {!loading && psirs.length === 0 && (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <ClipboardCheck className="h-12 w-12 text-gray-200 mb-3" />
             <p className="text-gray-500 font-medium">No inspection reports yet</p>
-            <p className="text-gray-400 text-sm mt-1">Create your first PSIR to track pre-shipment quality inspections.</p>
+            <p className="text-gray-500 text-sm mt-1">Create your first PSIR to track pre-shipment quality inspections.</p>
             <Button className="mt-4" onClick={() => setShowCreate(true)} size="sm">
               <Plus className="h-4 w-4 mr-1.5" /> New Report
             </Button>

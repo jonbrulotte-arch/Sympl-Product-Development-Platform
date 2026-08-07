@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Search, UserCheck, UserX, KeyRound, Clock } from "lucide-react";
+import { Plus, Search, UserCheck, UserX, KeyRound, Clock, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { formatDate, getInitials } from "@/lib/utils";
 import type { UserRole } from "@prisma/client";
 
@@ -295,8 +296,8 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
         <DialogContent className="max-w-lg max-h-[70vh] flex flex-col">
           <DialogHeader><DialogTitle>Activity — {activityUser?.name ?? activityUser?.email}</DialogTitle></DialogHeader>
           <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
-            {activityLoading && <p className="text-sm text-gray-400 text-center py-6">Loading...</p>}
-            {!activityLoading && activityLogs.length === 0 && <p className="text-sm text-gray-400 text-center py-6">No activity found.</p>}
+            {activityLoading && <p className="text-sm text-gray-500 text-center py-6">Loading...</p>}
+            {!activityLoading && activityLogs.length === 0 && <p className="text-sm text-gray-500 text-center py-6">No activity found.</p>}
             {activityLogs.map((log) => {
               const productLabel = log.product?.partNumber ?? log.product?.itemName ?? null;
               const truncate = (v: string, n = 60) => v.length > n ? v.slice(0, n) + "…" : v;
@@ -314,13 +315,21 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
                     )}
                   </p>
                   {log.project && (
-                    <p className="text-xs text-gray-500">
-                      Project: <span className="font-medium text-gray-700">{log.project.name}</span>
+                    <p className="text-xs text-gray-600">
+                      Project:{" "}
+                      <Link
+                        href={`/projects/${log.project.id}`}
+                        className="font-medium text-blue-700 hover:text-blue-900 hover:underline inline-flex items-center gap-0.5"
+                        onClick={() => setActivityUser(null)}
+                      >
+                        {log.project.name}
+                        <ExternalLink className="h-2.5 w-2.5" />
+                      </Link>
                     </p>
                   )}
                   {productLabel && (
-                    <p className="text-xs text-gray-500">
-                      Product: <span className="font-medium text-gray-700">{productLabel}</span>
+                    <p className="text-xs text-gray-600">
+                      Product: <span className="font-medium text-gray-800">{productLabel}</span>
                     </p>
                   )}
                   {log.fieldKey && (log.oldValue != null || log.newValue != null) && (
@@ -328,13 +337,13 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
                       {log.oldValue != null && (
                         <span className="bg-red-50 text-red-700 px-1.5 py-0.5 rounded line-through">{truncate(log.oldValue)}</span>
                       )}
-                      {log.oldValue != null && log.newValue != null && <span className="text-gray-400">→</span>}
+                      {log.oldValue != null && log.newValue != null && <span className="text-gray-500">→</span>}
                       {log.newValue != null && (
                         <span className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded">{truncate(log.newValue)}</span>
                       )}
                     </div>
                   )}
-                  <p className="text-xs text-gray-400">{formatDate(log.createdAt)}</p>
+                  <p className="text-xs text-gray-500">{formatDate(log.createdAt)}</p>
                 </div>
               );
             })}

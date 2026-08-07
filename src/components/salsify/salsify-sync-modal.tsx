@@ -91,9 +91,9 @@ export function SalsifySyncModal({ mode, projectId, syncProductCount, onConfirm,
         {/* Attribute list */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {loading ? (
-            <div className="flex items-center justify-center py-12 text-gray-400 text-sm">Loading attributes…</div>
+            <div className="flex items-center justify-center py-12 text-gray-500 text-sm">Loading attributes…</div>
           ) : attrs.length === 0 ? (
-            <div className="text-center py-12 text-gray-400 text-sm">No Salsify-enabled attributes found.<br />Enable Salsify on attributes in Admin → Attributes.</div>
+            <div className="text-center py-12 text-gray-500 text-sm">No Salsify-enabled attributes found.<br />Enable Salsify on attributes in Admin → Attributes.</div>
           ) : (
             <div className="space-y-4">
               {/* Select all */}
@@ -109,7 +109,7 @@ export function SalsifySyncModal({ mode, projectId, syncProductCount, onConfirm,
 
               {Object.entries(groups).map(([section, sectionAttrs]) => (
                 <div key={section}>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{section}</p>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{section}</p>
                   <div className="space-y-1">
                     {sectionAttrs.map((attr) => (
                       <label
@@ -125,7 +125,7 @@ export function SalsifySyncModal({ mode, projectId, syncProductCount, onConfirm,
                         <span className="flex-1 min-w-0">
                           <span className="text-sm text-gray-800 font-medium">{attr.label}</span>
                           {attr.salsifyPropertyId && (
-                            <span className="ml-2 text-xs text-gray-400 font-mono">→ {attr.salsifyPropertyId}</span>
+                            <span className="ml-2 text-xs text-gray-500 font-mono">→ {attr.salsifyPropertyId}</span>
                           )}
                         </span>
                       </label>

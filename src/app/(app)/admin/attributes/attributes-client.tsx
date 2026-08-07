@@ -385,7 +385,7 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
         />
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-500">
           Drag the <GripVertical className="inline h-3 w-3" /> handle to reorder. Drop onto a section header to move between groups.
         </p>
       </div>
@@ -407,7 +407,7 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
                   ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
                   : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
                 <span className="font-semibold text-gray-700 text-sm">{sectionName}</span>
-                <span className="ml-1 text-xs text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5">{attrs.length}</span>
+                <span className="ml-1 text-xs text-gray-500 bg-white border border-gray-200 rounded-full px-2 py-0.5">{attrs.length}</span>
                 {isDragOverHeader && (
                   <span className="ml-auto text-xs text-blue-600 font-medium">Drop to move here</span>
                 )}
@@ -448,14 +448,14 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
                         <div className={`flex-1 min-w-0 ${!attr.isActive ? "opacity-50" : ""}`}>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-semibold text-gray-900">{attr.label}</span>
-                            <code className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded font-mono">{attr.key}</code>
+                            <code className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded font-mono">{attr.key}</code>
                             {attr.isCore && <span className="text-xs text-blue-500 font-medium">core</span>}
                             {!attr.isActive && (
                               <span className="text-xs text-gray-500 font-medium bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded">hidden</span>
                             )}
                           </div>
                           {attr.description && (
-                            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-lg">{attr.description}</p>
+                            <p className="text-xs text-gray-500 mt-0.5 truncate max-w-lg">{attr.description}</p>
                           )}
                         </div>
 
@@ -468,7 +468,7 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
                             {meta.label}{attr.maxValues > 1 ? ` ×${attr.maxValues}` : ""}
                           </span>
                           {attr.lovItems.length > 0 && (
-                            <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded">
+                            <span className="text-xs text-gray-500 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded">
                               {attr.lovItems.length} option{attr.lovItems.length !== 1 ? "s" : ""}
                             </span>
                           )}
@@ -477,7 +477,7 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
                               {attr.category.name}
                             </span>
                           ) : (
-                            <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded">
+                            <span className="text-xs text-gray-500 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded">
                               Global
                             </span>
                           )}
@@ -713,7 +713,7 @@ function SectionManager({ sections, onSectionsChange, onClose }: SectionManagerP
 
         <div className="p-4 space-y-2 max-h-80 overflow-y-auto">
           {sections.length === 0 && (
-            <p className="text-sm text-gray-400 italic text-center py-4">No groups yet</p>
+            <p className="text-sm text-gray-500 italic text-center py-4">No groups yet</p>
           )}
           {sections.map((s, idx) => {
             const isDragging = draggingSectionId === s.id;
@@ -812,7 +812,7 @@ function SectionManager({ sections, onSectionsChange, onClose }: SectionManagerP
               Add
             </Button>
           </div>
-          <p className="text-xs text-gray-400">Drag groups to reorder. Deleting a group moves its attributes to &quot;Global&quot;.</p>
+          <p className="text-xs text-gray-500">Drag groups to reorder. Deleting a group moves its attributes to &quot;Global&quot;.</p>
         </div>
       </div>
     </div>
@@ -1030,7 +1030,7 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
                 value={form.maxValues}
                 onChange={(e) => setForm((f) => ({ ...f, maxValues: parseInt(e.target.value) || 1 }))}
               />
-              <p className="text-xs text-gray-400 mt-1">{isMultiValue ? `Up to ${form.maxValues} values` : "Single value"}</p>
+              <p className="text-xs text-gray-500 mt-1">{isMultiValue ? `Up to ${form.maxValues} values` : "Single value"}</p>
             </div>
           </div>
 
@@ -1058,20 +1058,20 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
                     value={form.salsifyPropertyId}
                     onChange={(e) => setForm((f) => ({ ...f, salsifyPropertyId: e.target.value }))}
                   />
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-gray-500 mt-1">
                     {isMultiValue
                       ? "Values will be sent as a JSON array to this Salsify property"
                       : "The Salsify property name where this attribute's value will be saved"}
                   </p>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Locale <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Locale <span className="text-gray-500 font-normal">(optional)</span></label>
                   <Input
                     placeholder="e.g. en-US"
                     value={form.salsifyLocale}
                     onChange={(e) => setForm((f) => ({ ...f, salsifyLocale: e.target.value }))}
                   />
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-gray-500 mt-1">
                     If this Salsify property is localizable, enter the locale (e.g. <code className="bg-gray-100 px-1 rounded">en-US</code>). Leave blank for non-localizable properties.
                   </p>
                 </div>
@@ -1091,13 +1091,13 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
                 <>
                   <div className="divide-y divide-gray-100 border border-gray-200 rounded-md overflow-hidden">
                     {lovItems.length === 0 && (
-                      <p className="text-xs text-gray-400 px-3 py-2 italic">No options yet</p>
+                      <p className="text-xs text-gray-500 px-3 py-2 italic">No options yet</p>
                     )}
                     {lovItems.map((item, i) => (
                       <div key={item.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 group">
-                        <span className="text-xs text-gray-400 w-5">{i + 1}.</span>
+                        <span className="text-xs text-gray-500 w-5">{i + 1}.</span>
                         <span className="flex-1 text-sm">{item.label}</span>
-                        <code className="text-xs text-gray-400 bg-gray-100 px-1.5 rounded">{item.value}</code>
+                        <code className="text-xs text-gray-500 bg-gray-100 px-1.5 rounded">{item.value}</code>
                         <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => moveLov(i, -1)}

@@ -261,7 +261,7 @@ export function BackupClient() {
     xhr.send(file);
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Loading…</div>;
+  if (loading) return <div className="flex items-center justify-center h-64 text-gray-500 text-sm">Loading…</div>;
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-6 space-y-6">
@@ -310,7 +310,7 @@ export function BackupClient() {
             AES-256-GCM encrypted
           </div>
           {config.lastRunAt && (
-            <div className="text-gray-400 text-xs ml-auto">Last run: {fmtDate(config.lastRunAt)}</div>
+            <div className="text-gray-500 text-xs ml-auto">Last run: {fmtDate(config.lastRunAt)}</div>
           )}
         </div>
       )}
@@ -343,7 +343,7 @@ export function BackupClient() {
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Backup Directory</label>
               <Input value={form.backupPath} onChange={(e) => setForm(f => ({ ...f, backupPath: e.target.value }))} placeholder="/var/backups/sympl" />
-              <p className="text-xs text-gray-400 mt-1">Must be writable by the Node.js process.</p>
+              <p className="text-xs text-gray-500 mt-1">Must be writable by the Node.js process.</p>
             </div>
 
             <div>
@@ -394,7 +394,7 @@ export function BackupClient() {
             <div className="flex items-center gap-2">
               <Key className="h-4 w-4 text-gray-500" />
               <h3 className="text-sm font-medium text-gray-800">API Token</h3>
-              <span className="text-xs text-gray-400">for automation / external triggers</span>
+              <span className="text-xs text-gray-500">for automation / external triggers</span>
             </div>
 
             {newToken ? (
@@ -490,7 +490,7 @@ export function BackupClient() {
               <div className="flex items-center gap-2">
                 <Terminal className="h-4 w-4 text-gray-500" />
                 <h3 className="text-sm font-medium text-gray-800">Cron Job Setup</h3>
-                <span className="text-xs text-gray-400">backs up database + uploaded files</span>
+                <span className="text-xs text-gray-500">backs up database + uploaded files</span>
               </div>
               <p className="text-xs text-gray-500">
                 Add this line to your server&apos;s crontab (<code className="font-mono bg-gray-100 px-1 rounded">crontab -e</code>) to run
@@ -522,7 +522,7 @@ export function BackupClient() {
                   </div>
                 );
               })()}
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-500">
                 Replace <code className="font-mono bg-gray-100 px-1 rounded">YOUR_APP_URL</code> with your application URL
                 and <code className="font-mono bg-gray-100 px-1 rounded">&lt;API_TOKEN&gt;</code> with the token shown above.
                 Copy <code className="font-mono bg-gray-100 px-1 rounded">scripts/backup.sh</code> to <code className="font-mono bg-gray-100 px-1 rounded">/opt/sympl/scripts/</code> on
@@ -543,7 +543,7 @@ export function BackupClient() {
       {activeTab === "logs" && (
         <div className="space-y-2">
           {logs.length === 0 ? (
-            <div className="text-center py-12 text-gray-400 text-sm">No backup activity yet.</div>
+            <div className="text-center py-12 text-gray-500 text-sm">No backup activity yet.</div>
           ) : logs.map((log) => {
             const meta = STATUS_META[log.status] ?? { icon: <Clock className="h-3.5 w-3.5" />, cls: "text-gray-500", label: log.status };
             return (
@@ -552,7 +552,7 @@ export function BackupClient() {
                   <div className={`flex items-center gap-2 text-sm font-medium ${meta.cls}`}>
                     {meta.icon} {meta.label}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-gray-400">
+                  <div className="flex items-center gap-3 text-xs text-gray-500">
                     <span>{log.triggeredBy.replace(/_/g, " ")}</span>
                     {log.fileSizeBytes && <span>{fmt(Number(log.fileSizeBytes))}</span>}
                     {log.durationMs && <span>{log.durationMs}ms</span>}
@@ -560,7 +560,7 @@ export function BackupClient() {
                   </div>
                 </div>
                 {log.filePath && (
-                  <p className="text-xs font-mono text-gray-400 mt-1 truncate">{log.filePath}</p>
+                  <p className="text-xs font-mono text-gray-500 mt-1 truncate">{log.filePath}</p>
                 )}
                 {log.errorMessage && (
                   <p className="text-xs text-red-600 mt-1 line-clamp-3">{log.errorMessage}</p>
@@ -591,7 +591,7 @@ export function BackupClient() {
             <div className="flex items-center gap-2">
               <Upload className="h-4 w-4 text-gray-500" />
               <h3 className="text-sm font-medium text-gray-800">Upload a Snapshot</h3>
-              <span className="text-xs text-gray-400">for migrating from another server</span>
+              <span className="text-xs text-gray-500">for migrating from another server</span>
             </div>
             <p className="text-xs text-gray-500">
               Upload a <code className="font-mono bg-gray-100 px-1 rounded">.pgenc</code> database backup or
@@ -629,13 +629,13 @@ export function BackupClient() {
               </label>
             )}
 
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-500">
               A database backup can only be decrypted on a server with the same <code className="font-mono bg-gray-100 px-1 rounded">BACKUP_ENCRYPTION_KEY</code> (or <code className="font-mono bg-gray-100 px-1 rounded">NEXTAUTH_SECRET</code>) as the server that created it.
             </p>
           </div>
 
           {files.length === 0 ? (
-            <div className="text-center py-12 text-gray-400 text-sm">No backup files found in {config?.backupPath ?? "backup directory"}.</div>
+            <div className="text-center py-12 text-gray-500 text-sm">No backup files found in {config?.backupPath ?? "backup directory"}.</div>
           ) : (
             <div className="space-y-2">
               {files.map((f) => (
@@ -647,7 +647,7 @@ export function BackupClient() {
                       </span>
                       <p className="text-sm font-medium text-gray-800 font-mono truncate">{f.name}</p>
                     </div>
-                    <p className="text-xs text-gray-400 mt-0.5">{fmt(f.sizeBytes)} · {fmtDate(f.createdAt)}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{fmt(f.sizeBytes)} · {fmtDate(f.createdAt)}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <a

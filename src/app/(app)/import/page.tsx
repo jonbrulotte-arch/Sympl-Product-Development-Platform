@@ -305,11 +305,11 @@ function ImportWizardContent() {
               "h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold",
               i < stepIndex ? "bg-green-100 text-green-700" :
               i === stepIndex ? "bg-blue-600 text-white" :
-              "bg-gray-100 text-gray-400"
+              "bg-gray-100 text-gray-500"
             )}>
               {i < stepIndex ? <CheckCircle className="h-4 w-4" /> : i + 1}
             </div>
-            <span className={cn("text-sm", i === stepIndex ? "font-medium text-gray-900" : "text-gray-400")}>
+            <span className={cn("text-sm", i === stepIndex ? "font-medium text-gray-900" : "text-gray-500")}>
               {s.label}
             </span>
             {i < steps.length - 1 && <div className="h-px w-8 bg-gray-200" />}
@@ -339,7 +339,7 @@ function ImportWizardContent() {
                 <Upload className="h-4 w-4" />
                 {loading ? "Processing..." : "Choose File"}
               </Button>
-              <p className="text-xs text-gray-400 mt-4">Supports .xlsx files up to 50MB</p>
+              <p className="text-xs text-gray-500 mt-4">Supports .xlsx files up to 50MB</p>
             </div>
             <input
               ref={fileRef}
@@ -428,7 +428,7 @@ function ImportWizardContent() {
                 {preview.headers.map((header) => (
                   <div key={header} className="flex items-center gap-3">
                     <div className="flex-1 text-sm text-gray-700 font-medium truncate">{header}</div>
-                    <div className="text-gray-400 text-xs">→</div>
+                    <div className="text-gray-500 text-xs">→</div>
                     <select
                       className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       value={mapping[header] ?? ""}
@@ -476,7 +476,7 @@ function ImportWizardContent() {
                 )}
                 <div className="flex items-center gap-2">
                   <div className="h-px flex-1 bg-gray-200" />
-                  <span className="text-xs text-gray-400">or create new</span>
+                  <span className="text-xs text-gray-500">or create new</span>
                   <div className="h-px flex-1 bg-gray-200" />
                 </div>
                 <div className="flex gap-2">
@@ -571,7 +571,7 @@ function ImportWizardContent() {
                         </span>
                         <span className="font-mono text-gray-700">{c.partNumber ?? `Row ${c.row}`}</span>
                         {c.action === "update" && c.fieldChanges.length === 0 && (
-                          <span className="text-gray-400">no field changes</span>
+                          <span className="text-gray-500">no field changes</span>
                         )}
                       </div>
                       {c.fieldChanges.length > 0 && (
@@ -584,7 +584,7 @@ function ImportWizardContent() {
                             </p>
                           ))}
                           {c.fieldChanges.length > 8 && (
-                            <p className="text-gray-400">+{c.fieldChanges.length - 8} more field{c.fieldChanges.length - 8 !== 1 ? "s" : ""}</p>
+                            <p className="text-gray-500">+{c.fieldChanges.length - 8} more field{c.fieldChanges.length - 8 !== 1 ? "s" : ""}</p>
                           )}
                         </div>
                       )}
@@ -633,8 +633,8 @@ function ImportWizardContent() {
                 <p className="text-sm text-gray-600">Total rows</p>
               </div>
               <div className={cn("rounded-lg p-4", importResult.errorRows > 0 ? "bg-red-50" : "bg-gray-50")}>
-                <p className={cn("text-2xl font-bold", importResult.errorRows > 0 ? "text-red-700" : "text-gray-400")}>{importResult.errorRows}</p>
-                <p className={cn("text-sm", importResult.errorRows > 0 ? "text-red-600" : "text-gray-400")}>Errors</p>
+                <p className={cn("text-2xl font-bold", importResult.errorRows > 0 ? "text-red-700" : "text-gray-500")}>{importResult.errorRows}</p>
+                <p className={cn("text-sm", importResult.errorRows > 0 ? "text-red-600" : "text-gray-500")}>Errors</p>
               </div>
             </div>
 

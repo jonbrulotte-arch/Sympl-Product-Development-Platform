@@ -172,10 +172,10 @@ function ProductPicker({
                 className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
               >
                 <span>
-                  <span className="font-mono text-xs text-gray-400">{p.partNumber ?? "—"}</span>
+                  <span className="font-mono text-xs text-gray-500">{p.partNumber ?? "—"}</span>
                   {" "}<span className="text-gray-700">{p.itemName ?? ""}</span>
                 </span>
-                <span className="text-xs text-gray-400 shrink-0">{p.project.name}</span>
+                <span className="text-xs text-gray-500 shrink-0">{p.project.name}</span>
               </button>
             ))}
           </div>
@@ -267,7 +267,7 @@ function Field({
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
       {children}
-      {note && <p className="text-xs text-gray-400 mt-0.5">{note}</p>}
+      {note && <p className="text-xs text-gray-500 mt-0.5">{note}</p>}
     </div>
   );
 }
@@ -436,7 +436,7 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
+            <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
               <Link href="/psir" className="hover:text-violet-600">Inspections</Link>
               <span>/</span>
               <span className="text-gray-600 truncate max-w-xs">{psir.title}</span>
@@ -456,14 +456,14 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
                 >{psir.title}</h1>
               )}
               {psir.referenceNumber && (
-                <span className="text-sm font-mono text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{psir.referenceNumber}</span>
+                <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{psir.referenceNumber}</span>
               )}
               <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border font-medium ${resultMeta.cls}`}>
                 {resultMeta.icon} {result}
               </span>
               <span className={`text-xs px-2.5 py-1 rounded-full ${STATUS_STYLES[status] ?? ""}`}>{status}</span>
             </div>
-            <div className="mt-1 text-xs text-gray-400">
+            <div className="mt-1 text-xs text-gray-500">
               Created by {psir.createdBy.name ?? psir.createdBy.email} · {formatDate(psir.createdAt)}
               {psir.updatedBy && ` · Updated by ${psir.updatedBy.name ?? psir.updatedBy.email} · ${formatDate(psir.updatedAt)}`}
             </div>
@@ -594,7 +594,7 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
             }
           >
             {psir.products.length === 0 ? (
-              <div className="flex flex-col items-center py-8 text-center text-gray-400">
+              <div className="flex flex-col items-center py-8 text-center text-gray-500">
                 <Package className="h-8 w-8 mb-2 text-gray-200" />
                 <p className="text-sm">No products linked yet.</p>
                 <p className="text-xs mt-1">Use the search above to link products to this report.</p>
@@ -604,9 +604,9 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
                 {psir.products.map(({ product }) => (
                   <div key={product.id} className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
                     <div>
-                      <span className="font-mono text-xs text-gray-400">{product.partNumber ?? "—"}</span>
+                      <span className="font-mono text-xs text-gray-500">{product.partNumber ?? "—"}</span>
                       {" "}<span className="text-sm text-gray-700">{product.itemName ?? ""}</span>
-                      {product.brand && <span className="ml-2 text-xs text-gray-400">· {product.brand}</span>}
+                      {product.brand && <span className="ml-2 text-xs text-gray-500">· {product.brand}</span>}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <Link
@@ -655,7 +655,7 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
               >
                 <Upload className="h-8 w-8 text-gray-300 mb-2" />
                 <p className="text-sm text-gray-500">Drop files here or click Upload</p>
-                <p className="text-xs text-gray-400 mt-1">PDF, Excel, images — any format supported</p>
+                <p className="text-xs text-gray-500 mt-1">PDF, Excel, images — any format supported</p>
               </div>
             ) : (
               <div
@@ -672,7 +672,7 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
                     <FileText className="h-4 w-4 text-violet-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-gray-700 truncate">{doc.originalName}</p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-gray-500">
                         {doc.fileSize ? formatBytes(doc.fileSize) : ""}
                         {" · "}uploaded by {doc.uploadedBy.name ?? doc.uploadedBy.email}
                         {" · "}{formatDate(doc.createdAt)}

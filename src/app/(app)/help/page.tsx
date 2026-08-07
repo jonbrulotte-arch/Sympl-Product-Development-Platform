@@ -70,7 +70,7 @@ const ApiBlock = ({ method, path, description, params, body, response }: {
               {params.map((p) => (
                 <div key={p.name} className="flex gap-2 text-sm">
                   <code className="text-xs font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">{p.name}</code>
-                  <span className="text-xs text-gray-400 shrink-0 pt-0.5">{p.type}</span>
+                  <span className="text-xs text-gray-500 shrink-0 pt-0.5">{p.type}</span>
                   <span className="text-gray-600 text-xs pt-0.5">{p.desc}</span>
                 </div>
               ))}
@@ -84,7 +84,7 @@ const ApiBlock = ({ method, path, description, params, body, response }: {
               {body.map((b) => (
                 <div key={b.name} className="flex gap-2 text-sm">
                   <code className="text-xs font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">{b.name}</code>
-                  <span className="text-xs text-gray-400 shrink-0 pt-0.5">{b.type}</span>
+                  <span className="text-xs text-gray-500 shrink-0 pt-0.5">{b.type}</span>
                   {b.required && <span className="text-xs text-red-500 shrink-0 pt-0.5">required</span>}
                   <span className="text-gray-600 text-xs pt-0.5">{b.desc}</span>
                 </div>
@@ -928,7 +928,7 @@ export default function HelpPage() {
     <div className="flex h-full overflow-hidden">
       {/* TOC sidebar */}
       <nav className="w-56 shrink-0 border-r border-gray-200 bg-gray-50 overflow-y-auto py-4 px-3 space-y-0.5">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-2 mb-3">Contents</p>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-2 mb-3">Contents</p>
         {sections.map(({ id, icon: Icon, title, color }) => (
           <button
             key={id}
@@ -1002,7 +1002,7 @@ export default function HelpPage() {
             );
           })}
           {filtered.length === 0 && (
-            <p className="text-sm text-gray-400 text-center py-12">No sections match &ldquo;{search}&rdquo;</p>
+            <p className="text-sm text-gray-500 text-center py-12">No sections match &ldquo;{search}&rdquo;</p>
           )}
         </div>
       </div>

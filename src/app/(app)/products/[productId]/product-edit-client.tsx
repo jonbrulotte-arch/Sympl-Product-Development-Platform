@@ -142,7 +142,7 @@ function FieldInput({
             checked ? "translate-x-4" : "translate-x-0.5"
           )} />
         </span>
-        <span className={cn("text-sm font-medium", checked ? "text-green-600" : "text-gray-400")}>
+        <span className={cn("text-sm font-medium", checked ? "text-green-600" : "text-gray-500")}>
           {checked ? "Yes" : "No"}
         </span>
       </button>
@@ -338,14 +338,14 @@ function CompliancePanel({ productId }: { productId: string }) {
     setEvents((prev) => prev.filter((e) => e.id !== id));
   }
 
-  if (loading) return <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading…</div>;
+  if (loading) return <div className="flex items-center justify-center h-48 text-gray-500 text-sm">Loading…</div>;
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-700">{events.length} compliance event{events.length !== 1 ? "s" : ""}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Track regulatory and compliance issues for this product.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Track regulatory and compliance issues for this product.</p>
         </div>
         {!showCreate && (
           <Button size="sm" onClick={() => setShowCreate(true)}>
@@ -410,7 +410,7 @@ function CompliancePanel({ productId }: { productId: string }) {
         <div className="flex flex-col items-center justify-center py-16 bg-white border border-gray-200 rounded-xl text-center">
           <ShieldCheck className="h-10 w-10 text-gray-200 mb-2" />
           <p className="text-sm text-gray-500 font-medium">No compliance events</p>
-          <p className="text-xs text-gray-400 mt-1">Log an event to start tracking compliance for this product.</p>
+          <p className="text-xs text-gray-500 mt-1">Log an event to start tracking compliance for this product.</p>
         </div>
       )}
 
@@ -425,14 +425,14 @@ function CompliancePanel({ productId }: { productId: string }) {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-sm font-medium text-gray-900">{event.title}</p>
-                    <p className="text-xs text-gray-400">{event.type.name}</p>
+                    <p className="text-xs text-gray-500">{event.type.name}</p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${SEVERITY_STYLES[event.severity] ?? ""}`}>{event.severity}</span>
                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${STATUS_STYLES[event.status] ?? ""}`}>{event.status.replace("_", " ")}</span>
                   </div>
                 </div>
-                <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
+                <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
                   {event.dueDate && (
                     <span className={isOverdue ? "text-red-500 font-medium" : ""}>
                       <Clock className="inline h-3 w-3 mr-0.5" />
@@ -508,14 +508,14 @@ function PsirPanel({ productId }: { productId: string }) {
       .then((d) => { setPsirs(d.psirs ?? []); setLoading(false); });
   }, [productId]);
 
-  if (loading) return <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading…</div>;
+  if (loading) return <div className="flex items-center justify-center h-48 text-gray-500 text-sm">Loading…</div>;
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-700">{psirs.length} inspection report{psirs.length !== 1 ? "s" : ""} linked</p>
-          <p className="text-xs text-gray-400 mt-0.5">Pre-shipment inspection reports associated with this product.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Pre-shipment inspection reports associated with this product.</p>
         </div>
         <Link href="/psir" className="text-xs text-violet-600 hover:underline flex items-center gap-1">
           <Plus className="h-3.5 w-3.5" /> Create in Inspections module
@@ -526,7 +526,7 @@ function PsirPanel({ productId }: { productId: string }) {
         <div className="flex flex-col items-center justify-center py-16 bg-white border border-gray-200 rounded-xl text-center">
           <ClipboardCheck className="h-10 w-10 text-gray-200 mb-2" />
           <p className="text-sm text-gray-500 font-medium">No inspection reports linked</p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-500 mt-1">
             Go to <Link href="/psir" className="text-violet-600 hover:underline">Inspections</Link> to create a PSIR and link this product.
           </p>
         </div>
@@ -543,7 +543,7 @@ function PsirPanel({ productId }: { productId: string }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900">{psir.title}</p>
-                    <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
+                    <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
                       {psir.referenceNumber && <span className="font-mono">{psir.referenceNumber}</span>}
                       {psir.inspectionCompany && <span>{psir.inspectionCompany}</span>}
                       {psir.inspectionDate && <span>{formatDate(psir.inspectionDate)}</span>}
@@ -558,7 +558,7 @@ function PsirPanel({ productId }: { productId: string }) {
                     <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full font-medium ${meta.cls}`}>
                       {meta.icon} {psir.result}
                     </span>
-                    <span className="text-xs text-gray-400">{psir.status}</span>
+                    <span className="text-xs text-gray-500">{psir.status}</span>
                   </div>
                 </div>
               </Link>
@@ -855,7 +855,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
               </div>
             )}
             {/* Product meta */}
-            <div className="text-xs text-gray-400 flex flex-wrap gap-4">
+            <div className="text-xs text-gray-500 flex flex-wrap gap-4">
               <span>Created by {product.createdBy.name ?? product.createdBy.email} · {formatDate(product.createdAt)}</span>
               {product.updatedBy && (
                 <span>Last updated by {product.updatedBy.name ?? product.updatedBy.email} · {formatDate(product.updatedAt)}</span>
@@ -921,7 +921,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
                         onChange={isCore ? (v) => setField(attr.key, v) : (v) => setEavField(attr.id, String(v))}
                       />
                       {attr.description && (
-                        <p className="text-xs text-gray-400 mt-0.5">{attr.description}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{attr.description}</p>
                       )}
                     </div>
                   );
@@ -1030,9 +1030,9 @@ function HistoryPanel({ projectId, productId }: { projectId: string; productId: 
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-6">
-      {loading && <p className="text-sm text-gray-400 py-8 text-center">Loading history…</p>}
+      {loading && <p className="text-sm text-gray-500 py-8 text-center">Loading history…</p>}
       {!loading && logs.length === 0 && (
-        <p className="text-sm text-gray-400 py-8 text-center">No recorded changes for this product yet.</p>
+        <p className="text-sm text-gray-500 py-8 text-center">No recorded changes for this product yet.</p>
       )}
       {!loading && logs.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100">
@@ -1052,7 +1052,7 @@ function HistoryPanel({ projectId, productId }: { projectId: string; productId: 
                     <span className="text-green-700">{log.newValue || "—"}</span>
                   </p>
                 )}
-                <p className="text-xs text-gray-400 mt-0.5">{formatDate(log.createdAt)}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{formatDate(log.createdAt)}</p>
               </div>
             </div>
           ))}
@@ -1067,7 +1067,7 @@ function HistoryPanel({ projectId, productId }: { projectId: string; productId: 
           >
             ← Newer
           </button>
-          <span className="text-gray-400">Page {page} of {Math.ceil(total / 50)}</span>
+          <span className="text-gray-500">Page {page} of {Math.ceil(total / 50)}</span>
           <button
             className="text-blue-600 hover:underline disabled:text-gray-300"
             disabled={page >= Math.ceil(total / 50)}
