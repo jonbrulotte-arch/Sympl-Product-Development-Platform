@@ -11,10 +11,14 @@ export default async function UsersPage() {
   const users = await prisma.user.findMany({
     select: {
       id: true, email: true, name: true, image: true, role: true,
-      isActive: true, createdAt: true, updatedAt: true,
+      isActive: true, createdAt: true, updatedAt: true, passwordHash: true,
     },
     orderBy: { name: "asc" },
   });
 
-  return <UsersClient initialUsers={users} />;
+  // Never ship the hash to the client — the list only needs to know whether
+  // the account has been activated yet.
+  const rows = users.map(({ passwordHash, ...u }) => ({ ...u, pendingInvite: !passwordHash }));
+
+  return <UsersClient initialUsers={rows} />;
 }

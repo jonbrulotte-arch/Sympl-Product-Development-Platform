@@ -51,6 +51,24 @@ export function passwordResetEmail(resetUrl: string) {
   `);
 }
 
+// Sent when an admin creates an account. The account exists but has no
+// password until the recipient follows this link, so the wording is a welcome
+// rather than a reset.
+export function invitationEmail(opts: {
+  inviteUrl: string;
+  inviterName: string;
+  roleLabel: string;
+  expiresInDays: number;
+}) {
+  return wrap("You've been invited to Sympl PM", `
+    <p style="color:#374151;font-size:14px;line-height:1.6"><strong>${opts.inviterName}</strong> has created an account for you on Sympl PM, the product development platform.</p>
+    <p style="color:#374151;font-size:14px;line-height:1.6">Your role is <strong>${opts.roleLabel}</strong>. Set a password to activate your account and sign in.</p>
+    <a href="${opts.inviteUrl}" style="display:inline-block;margin:16px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600">Set Your Password</a>
+    <p style="color:#6b7280;font-size:12px">This invitation expires in ${opts.expiresInDays} days. If it lapses, ask your administrator to send a new one.</p>
+    <p style="color:#6b7280;font-size:12px">If you weren't expecting this, you can ignore this email — the account can't be used until a password is set.</p>
+  `);
+}
+
 export function workflowVoteEmail(opts: {
   toName: string;
   projectName: string;
