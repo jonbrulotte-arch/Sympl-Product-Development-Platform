@@ -22,7 +22,7 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Manual Status Override** — Admins and Product Managers can set a project's status directly from the project Settings tab at any time.
 - **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups plus uploaded-file archives, written to local disk with a retention policy and one-click restore. Snapshots can be downloaded and re-uploaded through the admin UI to migrate an instance between servers, and a scoped API token drives external cron automation (`scripts/backup.sh` backs up database and attachments in one crontab entry).
 - **Security** — Project-level authorization on every route, authenticated file serving with an upload-type allowlist, login rate limiting, immediate session invalidation for deactivated accounts, and last-admin lockout protection.
-- **Admin** — Users (including per-user password reset and activity log viewer), categories, attributes (with EAV and reorderable Lists of Values), workflow templates, compliance types, PSIR attributes, API tokens, backup, access control, and settings.
+- **Admin** — Users (including per-user password reset and activity log viewer), categories, attributes (with EAV and reorderable Lists of Values), workflow templates, compliance types, inspection attributes, API tokens, backup, access control, and settings.
 
 ---
 
@@ -143,22 +143,7 @@ curl -s -X POST https://your-server/api/admin/backup/run \
   -H "Content-Type: application/json"
 ```
 
-**Scheduled backup (database only):** Sympl does not have a built-in scheduler. Generate an API token and add a cron job:
-
-```bash
-# Daily at 2:00 AM
-0 2 * * * curl -s -X POST https://your-server/api/admin/backup/run \
-  -H "Authorization: Bearer sbk_<your-token>" \
-  -H "Content-Type: application/json" \
-  -d '{"triggeredBy":"SCHEDULE"}'
-```
-
-**Scheduled full backup (database + uploaded files):** use the bundled `scripts/backup.sh` instead — it calls the same API for the database dump and additionally tars up `data/uploads/`, pruning old archives to match the retention count configured in the admin UI:
-
-```bash
-# Daily at 2:00 AM
-0 2 * * * /opt/sympl/scripts/backup.sh https://your-server sbk_<your-token> /var/backups/sympl >> /var/log/sympl-backup.log 2>&1
-```
+**Scheduled backups:** Sympl has no built-in scheduler — use an external cron job with the bundled `scripts/backup.sh`, which handles both the database dump and uploaded-file archive. See the **Cron Jobs** section below for the complete crontab and setup notes.
 
 **Restore:** Go to Admin → Backup & Restore → Restore tab. Snapshots are listed newest-first with a **Database** or **Files** badge:
 
@@ -221,27 +206,63 @@ Go to **Admin → Settings → Email Notifications (SMTP)** to see the current S
 
 ---
 
-## Overdue Alerts (cron)
+## Cron Jobs
 
-Compliance events and workflow stages with a due date trigger in-app notifications (and email, when SMTP is configured) once they go overdue. Like backups, this relies on an external cron job — the same `sbk_` API token authorizes it:
+Sympl has no built-in scheduler. Three endpoints are designed to be triggered by external cron jobs, all authenticated with the same `sbk_` backup API token generated in **Admin → Backup & Restore → API Token**.
+
+### Token types
+
+| Prefix | Purpose | Where to generate |
+|--------|---------|-------------------|
+| `sbk_` | Backup & cron endpoints (backup, overdue-check, digest) | Admin → Backup & Restore → API Token |
+| `spt_` | Read-only product API for ERP/BI tools | Admin → API Tokens |
+
+> **Important:** `spt_` tokens do **not** work for cron endpoints. Always use the `sbk_` token for all cron jobs.
+
+### Complete crontab
 
 ```bash
-# Every 30 minutes
-*/30 * * * * curl -s -X POST https://your-server/api/cron/overdue-check \
+# ── Overdue compliance & workflow alerts ──────────────────────────
+# Checks for overdue compliance events, overdue workflow stages,
+# and items due within 3 days. Each item alerts once; changing its
+# due date re-arms the alert. Also sends email when SMTP is configured.
+*/15 * * * * curl -s -X POST http://localhost:4000/api/cron/overdue-check \
   -H "Authorization: Bearer sbk_<your-token>"
+
+# ── Leadership digest ─────────────────────────────────────────────
+# Pipeline/compliance/approvals-aging summary emailed to all active
+# Admins and Product Managers. Preview the HTML at /api/cron/digest
+# in the browser (with an admin session) without sending.
+0 7 * * 1 curl -s -X POST http://localhost:4000/api/cron/digest \
+  -H "Authorization: Bearer sbk_<your-token>"
+
+# ── Full backup (database + uploaded files) ───────────────────────
+# Calls the backup API for an encrypted database dump, then tars
+# data/uploads/. Old archives are pruned to the retention count
+# configured in Admin → Backup & Restore.
+0 2 * * * /path/to/Sympl-Product-Development-Platform/scripts/backup.sh \
+  http://localhost:4000 sbk_<your-token> /var/backups/sympl \
+  >> /var/log/sympl-backup.log 2>&1
 ```
 
-Each item alerts once; changing its due date re-arms the alert. Overdue compliance notifies the event creator and affected project owners; overdue stages notify pending approvers and the project owner.
+> **Timezone:** Cron uses the server's system timezone. If you want `0 2 * * *` to mean 2:00 AM Pacific, make sure the server timezone is set to `America/Los_Angeles` (check with `timedatectl`). Otherwise convert to UTC manually — but note the UTC offset changes with daylight saving time.
 
-**Leadership digest:** a pipeline/compliance/approvals-aging summary emailed to all active Admins and Product Managers. Same token, typically weekly:
+> **Log file:** Create the backup log file before the first run so errors are captured:
+> ```bash
+> sudo touch /var/log/sympl-backup.log && sudo chown <your-user> /var/log/sympl-backup.log
+> ```
+> Without it, `backup.sh` output is silently discarded and failures are invisible.
 
-```bash
-# Mondays at 7:00 AM
-0 7 * * 1 curl -s -X POST https://your-server/api/cron/digest \
-  -H "Authorization: Bearer sbk_<your-token>"
-```
+### What the overdue-check covers
 
-Admins can preview the digest HTML at `/api/cron/digest` in the browser without sending.
+| Category | Condition | Who is notified |
+|----------|-----------|-----------------|
+| Overdue compliance events | `dueDate` in the past, status OPEN or IN_PROGRESS | Event creator + affected project owners |
+| Overdue workflow stages | `dueDate` in the past, status PENDING or IN_REVIEW | Pending approvers + project owner |
+| Due-soon workflow stages | `dueDate` within 3 days | Pending approvers + project owner |
+| Due-soon compliance events | `dueDate` within 3 days | Event creator + affected project owners |
+
+All four categories are idempotent — each item is notified once, tracked via `overdueNotifiedAt` / `dueSoonNotifiedAt` timestamps.
 
 ---
 
@@ -277,7 +298,7 @@ Admins and Product Managers can create expiring read-only share links for a prod
 
 **Drift detection:** every successful sync records a per-product timestamp. The grid's **Salsify** column shows *Synced* (green, unchanged since last sync), *Changed* (yellow, edited since last sync — Salsify is stale), or *—* (never synced).
 
-**Pull from Salsify:** on the product edit page, pull the product's current Salsify state (digital-asset URLs, version, last-updated) back into Sympl. Assets display as thumbnails in an "In Salsify" panel.
+**Pull from Salsify:** on the product edit page, pull the product's current Salsify state (digital-asset URLs, version, last-updated) back into Sympl. Assets display as Cloudinary-transformed thumbnails in an "In Salsify" panel with a **View in Salsify** link to the product's page on Salsify (`https://app.salsify.com/app/orgs/{orgId}/products/v2/{partNumber}`). Clicking an image thumbnail opens a lightbox gallery with square (1:1) images and prev/next navigation when multiple assets exist.
 
 Enable **Salsify Debug** in Admin → Settings to show **Salsify Log** and **Salsify Debug** pages in the admin sidebar (useful for troubleshooting payloads and sync errors).
 
