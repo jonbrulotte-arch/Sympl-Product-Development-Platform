@@ -63,7 +63,7 @@ export function ModulesSettingsClient() {
           <span>
             <span className="text-sm font-medium text-gray-900 block">Enable Inspections module</span>
             <span className="text-xs text-gray-500 block mt-0.5">
-              When disabled, the Inspections (PSIR) module is hidden platform-wide: the sidebar entry,
+              When disabled, the Inspections module is hidden platform-wide: the sidebar entry,
               inspection pages, the Inspections tab on product records, the Inspection Attributes admin
               page, and inspection reports. All inspection data is retained — re-enabling restores
               everything exactly as it was.

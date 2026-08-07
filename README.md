@@ -1,6 +1,6 @@
 # Sympl PM - Product Development Platform
 
-A product lifecycle management platform for retail brands — centralizes product data, tracks approvals through configurable workflows, manages compliance events and pre-shipment inspections, and integrates with Salsify for data syndication.
+A product lifecycle management platform for retail brands — centralizes product data, tracks approvals through configurable workflows, manages compliance events and factory inspections, and integrates with Salsify for data syndication.
 
 ---
 
@@ -11,9 +11,9 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Product Grid** — Spreadsheet-style inline editing with custom EAV attributes, column tooltips, freezable columns, saved views (named sort/visibility/pinning combos per project), bulk edit, and Excel import & export. Computed columns show per-product required-field completeness (%) and Salsify sync freshness (Synced / Changed / never). Duplicate Part Numbers used in another project are flagged with a warning icon.
 - **Product Record** — Full edit page per product with core fields, custom attributes by section, category inheritance from project, completeness chip, duplicate-part-number banner, Share / Pull-from-Salsify / Sync buttons (Admin/PM), and tabs for Compliance, Inspections, and field-level change History (old → new values, with the source of the change: Project Grid, Product Record, or Import).
 - **Import with dry-run** — Excel import auto-maps columns, matches rows to existing products by Part Number (update-in-place, never duplicates), and shows a Verify step with create/update counts and cell-level old → new diffs before anything is written.
-- **Workflows** — Configurable approval stages per project with per-stage approvers, voting, automatic status transitions, and reusable templates. Stages can be reordered, carry due dates (overdue stages show red chips and a project-header badge, and escalate to pending approvers via the overdue cron), and can declare informational dependencies on other stages, compliance events, or PSIRs.
+- **Workflows** — Configurable approval stages per project with per-stage approvers, voting, automatic status transitions, and reusable templates. Stages can be reordered, carry due dates (overdue stages show red chips and a project-header badge, and escalate to pending approvers via the overdue cron), and can declare informational dependencies on other stages, compliance events, or inspection reports.
 - **Compliance** — Track regulatory events (Prop 65, REACH, CPSC, etc.) linked to products. Bulk-link products by pasting part numbers or uploading a spreadsheet. Overdue events surface on the dashboard and trigger notifications. Image attachments preview inline.
-- **Pre-Shipment Inspections (PSIR)** — Inspection reports with custom attributes, file attachments, pass/fail results, and bulk product linking (paste or .xlsx upload). List cards expand in place with quick status changes.
+- **Inspections** — Inspection reports with custom attributes, file attachments, pass/fail results, and bulk product linking (paste or .xlsx upload). List cards expand in place with quick status changes.
 - **Notifications** — In-app bell for workflow votes, stage completions, comments, and @mentions; cron-driven overdue alerts and a scheduled leadership digest email (pipeline, compliance risk, approvals aging).
 - **Comments & Attachments** — Project comments with file attachments (20 MB limit, type allowlist, served behind authentication). @mention teammates to notify them directly.
 - **Salsify Integration** — Per-user API keys (each sync authenticates as the person who ran it) with org-level settings shared. Map attributes to Salsify property IDs; sync all products in a project, a selection of rows from the grid, or a single product from its edit page — with a per-attribute opt-out modal before every sync. Per-product drift detection shows what's stale in Salsify, and Pull-from-Salsify brings digital-asset URLs and state back into Sympl. Enable Salsify Debug mode in Settings for log and inspector pages.
@@ -380,7 +380,7 @@ src/
       notifications/# Notification list
       products/     # Global product browser + per-product edit page
       projects/     # Project list + per-project grid
-      psir/         # Pre-shipment inspection reports
+      psir/         # Inspection reports
       reports/      # Operational reports + Excel export
     api/            # API route handlers (incl. cron/ for scheduled jobs)
     share/          # Public read-only share-link pages (token-gated)

@@ -176,7 +176,7 @@ const sections: Section[] = [
           <LI>Use <strong>On Approval → set project status</strong> to automatically advance the project status when a stage is approved.</LI>
           <LI>Use workflow templates (admin) to apply a pre-built set of stages in one click.</LI>
           <LI>Use the <strong>▲ / ▼</strong> buttons on each stage to reorder stages within the workflow.</LI>
-          <LI>Set a <strong>Dependency</strong> on a stage to indicate it relies on another workflow stage, a compliance event, or a PSIR being resolved first. Dependencies are informational — they show a lock icon but do not prevent voting or advancing the stage.</LI>
+          <LI>Set a <strong>Dependency</strong> on a stage to indicate it relies on another workflow stage, a compliance event, or an inspection report being resolved first. Dependencies are informational — they show a lock icon but do not prevent voting or advancing the stage.</LI>
           <LI>Set a <strong>due date</strong> on any open stage using the date picker under its description. Stages past their date show a red <strong>overdue</strong> chip, the project header shows a red <em>&quot;N stages overdue&quot;</em> badge, and pending approvers are notified (in-app and email) when the overdue-check cron runs.</LI>
         </UL>
 
@@ -264,7 +264,7 @@ const sections: Section[] = [
         </UL>
 
         <H3>Full product edit page</H3>
-        <P>Click any row to open the full product edit page at <Code>/products/[id]</Code>. This page shows every core field and every EAV attribute organized by section, plus tabs for <strong>Compliance</strong> events, <strong>Inspections</strong> (PSIRs), and <strong>History</strong> — the full field-level change log showing who changed what, when, and the old → new values.</P>
+        <P>Click any row to open the full product edit page at <Code>/products/[id]</Code>. This page shows every core field and every EAV attribute organized by section, plus tabs for <strong>Compliance</strong> events, <strong>Inspections</strong>, and <strong>History</strong> — the full field-level change log showing who changed what, when, and the old → new values.</P>
         <P>The header shows a <strong>% complete</strong> chip (required fields filled in) and, for Admins and Product Managers, <strong>Share</strong>, <strong>Pull from Salsify</strong>, and <strong>Sync to Salsify</strong> buttons.</P>
       </>
     ),
@@ -318,18 +318,18 @@ const sections: Section[] = [
     ),
   },
   {
-    id: "psir",
+    id: "inspections",
     icon: ClipboardCheck,
-    title: "Pre-Shipment Inspections (PSIR)",
+    title: "Inspections",
     color: "text-violet-600 bg-violet-50",
     content: (
       <>
-        <H3>What is a PSIR?</H3>
+        <H3>What is an inspection report?</H3>
         <P>
-          A Pre-Shipment Inspection Report documents the quality inspection performed at a factory
+          An inspection report documents the quality inspection performed at a factory
           before goods ship. Each report captures the inspector, inspection company, factory, date,
           result (PASS / FAIL / CONDITIONAL / PENDING), and any supporting documents.
-          A single PSIR can cover multiple products from one or more projects.
+          A single report can cover multiple products from one or more projects.
         </P>
 
         <H3>Creating a report</H3>
@@ -360,13 +360,13 @@ const sections: Section[] = [
         <P>The search bar on the Inspections list matches the report title, reference number, inspector, inspection company, factory, <strong>part number</strong>, and product name. Searching by part number returns all reports that include a product with that part number.</P>
 
         <H3>Custom attributes</H3>
-        <P>Admins can define additional fields to capture on every PSIR — for example AQL level, sample size, or inspection standard — at <strong>Admin → Inspection Attributes</strong>. Supported types: Text, Text Area, Number, Date, Select (dropdown), and Yes/No.</P>
+        <P>Admins can define additional fields to capture on every inspection report — for example AQL level, sample size, or inspection standard — at <strong>Admin → Inspection Attributes</strong>. Supported types: Text, Text Area, Number, Date, Select (dropdown), and Yes/No.</P>
 
         <H3>File uploads</H3>
         <P>Drag and drop files directly onto the Documents section or click Upload File. Files are stored on the server and can be downloaded at any time. Deleting a document removes it from disk immediately.</P>
 
         <H3>Bulk Add products</H3>
-        <P>In the Products section of a PSIR, click <strong>Bulk Add</strong> to open a paste panel. Paste part numbers separated by commas, semicolons, or newlines — or click <strong>Upload .xlsx</strong> to fill the list from a spreadsheet&apos;s Part Number column — then click <strong>Look Up</strong>. Sympl resolves each part number and shows a green (found) or red (not found) preview. Click <strong>Add N Products</strong> to link all resolved products at once.</P>
+        <P>In the Products section of an inspection report, click <strong>Bulk Add</strong> to open a paste panel. Paste part numbers separated by commas, semicolons, or newlines — or click <strong>Upload .xlsx</strong> to fill the list from a spreadsheet&apos;s Part Number column — then click <strong>Look Up</strong>. Sympl resolves each part number and shows a green (found) or red (not found) preview. Click <strong>Add N Products</strong> to link all resolved products at once.</P>
 
         <H3>Inspections list</H3>
         <P>Reports on the Inspections page expand in place — click the chevron to see notes, linked products, and attachments (with image thumbnails), and change status with one click, without opening the full report. The pencil icon opens the full detail page.</P>
@@ -375,7 +375,7 @@ const sections: Section[] = [
         <P>Admins and Product Managers can create an expiring read-only <strong>share link</strong> from the report detail page — see the <em>Notifications, Sharing &amp; Alerts</em> section below.</P>
 
         <H3>Product tab on product edit page</H3>
-        <P>When viewing a product at <Code>/products/[id]</Code>, switch to the <strong>Inspections</strong> tab to see all PSIRs linked to that product.</P>
+        <P>When viewing a product at <Code>/products/[id]</Code>, switch to the <strong>Inspections</strong> tab to see all inspection reports linked to that product.</P>
 
         <H3>Turning the module off</H3>
         <P>Admins can switch the whole module off under <strong>Admin → Settings → Modules</strong>. The Inspections pages, the inspection attribute admin, the Inspections tabs on products and projects, the inspection dependency option in workflow stages, and the Inspections report all disappear platform-wide.</P>
