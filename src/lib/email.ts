@@ -14,7 +14,8 @@ function getTransport() {
 }
 
 const FROM = process.env.SMTP_FROM ?? "Sympl <no-reply@sympl.app>";
-const BASE_URL = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+// NextAuth v5 reads AUTH_URL; NEXTAUTH_URL kept as a v4-era fallback.
+const BASE_URL = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:4000";
 
 function wrap(title: string, body: string) {
   return `<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;background:#f3f4f6;margin:0;padding:32px">
