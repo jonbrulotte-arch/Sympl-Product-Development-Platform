@@ -1008,7 +1008,7 @@ export function ProductGrid({
                       }}
                       className={cn(
                         "border-b border-r border-gray-200 px-2 py-2 text-left text-xs font-semibold whitespace-nowrap select-none relative overflow-visible hover:z-30",
-                        (isEav || isGroup) ? "bg-amber-50 text-amber-800" : "bg-gray-50 text-gray-600",
+                        "bg-amber-50 text-amber-800",
                         isGroup && "text-center font-bold border-t-2 border-amber-300",
                         isPinned && "!bg-blue-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]"
                       )}
@@ -1396,7 +1396,7 @@ function GridRow({
             style={{ width: cell.column.getSize(), ...pinnedStyle }}
             className={cn(
               "border-r border-gray-100 px-0 py-0 relative",
-              isEav && !isPinned && "bg-amber-50/40",
+              !isPinned && "bg-amber-50/40",
               isPinned && "bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]",
               editing && "ring-2 ring-inset ring-blue-500 z-10"
             )}
