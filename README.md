@@ -305,9 +305,23 @@ Admins and Product Managers can create expiring read-only share links for a prod
 
 The Inspections report is hidden and its API returns 404 when the Inspections module is disabled; the Roadblocks report drops its failed-inspection section.
 
-Clicking a row in **Out-of-Sync Products** opens a drift detail panel — see [Salsify Integration](#salsify-integration) below.
+### Row drill-down
 
-**API:** `GET /api/reports/[type]` returns `{ rows }`. `GET /api/projects/[id]/products/[productId]/salsify-drift` returns the detail behind one out-of-sync row.
+Every report row is clickable and opens a side panel with the context behind it — related records, who owns them, what's blocking, and links to jump straight there.
+
+| Report | Panel shows |
+| --- | --- |
+| Inspections | Result, dates, inspector/company/factory/country, notes · linked products (→ product) · workflow stages waiting on this inspection (→ workflow) · attachments · link to the report |
+| Compliance | Severity, status, days overdue, description, notes · affected projects with owner and product count (→ project) · affected products (→ product) · stages waiting on the event · attachments |
+| Overdue Stages | Due date, days overdue, project owner and status, required flag · every approver with vote status and days waiting · declared dependencies (stage / compliance event / inspection) colour-coded satisfied vs blocking |
+| Overdue Projects | Owner, target launch, category, channel, product count, days idle · open stages with due dates and pending approver counts · team roster with edit rights · last 8 activity entries with old → new |
+| Roadblocks | Dispatches by roadblock type to the stage, project, or inspection panel above |
+| Out-of-Sync Products | Field-level drift with per-field Salsify push — see [Salsify Integration](#salsify-integration) |
+| Pipeline Summary | Every project in that status/owner bucket with products, open stages, and idle days (→ project) |
+
+**API:** `GET /api/reports/[type]` returns `{ rows }`. Each row carries a `_detail` query string; `GET /api/reports/[type]/detail?<_detail>` returns `{ title, subtitle, badges, meta, links, sections }`, which the client renders with one generic drawer. Out-of-Sync uses `GET /api/projects/[id]/products/[productId]/salsify-drift` instead, since it needs per-field sync actions.
+
+Detail builders re-apply project scoping to whatever ids the query string names — a hand-crafted request can't reach another user's data.
 
 ---
 

@@ -63,8 +63,221 @@ type DriftDetail = {
   canSync: boolean;
 };
 
+type Tone = "gray" | "green" | "yellow" | "red" | "blue";
+
+type DetailItem = {
+  title: string;
+  subtitle?: string | null;
+  meta?: string | null;
+  href?: string | null;
+  tone?: Tone;
+};
+
+type ReportDetail = {
+  title: string;
+  subtitle?: string | null;
+  badges?: { label: string; tone: Tone }[];
+  meta: { label: string; value: string | null }[];
+  links: { label: string; href: string; external?: boolean }[];
+  sections: { title: string; empty?: string; items: DetailItem[] }[];
+};
+
+const TONE_CLASSES: Record<Tone, string> = {
+  gray: "bg-gray-100 text-gray-700",
+  green: "bg-green-100 text-green-800",
+  yellow: "bg-amber-100 text-amber-800",
+  red: "bg-red-100 text-red-800",
+  blue: "bg-blue-100 text-blue-800",
+};
+
 function fmtWhen(iso: string | null) {
   return iso ? new Date(iso).toLocaleString() : "Never";
+}
+
+// Shared slide-over shell: overlay, escape-to-close, header, scroll container.
+function Drawer({
+  title,
+  subtitle,
+  label,
+  onClose,
+  children,
+}: {
+  title: string;
+  subtitle?: string | null;
+  label: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
+      <div
+        className="h-full w-full max-w-xl overflow-y-auto bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+      >
+        <div className="sticky top-0 flex items-start justify-between gap-3 border-b border-gray-200 bg-white px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900 truncate">{title}</p>
+            {subtitle && <p className="text-xs text-gray-500 truncate">{subtitle}</p>}
+          </div>
+          <button onClick={onClose} className="rounded p-1 text-gray-500 hover:bg-gray-100" aria-label="Close">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function DetailItemRow({ item }: { item: DetailItem }) {
+  const body = (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-gray-900">{item.title}</p>
+        {item.meta && (
+          <span
+            className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${
+              item.tone ? TONE_CLASSES[item.tone] : "text-gray-500"
+            }`}
+          >
+            {item.meta}
+          </span>
+        )}
+      </div>
+      {item.subtitle && <p className="mt-0.5 text-xs text-gray-500">{item.subtitle}</p>}
+    </>
+  );
+
+  return item.href ? (
+    <li>
+      <Link
+        href={item.href}
+        className="block rounded-lg border border-gray-200 p-3 transition-colors hover:border-blue-300 hover:bg-blue-50/40"
+      >
+        {body}
+      </Link>
+    </li>
+  ) : (
+    <li className="rounded-lg border border-gray-200 p-3">{body}</li>
+  );
+}
+
+// Generic drill-down drawer — renders whatever the detail endpoint returns, so
+// every report except Out-of-Sync (which needs sync actions) shares one view.
+function ReportDetailDrawer({
+  reportType,
+  detailQuery,
+  onClose,
+}: {
+  reportType: ReportType;
+  detailQuery: string;
+  onClose: () => void;
+}) {
+  const [detail, setDetail] = useState<ReportDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetch(`/api/reports/${reportType}/detail?${detailQuery}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Could not load detail"))))
+      .then((data) => { if (!cancelled) setDetail(data); })
+      .catch((e) => { if (!cancelled) setError(e.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [reportType, detailQuery]);
+
+  return (
+    <Drawer
+      title={detail?.title ?? "Detail"}
+      subtitle={detail?.subtitle}
+      label="Report row detail"
+      onClose={onClose}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading detail…
+        </div>
+      ) : !detail ? (
+        <div className="py-16 text-center text-sm text-gray-500">{error ?? "No detail available."}</div>
+      ) : (
+        <div className="space-y-5 px-5 py-4">
+          {detail.badges && detail.badges.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {detail.badges.map((b, i) => (
+                <span key={i} className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE_CLASSES[b.tone]}`}>
+                  {b.label}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+            {detail.meta.filter((m) => m.value).map((m) => (
+              <div key={m.label} className={m.value && m.value.length > 60 ? "col-span-2" : ""}>
+                <dt className="text-gray-500">{m.label}</dt>
+                <dd className="font-medium text-gray-900 whitespace-pre-wrap">{m.value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          {detail.links.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {detail.links.map((l) =>
+                l.external ? (
+                  <a
+                    key={l.href}
+                    href={l.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    {l.label} <ExternalLink className="h-3 w-3" />
+                  </a>
+                ) : (
+                  <Link
+                    key={l.href}
+                    href={l.href}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    {l.label} <ArrowRight className="h-3 w-3" />
+                  </Link>
+                )
+              )}
+            </div>
+          )}
+
+          {detail.sections.map((section) => (
+            <div key={section.title}>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                {section.title}
+              </p>
+              {section.items.length === 0 ? (
+                <p className="rounded-md bg-gray-50 px-3 py-3 text-xs text-gray-500">
+                  {section.empty ?? "Nothing to show."}
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {section.items.map((item, i) => <DetailItemRow key={i} item={item} />)}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Drawer>
+  );
 }
 
 // Detail drawer for a row of the Out-of-Sync Products report: field-level
@@ -99,12 +312,6 @@ function DriftDetailDrawer({
     return () => { cancelled = true; };
   }, [projectId, productId]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   async function syncField(fieldKey: string) {
     setSyncing(fieldKey);
     setError(null);
@@ -132,27 +339,13 @@ function DriftDetailDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
-      <div
-        className="h-full w-full max-w-xl overflow-y-auto bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Out-of-sync product detail"
-      >
-        <div className="flex items-start justify-between border-b border-gray-200 px-5 py-4">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-900 truncate">
-              {detail?.product.partNumber ?? "Product"}
-            </p>
-            <p className="text-xs text-gray-500 truncate">{detail?.product.itemName ?? ""}</p>
-          </div>
-          <button onClick={onClose} className="rounded p-1 text-gray-500 hover:bg-gray-100" aria-label="Close">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {loading ? (
+    <Drawer
+      title={detail?.product.partNumber ?? "Product"}
+      subtitle={detail?.product.itemName}
+      label="Out-of-sync product detail"
+      onClose={onClose}
+    >
+      {loading ? (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading detail…
           </div>
@@ -263,10 +456,9 @@ function DriftDetailDrawer({
                 </ul>
               )}
             </div>
-          </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </Drawer>
   );
 }
 
@@ -277,7 +469,8 @@ export function ReportsClient() {
   const [exporting, setExporting] = useState(false);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [inspectionsEnabled, setInspectionsEnabled] = useState(true);
-  const [drill, setDrill] = useState<{ projectId: string; productId: string } | null>(null);
+  const [drift, setDrift] = useState<{ projectId: string; productId: string } | null>(null);
+  const [drill, setDrill] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -312,6 +505,8 @@ export function ReportsClient() {
   function selectReport(type: ReportType) {
     setActive(type);
     setFilters({});
+    setDrill(null);
+    setDrift(null);
   }
 
   async function exportExcel() {
@@ -333,7 +528,7 @@ export function ReportsClient() {
 
   // Underscore-prefixed keys are row metadata (IDs for drill-down), not columns.
   const headers = rows.length > 0 ? Object.keys(rows[0]).filter((h) => !h.startsWith("_")) : [];
-  const drillable = active === "out-of-sync";
+  const isDrift = active === "out-of-sync";
   const activeFilters = FILTERS[active] ?? [];
   const visibleReports = REPORTS.filter((r) => inspectionsEnabled || r.type !== "inspections");
   const activeReport = REPORTS.find((r) => r.type === active)!;
@@ -373,7 +568,9 @@ export function ReportsClient() {
               <p className="text-sm font-semibold text-gray-900">{activeReport.label}</p>
               <p className="text-xs text-gray-500">
                 {activeReport.description}
-                {drillable ? " Click a row to see what changed and push a field to Salsify." : ""}
+                {isDrift
+                  ? " Click a row to see what changed and push a field to Salsify."
+                  : " Click a row for detail and links."}
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -414,15 +611,19 @@ export function ReportsClient() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {rows.map((row, i) => {
-                    const canDrill = drillable && !!row._productId && !!row._projectId;
+                    const open = isDrift
+                      ? row._productId && row._projectId
+                        ? () => setDrift({ projectId: String(row._projectId), productId: String(row._productId) })
+                        : undefined
+                      : row._detail
+                        ? () => setDrill(String(row._detail))
+                        : undefined;
                     return (
                       <tr
                         key={i}
-                        className={`hover:bg-gray-50 ${canDrill ? "cursor-pointer" : ""}`}
-                        onClick={canDrill
-                          ? () => setDrill({ projectId: String(row._projectId), productId: String(row._productId) })
-                          : undefined}
-                        title={canDrill ? "View drift detail" : undefined}
+                        className={`hover:bg-gray-50 ${open ? "cursor-pointer" : ""}`}
+                        onClick={open}
+                        title={open ? "View detail" : undefined}
                       >
                         {headers.map((h) => (
                           <td key={h} className="px-4 py-2.5 text-gray-800 whitespace-nowrap max-w-xs truncate">
@@ -445,12 +646,20 @@ export function ReportsClient() {
         </CardContent>
       </Card>
 
-      {drill && (
+      {drift && (
         <DriftDetailDrawer
-          projectId={drill.projectId}
-          productId={drill.productId}
-          onClose={() => setDrill(null)}
+          projectId={drift.projectId}
+          productId={drift.productId}
+          onClose={() => setDrift(null)}
           onResolved={() => setRefreshKey((k) => k + 1)}
+        />
+      )}
+
+      {drill && (
+        <ReportDetailDrawer
+          reportType={active}
+          detailQuery={drill}
+          onClose={() => setDrill(null)}
         />
       )}
     </div>

@@ -50,7 +50,7 @@ function fmtDate(d: Date | null | undefined): string | null {
 }
 
 // Scoping predicate: which projects can this user see?
-function projectScope(ctx: ReportContext): Prisma.ProjectWhereInput {
+export function projectScope(ctx: ReportContext): Prisma.ProjectWhereInput {
   if (ctx.isAdmin) return {};
   return { OR: [{ ownerId: ctx.userId }, { members: { some: { userId: ctx.userId } } }] };
 }
@@ -87,6 +87,7 @@ export async function inspectionsReport(ctx: ReportContext): Promise<ReportRow[]
     Products: p._count.products,
     "Created By": p.createdBy.name ?? p.createdBy.email,
     Created: fmtDate(p.createdAt),
+    _detail: `id=${p.id}`,
   }));
 }
 
@@ -125,6 +126,7 @@ export async function complianceReport(ctx: ReportContext): Promise<ReportRow[]>
     Products: e._count.products,
     "Created By": e.createdBy.name ?? e.createdBy.email,
     Created: fmtDate(e.createdAt),
+    _detail: `id=${e.id}`,
   }));
 }
 
@@ -152,6 +154,7 @@ export async function overdueStagesReport(ctx: ReportContext): Promise<ReportRow
     "Days Overdue": s.dueDate ? daysBetween(s.dueDate, now) : null,
     "Pending Approvers": s.approvals.map((a) => a.approver.name ?? a.approver.email).join(", ") || null,
     "Project Owner": s.project.owner.name ?? s.project.owner.email,
+    _detail: `id=${s.id}`,
   }));
 }
 
@@ -186,6 +189,7 @@ export async function overdueProjectsReport(ctx: ReportContext): Promise<ReportR
     "Days Overdue": p.targetLaunchDate ? daysBetween(p.targetLaunchDate, now) : null,
     "Open Stages": p._count.workflowStages,
     Products: p._count.products,
+    _detail: `id=${p.id}`,
   }));
 }
 
@@ -229,6 +233,7 @@ export async function roadblocksReport(ctx: ReportContext): Promise<ReportRow[]>
       Detail: `Waiting on ${blocker}`,
       "Days Blocked": daysBetween(s.updatedAt, now),
       Owner: s.project.owner.name ?? s.project.owner.email,
+      _detail: `kind=stage&id=${s.id}`,
     });
   }
 
@@ -255,6 +260,7 @@ export async function roadblocksReport(ctx: ReportContext): Promise<ReportRow[]>
           : `No activity for ${daysBetween(p.updatedAt, now)} days`,
       "Days Blocked": daysBetween(p.updatedAt, now),
       Owner: p.owner.name ?? p.owner.email,
+      _detail: `kind=project&id=${p.id}`,
     });
   }
 
@@ -280,6 +286,7 @@ export async function roadblocksReport(ctx: ReportContext): Promise<ReportRow[]>
       Detail: psir.referenceNumber ? `Ref ${psir.referenceNumber} — FAIL` : "Inspection result FAIL",
       "Days Blocked": daysBetween(psir.updatedAt, now),
       Owner: proj ? (proj.owner.name ?? proj.owner.email) : null,
+      _detail: `kind=inspection&id=${psir.id}`,
     });
   }
 
@@ -302,6 +309,7 @@ export async function roadblocksReport(ctx: ReportContext): Promise<ReportRow[]>
       Detail: `Awaiting vote from ${a.approver.name ?? a.approver.email}`,
       "Days Blocked": daysBetween(a.createdAt, now),
       Owner: a.stage.project.owner.name ?? a.stage.project.owner.email,
+      _detail: `kind=stage&id=${a.stageId}`,
     });
   }
 
@@ -371,28 +379,32 @@ export async function pipelineReport(ctx: ReportContext): Promise<ReportRow[]> {
       _count: { select: { products: { where: { isArchived: false } } } },
     },
   });
-  type Agg = { count: number; products: number; totalDays: number };
+  type Agg = { status: string; owner: string; ownerId: string; count: number; products: number; totalDays: number };
   const byKey = new Map<string, Agg>();
   for (const p of projects) {
-    const owner = p.owner.name ?? p.owner.email;
-    const key = `${p.status}|${owner}`;
-    const agg = byKey.get(key) ?? { count: 0, products: 0, totalDays: 0 };
+    const key = `${p.status}|${p.ownerId}`;
+    const agg = byKey.get(key) ?? {
+      status: p.status,
+      owner: p.owner.name ?? p.owner.email,
+      ownerId: p.ownerId,
+      count: 0,
+      products: 0,
+      totalDays: 0,
+    };
     agg.count++;
     agg.products += p._count.products;
     agg.totalDays += daysBetween(p.updatedAt, now);
     byKey.set(key, agg);
   }
-  return [...byKey.entries()]
-    .map(([key, agg]) => {
-      const [status, owner] = key.split("|");
-      return {
-        Status: status,
-        Owner: owner,
-        Projects: agg.count,
-        Products: agg.products,
-        "Avg Days Since Update": Math.round(agg.totalDays / agg.count),
-      };
-    })
+  return [...byKey.values()]
+    .map((agg) => ({
+      Status: agg.status,
+      Owner: agg.owner,
+      Projects: agg.count,
+      Products: agg.products,
+      "Avg Days Since Update": Math.round(agg.totalDays / agg.count),
+      _detail: `status=${encodeURIComponent(agg.status)}&ownerId=${encodeURIComponent(agg.ownerId)}`,
+    }))
     .sort((a, b) => String(a.Status).localeCompare(String(b.Status)) || String(a.Owner).localeCompare(String(b.Owner)));
 }
 

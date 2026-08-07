@@ -523,6 +523,18 @@ const sections: Section[] = [
           <LI><strong>Pipeline Summary</strong> — project and product counts by status and owner, with average days since last update. Built for leadership check-ins.</LI>
         </UL>
 
+        <H3>Clicking a row</H3>
+        <P>Every row opens a side panel with the context behind it — the related records, who owns them, what is blocking, and links to jump straight there. What you get depends on the report:</P>
+        <UL>
+          <LI><strong>Inspections</strong> — full result and inspection details, the products covered, any workflow stage waiting on this inspection, and attachments.</LI>
+          <LI><strong>Compliance</strong> — severity, days overdue, description and notes, the affected projects (with owner and how many of their products are hit), the individual products, and any stage held up by the event.</LI>
+          <LI><strong>Overdue Stages</strong> — every approver with their vote and how long they have been sitting on it, plus the stage&apos;s declared dependencies colour-coded by whether each is satisfied or still blocking.</LI>
+          <LI><strong>Overdue Projects</strong> — the open stages with due dates and pending approver counts, the team roster with edit rights, and the last few activity entries so you can see whether it is genuinely stalled or just quiet.</LI>
+          <LI><strong>Roadblocks</strong> — opens whichever panel fits the roadblock type: the stage, the project, or the inspection.</LI>
+          <LI><strong>Pipeline Summary</strong> — every project in that status-and-owner bucket, with product counts, open stages, and how long each has been idle.</LI>
+        </UL>
+        <P>Anything in a panel that links somewhere is clickable — products open the product record, projects open the project, stages open the workflow tab, inspections open the report.</P>
+
         <H3>Export to Excel</H3>
         <P>The <strong>Export to Excel</strong> button downloads exactly the rows on screen, with your filters applied, as an <Code>.xlsx</Code> file named for the report and today&apos;s date. Column widths are sized to the content.</P>
 
