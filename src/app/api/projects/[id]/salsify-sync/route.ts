@@ -108,6 +108,22 @@ export async function POST(req: NextRequest, { params }: Params) {
     },
   });
 
+  // Category scoping: an attribute tied to a category only applies to products
+  // in that category (or a descendant). Since blank values now clear Salsify
+  // data, sending another category's attributes would wipe them — they must be
+  // excluded per product, not just left empty.
+  const allCats = await prisma.category.findMany({ select: { id: true, parentId: true } });
+  const parentOf = new Map(allCats.map((c) => [c.id, c.parentId]));
+  const categoryWithAncestors = (start: string | null) => {
+    const set = new Set<string>();
+    let current: string | null | undefined = start;
+    while (current && !set.has(current)) {
+      set.add(current);
+      current = parentOf.get(current);
+    }
+    return set;
+  };
+
   const errors: string[] = [];
   let synced = 0;
 
@@ -120,10 +136,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       "salsify:id": productId,
     };
 
+    const applicableCategories = categoryWithAncestors(product.categoryId ?? project.categoryId);
+
     // Map salsify-enabled attributes — core fields read from ProductRecord directly,
     // EAV fields read from attributeValues
     for (const attr of salsifyAttrs) {
       if (!attr.salsifyPropertyId) continue;
+      if (attr.categoryId && !applicableCategories.has(attr.categoryId)) continue;
 
       const coreAccessor = CORE_FIELD_ACCESSOR[attr.key];
       let rawValue: unknown;

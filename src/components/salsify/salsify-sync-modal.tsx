@@ -15,6 +15,8 @@ type SalsifyAttr = {
 type Props = {
   /** "project" syncs all products in the project; "product" syncs a single product */
   mode: "project" | "product";
+  /** Scopes category-specific attributes to this project's category tree */
+  projectId?: string;
   /** When set, shows how many selected products will sync instead of "all" */
   syncProductCount?: number;
   onConfirm: (skipKeys: string[]) => void;
@@ -22,20 +24,20 @@ type Props = {
   syncing: boolean;
 };
 
-export function SalsifySyncModal({ mode, syncProductCount, onConfirm, onClose, syncing }: Props) {
+export function SalsifySyncModal({ mode, projectId, syncProductCount, onConfirm, onClose, syncing }: Props) {
   const [attrs, setAttrs] = useState<SalsifyAttr[]>([]);
   const [loading, setLoading] = useState(true);
   const [checked, setChecked] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    fetch("/api/attributes?salsifyOnly=true")
+    fetch(`/api/attributes?salsifyOnly=true${projectId ? `&projectId=${encodeURIComponent(projectId)}` : ""}`)
       .then((r) => r.json())
       .then((data: SalsifyAttr[]) => {
         setAttrs(data);
         setChecked(new Set(data.map((a) => a.key)));
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [projectId]);
 
   function toggle(key: string) {
     setChecked((prev) => {

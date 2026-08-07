@@ -292,6 +292,7 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
       {showSalsifyModal && (
         <SalsifySyncModal
           mode="project"
+          projectId={project.id}
           syncProductCount={salsifySelectedIds?.length}
           syncing={salsifySyncing}
           onConfirm={handleSalsifySync}

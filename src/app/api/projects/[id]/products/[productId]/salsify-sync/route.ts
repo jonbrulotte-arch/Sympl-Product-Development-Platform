@@ -101,11 +101,30 @@ export async function POST(req: NextRequest, { params }: Params) {
     },
   });
 
+  // Category scoping: an attribute tied to a category only applies to products
+  // in that category (or a descendant). Since blank values now clear Salsify
+  // data, sending another category's attributes would wipe them.
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { categoryId: true },
+  });
+  const allCats = await prisma.category.findMany({ select: { id: true, parentId: true } });
+  const parentOf = new Map(allCats.map((c) => [c.id, c.parentId]));
+  const applicableCategories = new Set<string>();
+  {
+    let current: string | null | undefined = product.categoryId ?? project?.categoryId;
+    while (current && !applicableCategories.has(current)) {
+      applicableCategories.add(current);
+      current = parentOf.get(current);
+    }
+  }
+
   const salsifyId = product.partNumber ?? product.id;
   const salsifyProduct: Record<string, unknown> = { "salsify:id": salsifyId };
 
   for (const attr of salsifyAttrs) {
     if (!attr.salsifyPropertyId) continue;
+    if (attr.categoryId && !applicableCategories.has(attr.categoryId)) continue;
     const coreAccessor = CORE_FIELD_ACCESSOR[attr.key];
     let rawValue: unknown;
 
