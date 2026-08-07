@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canEditProject } from "@/lib/permissions";
 import { logActivity } from "@/lib/activity";
-import { sendMail, workflowVoteEmail, stageCompletedEmail, stageAssignedEmail } from "@/lib/email";
+import { workflowVoteEmail, stageCompletedEmail } from "@/lib/email";
 import { createNotification, createNotificationForMany } from "@/lib/notifications";
 import type { ProjectStatus } from "@prisma/client";
 
@@ -278,12 +278,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     // Notify other approvers of this vote
     for (const approver of otherApprovers) {
-      sendMail(
-        approver.email,
-        `${voterName} ${vote === "APPROVED" ? "approved" : "rejected"} "${stage.name}"`,
-        workflowVoteEmail({ toName: approver.name ?? approver.email, projectName: project.name, stageName: stage.name, voterName, vote: vote as "APPROVED" | "REJECTED", comment: voteComment, projectId })
-      ).catch(() => {});
       createNotification({
+        emailHtml: workflowVoteEmail({ toName: approver.name ?? approver.email, projectName: project.name, stageName: stage.name, voterName, vote: vote as "APPROVED" | "REJECTED", comment: voteComment, projectId }),
         userId: approver.id,
         title: `${voterName} ${vote === "APPROVED" ? "approved" : "rejected"} "${stage.name}"`,
         message: `In project ${project.name}${voteComment ? `: "${voteComment}"` : ""}`,
@@ -301,14 +297,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         include: { user: { select: { id: true, email: true, name: true } } },
       });
       const memberUserIds = members.map((m) => m.user.id);
-      for (const m of members) {
-        sendMail(
-          m.user.email,
-          `Workflow stage ${newStageStatus === "APPROVED" ? "approved" : "rejected"}: ${stage.name}`,
-          stageCompletedEmail({ projectName: project.name, stageName: stage.name, result: newStageStatus as "APPROVED" | "REJECTED", projectId })
-        ).catch(() => {});
-      }
       createNotificationForMany(memberUserIds, {
+        emailHtml: stageCompletedEmail({ projectName: project.name, stageName: stage.name, result: newStageStatus as "APPROVED" | "REJECTED", projectId }),
         title: `Stage ${newStageStatus === "APPROVED" ? "approved" : "rejected"}: ${stage.name}`,
         message: `All approvers have voted in project ${project.name}`,
         type: newStageStatus === "APPROVED" ? "success" : "error",

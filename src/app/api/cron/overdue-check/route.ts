@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
 import { createHash } from "crypto";
 import { createNotificationForMany } from "@/lib/notifications";
-import { sendMail } from "@/lib/email";
 
 // Scans for compliance events and workflow stages that have gone past their
 // due date and notifies the people responsible — once per item, tracked via
@@ -66,16 +65,8 @@ export async function POST(req: NextRequest) {
       type: "error",
       category: "COMPLIANCE",
       link: "/compliance",
+      emailHtml: `<p>The compliance event <strong>${ev.title}</strong> was due ${ev.dueDate!.toLocaleDateString()} and is still open.</p><p>Review it in Sympl PM → Compliance.</p>`,
     });
-
-    // Best-effort email to the creator
-    if (ev.createdBy.email) {
-      await sendMail(
-        ev.createdBy.email,
-        `Overdue compliance event: ${ev.title}`,
-        `<p>The compliance event <strong>${ev.title}</strong> was due ${ev.dueDate!.toLocaleDateString()} and is still open.</p><p>Review it in Sympl PM → Compliance.</p>`
-      );
-    }
 
     await prisma.complianceEvent.update({
       where: { id: ev.id },
@@ -115,17 +106,8 @@ export async function POST(req: NextRequest) {
       category: "WORKFLOW",
       link: `/projects/${stage.project.id}?tab=workflow`,
       projectId: stage.project.id,
+      emailHtml: `<p>The workflow stage <strong>${stage.name}</strong> in project <strong>${stage.project.name}</strong> was due ${stage.dueDate!.toLocaleDateString()} and is waiting on approval.</p>`,
     });
-
-    for (const approver of pendingApprovers) {
-      if (approver.email) {
-        await sendMail(
-          approver.email,
-          `Approval overdue: ${stage.name} — ${stage.project.name}`,
-          `<p>The workflow stage <strong>${stage.name}</strong> in project <strong>${stage.project.name}</strong> was due ${stage.dueDate!.toLocaleDateString()} and is waiting on your approval.</p>`
-        );
-      }
-    }
 
     await prisma.workflowStage.update({
       where: { id: stage.id },

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canEditProject } from "@/lib/permissions";
-import { sendMail, stageAssignedEmail } from "@/lib/email";
+import { stageAssignedEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
@@ -34,12 +34,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     include: { approver: { select: { id: true, name: true, email: true, image: true, role: true } } },
   });
 
-  // Notify the newly assigned approver
-  sendMail(
-    approval.approver.email,
-    `You've been assigned as an approver on "${stageName?.name ?? "a workflow stage"}"`,
-    stageAssignedEmail({ toName: approval.approver.name ?? approval.approver.email, projectName: project.name, stageName: stageName?.name ?? "a workflow stage", projectId })
-  ).catch(() => {});
+  // Notify the newly assigned approver (inbox + email per their preferences)
   createNotification({
     userId: userId,
     title: `You've been assigned as an approver`,
@@ -48,6 +43,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     category: "ASSIGNMENT",
     link: `/projects/${projectId}`,
     projectId,
+    emailHtml: stageAssignedEmail({ toName: approval.approver.name ?? approval.approver.email, projectName: project.name, stageName: stageName?.name ?? "a workflow stage", projectId }),
   });
 
   return NextResponse.json(approval, { status: 201 });

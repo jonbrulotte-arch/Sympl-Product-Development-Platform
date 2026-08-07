@@ -5,7 +5,7 @@ import { projectSchema } from "@/lib/validation";
 import { canEditProject, canDeleteProject } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
-import { sendMail, projectStatusEmail } from "@/lib/email";
+import { projectStatusEmail } from "@/lib/email";
 import { createNotificationForMany } from "@/lib/notifications";
 import { deleteUploadFile, parseCommentAttachments } from "@/lib/uploads";
 
@@ -140,13 +140,6 @@ export async function PATCH(
       include: { user: { select: { id: true, email: true } } },
     });
     function fmtStatus(s: string) { return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
-    for (const m of members) {
-      sendMail(
-        m.user.email,
-        `Project status updated: ${updated.name}`,
-        projectStatusEmail({ projectName: updated.name, oldStatus: project.status, newStatus: rest.status, changedBy, projectId: id })
-      ).catch(() => {});
-    }
     createNotificationForMany(members.map((m) => m.user.id), {
       title: `${updated.name} status changed`,
       message: `${changedBy} changed the status from ${fmtStatus(project.status)} to ${fmtStatus(rest.status)}`,
@@ -154,6 +147,7 @@ export async function PATCH(
       category: "WORKFLOW",
       link: `/projects/${id}`,
       projectId: id,
+      emailHtml: projectStatusEmail({ projectName: updated.name, oldStatus: project.status, newStatus: rest.status, changedBy, projectId: id }),
     });
   }
 
