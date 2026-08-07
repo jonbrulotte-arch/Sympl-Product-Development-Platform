@@ -75,6 +75,8 @@ export default async function ProductEditPage({
     }),
   ]);
 
+  const salsifyConfig = await prisma.salsifyConfig.findFirst({ select: { organizationId: true, isEnabled: true } });
+
   const duplicateOf = await findDuplicateForProduct(product.partNumber, product.projectId, product.id);
 
   const serialized = JSON.parse(
@@ -90,6 +92,7 @@ export default async function ProductEditPage({
       effectiveCategoryId={effectiveCategoryId}
       projectCategory={serialized.product.project.category ?? null}
       userRole={session.user.role}
+      salsifyOrgId={salsifyConfig?.organizationId ?? null}
     />
   );
 }

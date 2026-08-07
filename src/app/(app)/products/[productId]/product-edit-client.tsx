@@ -80,9 +80,26 @@ interface Props {
   effectiveCategoryId: string | null;
   projectCategory: { id: string; name: string } | null;
   userRole: string;
+  salsifyOrgId: string | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function salsifyThumbUrl(url: string): string {
+  const m = url.match(/^(https:\/\/images\.salsify\.com\/image\/upload\/)(s--[A-Za-z0-9_-]+--\/)(.+)$/);
+  if (m) return `${m[1]}${m[2]}c_lpad,cs_srgb,d_thumb_default,h_100,w_100/${m[3]}`;
+  const m2 = url.match(/^(https:\/\/images\.salsify\.com\/image\/upload\/)(.+)$/);
+  if (m2) return `${m2[1]}c_lpad,cs_srgb,d_thumb_default,h_100,w_100/${m2[2]}`;
+  return url;
+}
+
+function salsifySquareUrl(url: string): string {
+  const m = url.match(/^(https:\/\/images\.salsify\.com\/image\/upload\/)(s--[A-Za-z0-9_-]+--\/)(.+)$/);
+  if (m) return `${m[1]}${m[2]}c_lpad,cs_srgb,d_thumb_default,h_600,w_600/${m[3]}`;
+  const m2 = url.match(/^(https:\/\/images\.salsify\.com\/image\/upload\/)(.+)$/);
+  if (m2) return `${m2[1]}c_lpad,cs_srgb,d_thumb_default,h_600,w_600/${m2[2]}`;
+  return url;
+}
 
 function productToCore(p: Product): Record<string, string | boolean> {
   const out: Record<string, string | boolean> = {};
@@ -574,7 +591,7 @@ function PsirPanel({ productId }: { productId: string }) {
 
 type Tab = "details" | "compliance" | "psir" | "history";
 
-export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory, userRole }: Props) {
+export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory, userRole, salsifyOrgId }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<Tab>("details");
@@ -590,6 +607,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
   const [syncStatus, setSyncStatus] = useState<"idle" | "synced" | "error">("idle");
   const [syncError, setSyncError] = useState<string | null>(null);
   const [showSalsifyModal, setShowSalsifyModal] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const canSync = userRole === "ADMIN" || userRole === "PRODUCT_MANAGER";
 
@@ -863,44 +881,119 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
             </div>
 
             {/* Salsify pull-back panel */}
-            {product.salsifyData && (
-              <div className="bg-sky-50/60 border border-sky-200 rounded-lg p-4 space-y-2">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <p className="text-sm font-semibold text-sky-900">In Salsify</p>
-                  <p className="text-xs text-sky-700">
-                    {product.salsifyData.updatedAt && `Salsify last updated ${formatDate(product.salsifyData.updatedAt)} · `}
-                    {typeof product.salsifyData.propertyCount === "number" && `${product.salsifyData.propertyCount} properties · `}
-                    Pulled {product.salsifyLastPulledAt ? formatDate(product.salsifyLastPulledAt) : "—"}
-                  </p>
-                </div>
-                {(product.salsifyData.digitalAssets?.length ?? 0) > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {product.salsifyData.digitalAssets!.map((a, i) => (
-                      <a
-                        key={i}
-                        href={a.url ?? "#"}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="group border border-sky-200 rounded-lg overflow-hidden bg-white hover:border-sky-400 transition-colors"
-                        title={a.name ?? undefined}
-                      >
-                        {a.url && /\.(png|jpe?g|gif|webp)($|\?)/i.test(a.url) ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={a.url} alt={a.name ?? ""} className="h-20 w-20 object-cover" />
+            {product.salsifyData && (() => {
+              const imageAssets = (product.salsifyData.digitalAssets ?? [])
+                .map((a, i) => ({ ...a, _idx: i }))
+                .filter((a) => a.url && /\.(png|jpe?g|gif|webp)($|\?)/i.test(a.url));
+              return (
+                <div className="bg-sky-50/60 border border-sky-200 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-sky-900">In Salsify</p>
+                      {salsifyOrgId && product.partNumber && (
+                        <a
+                          href={`https://app.salsify.com/app/orgs/${encodeURIComponent(salsifyOrgId)}/products/v2/${encodeURIComponent(product.partNumber)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-sky-700 hover:text-sky-900 font-medium"
+                        >
+                          View in Salsify <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                    <p className="text-xs text-sky-700">
+                      {product.salsifyData.updatedAt && `Salsify last updated ${formatDate(product.salsifyData.updatedAt)} · `}
+                      {typeof product.salsifyData.propertyCount === "number" && `${product.salsifyData.propertyCount} properties · `}
+                      Pulled {product.salsifyLastPulledAt ? formatDate(product.salsifyLastPulledAt) : "—"}
+                    </p>
+                  </div>
+                  {(product.salsifyData.digitalAssets?.length ?? 0) > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {product.salsifyData.digitalAssets!.map((a, i) => {
+                        const isImage = a.url && /\.(png|jpe?g|gif|webp)($|\?)/i.test(a.url);
+                        const imageIdx = isImage ? imageAssets.findIndex((ia) => ia._idx === i) : -1;
+                        return isImage ? (
+                          <button
+                            key={i}
+                            onClick={() => setLightboxIndex(imageIdx)}
+                            className="group border border-sky-200 rounded-lg overflow-hidden bg-white hover:border-sky-400 transition-colors cursor-pointer"
+                            title={a.name ?? undefined}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={salsifyThumbUrl(a.url!)} alt={a.name ?? ""} className="h-20 w-20 object-contain" />
+                          </button>
                         ) : (
-                          <div className="h-20 w-20 flex flex-col items-center justify-center text-sky-600 text-xs gap-1 px-1 text-center">
-                            <FileText className="h-5 w-5" />
-                            <span className="truncate w-full">{a.format ?? "asset"}</span>
+                          <a
+                            key={i}
+                            href={a.url ?? "#"}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="group border border-sky-200 rounded-lg overflow-hidden bg-white hover:border-sky-400 transition-colors"
+                            title={a.name ?? undefined}
+                          >
+                            <div className="h-20 w-20 flex flex-col items-center justify-center text-sky-600 text-xs gap-1 px-1 text-center">
+                              <FileText className="h-5 w-5" />
+                              <span className="truncate w-full">{a.format ?? "asset"}</span>
+                            </div>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-sky-700">No digital assets on the Salsify side.</p>
+                  )}
+
+                  {/* Lightbox */}
+                  {lightboxIndex !== null && imageAssets.length > 0 && (
+                    <div
+                      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center"
+                      onClick={() => setLightboxIndex(null)}
+                    >
+                      <div
+                        className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          onClick={() => setLightboxIndex(null)}
+                          className="absolute -top-3 -right-3 z-10 bg-white rounded-full p-1.5 shadow-lg text-gray-600 hover:text-gray-900"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={salsifySquareUrl(imageAssets[lightboxIndex]?.url ?? "")}
+                          alt={imageAssets[lightboxIndex]?.name ?? ""}
+                          className="rounded-xl shadow-2xl object-contain"
+                          style={{ maxWidth: "min(600px, 85vw)", maxHeight: "min(600px, 75vh)", aspectRatio: "1/1" }}
+                        />
+                        {imageAssets.length > 1 && (
+                          <div className="flex items-center gap-4 mt-4">
+                            <button
+                              onClick={() => setLightboxIndex((lightboxIndex - 1 + imageAssets.length) % imageAssets.length)}
+                              className="bg-white/90 hover:bg-white rounded-full p-2 shadow text-gray-700"
+                            >
+                              <ChevronUp className="h-5 w-5 -rotate-90" />
+                            </button>
+                            <span className="text-white text-sm font-medium">
+                              {lightboxIndex + 1} / {imageAssets.length}
+                            </span>
+                            <button
+                              onClick={() => setLightboxIndex((lightboxIndex + 1) % imageAssets.length)}
+                              className="bg-white/90 hover:bg-white rounded-full p-2 shadow text-gray-700"
+                            >
+                              <ChevronDown className="h-5 w-5 -rotate-90" />
+                            </button>
                           </div>
                         )}
-                      </a>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-sky-700">No digital assets on the Salsify side.</p>
-                )}
-              </div>
-            )}
+                        <p className="text-white/80 text-xs mt-2 max-w-md text-center truncate">
+                          {imageAssets[lightboxIndex]?.name ?? ""}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Attribute sections (core + EAV merged) */}
             {allGroups.map((group) => (
