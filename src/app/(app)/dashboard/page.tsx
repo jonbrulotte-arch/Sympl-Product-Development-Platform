@@ -4,15 +4,25 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
+import {
+  entityLabel, fieldLabel, actionTone, prettyValue,
+  subjectFromMetadata, commentFromMetadata, relativeTime,
+} from "@/lib/activity-format";
 import { FolderKanban, Package, Clock, CheckCircle2, AlertCircle, ShieldAlert, ExternalLink } from "lucide-react";
 import { seesAllProjects } from "@/lib/permissions";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ activity?: string }>;
+}) {
   const session = await auth();
   if (!session?.user?.id) return null;
 
   const userId = session.user.id;
+  const onlyMine = (await searchParams).activity === "mine";
+  const seesAll = seesAllProjects(session.user.role);
 
   const [myProjects, needsReview, recentActivity, stats, pendingApprovalsData] = await Promise.all([
     prisma.project.findMany({
@@ -47,14 +57,28 @@ export default async function DashboardPage() {
       take: 5,
     }),
     prisma.activityLog.findMany({
-      where: { userId },
+      // Activity across every project the viewer can reach, not only their own
+      // actions — the point of a dashboard feed is seeing what the team did.
+      // ?activity=mine narrows it back to the viewer.
+      where: onlyMine
+        ? { userId }
+        : {
+            OR: [
+              { userId },
+              {
+                project: seesAll
+                  ? { isArchived: false }
+                  : { isArchived: false, OR: [{ ownerId: userId }, { members: { some: { userId } } }] },
+              },
+            ],
+          },
       include: {
-        user: { select: { id: true, name: true } },
+        user: { select: { id: true, name: true, email: true, image: true } },
         project: { select: { id: true, name: true } },
         product: { select: { id: true, partNumber: true, itemName: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: 10,
+      take: 12,
     }),
     Promise.all([
       prisma.project.count({ where: { isArchived: false, OR: [{ ownerId: userId }, { members: { some: { userId } } }] } }),
@@ -76,7 +100,7 @@ export default async function DashboardPage() {
   ]);
 
   // Overdue compliance events on products in projects this user can see
-  const isAdmin = seesAllProjects(session.user.role);
+  const isAdmin = seesAll;
   const overdueCompliance = await prisma.complianceEvent.findMany({
     where: {
       status: { in: ["OPEN", "IN_PROGRESS"] },
@@ -325,68 +349,120 @@ export default async function DashboardPage() {
         {/* Recent Activity */}
         <div>
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base">Recent Activity</CardTitle>
+              <div className="flex items-center gap-1 text-xs">
+                <Link
+                  href="/dashboard"
+                  className={`px-2 py-0.5 rounded ${!onlyMine ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-500 hover:text-gray-700"}`}
+                >
+                  Team
+                </Link>
+                <Link
+                  href="/dashboard?activity=mine"
+                  className={`px-2 py-0.5 rounded ${onlyMine ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-500 hover:text-gray-700"}`}
+                >
+                  Mine
+                </Link>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-gray-100">
                 {recentActivity.length === 0 && (
-                  <p className="px-4 py-4 text-sm text-gray-400">No recent activity.</p>
+                  <p className="px-4 py-4 text-sm text-gray-400">
+                    {onlyMine ? "You have no recent activity." : "No recent activity."}
+                  </p>
                 )}
                 {recentActivity.map((log) => {
-                  const productLabel = log.product?.partNumber ?? log.product?.itemName ?? null;
-                  const entityLabel =
-                    log.entityType === "ProductRecord" ? "product" :
-                    log.entityType === "WorkflowStage" ? "workflow stage" :
-                    log.entityType === "Project" ? "project" :
-                    log.entityType.toLowerCase();
-                  const actionColor =
-                    log.action === "DELETED" ? "bg-red-50 text-red-600" :
-                    log.action === "CREATED" ? "bg-green-50 text-green-600" :
-                    "bg-blue-50 text-blue-600";
-                  const truncate = (v: string, n = 40) => v.length > n ? v.slice(0, n) + "…" : v;
+                  const subject =
+                    log.product?.partNumber ??
+                    log.product?.itemName ??
+                    subjectFromMetadata(log.metadata) ??
+                    (log.entityType === "Project" ? log.project?.name ?? null : null);
+                  const comment = commentFromMetadata(log.metadata);
+                  const actor = log.user.name ?? log.user.email;
+                  const isSelf = log.user.id === userId;
+                  const truncate = (v: string, n = 44) => (v.length > n ? v.slice(0, n) + "…" : v);
+
                   return (
-                    <div key={log.id} className="px-4 py-2.5 space-y-1">
-                      <p className="text-xs text-gray-700">
-                        <span className={`inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded mr-1.5 ${actionColor}`}>
-                          {log.action}
-                        </span>
-                        {entityLabel}
-                        {log.fieldKey && <span className="text-gray-500"> · {log.fieldKey}</span>}
-                        {log.source && (
-                          <span className="ml-1.5 inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
-                            via {log.source}
+                    <div key={log.id} className="px-4 py-3 space-y-1.5">
+                      {/* Who + what + when */}
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs text-gray-700 leading-relaxed">
+                          <span className={`inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded mr-1.5 ${actionTone(log.action)}`}>
+                            {log.action.replace(/_/g, " ")}
                           </span>
-                        )}
-                      </p>
-                      {log.project && (
+                          <span className="font-medium text-gray-900">{isSelf ? "You" : actor}</span>
+                          <span className="text-gray-500"> · {entityLabel(log.entityType)}</span>
+                          {log.fieldKey && (
+                            <span className="text-gray-500"> · {fieldLabel(log.fieldKey)}</span>
+                          )}
+                        </p>
+                        <span
+                          className="text-[11px] text-gray-400 shrink-0 whitespace-nowrap"
+                          title={formatDateTime(log.createdAt)}
+                        >
+                          {relativeTime(log.createdAt)}
+                        </span>
+                      </div>
+
+                      {/* What it was about */}
+                      {subject && log.entityType !== "Project" && (
                         <p className="text-xs text-gray-600">
+                          {log.product?.id ? (
+                            <Link
+                              href={`/products/${log.product.id}`}
+                              className="font-medium text-blue-700 hover:text-blue-900 hover:underline"
+                            >
+                              {subject}
+                            </Link>
+                          ) : (
+                            <span className="font-medium text-gray-800">{subject}</span>
+                          )}
+                        </p>
+                      )}
+
+                      {/* Old → new */}
+                      {log.fieldKey && (log.oldValue != null || log.newValue != null) && (
+                        <div className="flex items-center gap-1.5 text-xs flex-wrap">
+                          {log.oldValue != null && (
+                            <span className="bg-red-50 text-red-700 px-1.5 py-0.5 rounded line-through">
+                              {truncate(prettyValue(log.oldValue)) || "empty"}
+                            </span>
+                          )}
+                          {log.oldValue != null && log.newValue != null && <span className="text-gray-400">→</span>}
+                          {log.newValue != null && (
+                            <span className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded font-medium">
+                              {truncate(prettyValue(log.newValue)) || "empty"}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Approver comment, when the entry carries one */}
+                      {comment && (
+                        <p className="text-xs text-gray-600 italic border-l-2 border-gray-200 pl-2">
+                          &ldquo;{truncate(comment, 90)}&rdquo;
+                        </p>
+                      )}
+
+                      {/* Where + how */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {log.project && (
                           <Link
                             href={`/projects/${log.project.id}`}
-                            className="font-medium text-blue-700 hover:text-blue-900 hover:underline inline-flex items-center gap-0.5"
+                            className="text-xs font-medium text-blue-700 hover:text-blue-900 hover:underline inline-flex items-center gap-0.5"
                           >
                             {log.project.name}
                             <ExternalLink className="h-2.5 w-2.5" />
                           </Link>
-                        </p>
-                      )}
-                      {productLabel && (
-                        <p className="text-xs text-gray-600">
-                          Product: <span className="font-medium text-gray-800">{productLabel}</span>
-                        </p>
-                      )}
-                      {log.fieldKey && (log.oldValue != null || log.newValue != null) && (
-                        <div className="flex items-center gap-1.5 text-xs flex-wrap">
-                          {log.oldValue != null && (
-                            <span className="bg-red-50 text-red-700 px-1.5 py-0.5 rounded line-through">{truncate(log.oldValue)}</span>
-                          )}
-                          {log.oldValue != null && log.newValue != null && <span className="text-gray-500">→</span>}
-                          {log.newValue != null && (
-                            <span className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded">{truncate(log.newValue)}</span>
-                          )}
-                        </div>
-                      )}
-                      <p className="text-xs text-gray-500">{formatDate(log.createdAt)}</p>
+                        )}
+                        {log.source && (
+                          <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                            via {log.source}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

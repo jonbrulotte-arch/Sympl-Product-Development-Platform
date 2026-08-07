@@ -173,7 +173,10 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 
   // Verify the product actually belongs to the project the caller was authorized on
-  const target = await prisma.productRecord.findUnique({ where: { id: productId }, select: { projectId: true } });
+  const target = await prisma.productRecord.findUnique({
+    where: { id: productId },
+    select: { projectId: true, partNumber: true, itemName: true },
+  });
   if (!target || target.projectId !== projectId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -190,6 +193,10 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     entityId: productId,
     projectId,
     productId,
+    // Kept in metadata because the product relation is nulled if the record is
+    // ever purged — without this the entry reads "deleted product" and nothing else.
+    oldValue: target.partNumber ?? target.itemName ?? undefined,
+    metadata: { partNumber: target.partNumber, itemName: target.itemName },
   }).catch(() => {});
 
   return NextResponse.json({ success: true });
