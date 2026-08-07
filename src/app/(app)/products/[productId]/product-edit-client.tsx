@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { CORE_FIELDS } from "@/lib/core-fields";
 import {
   ArrowLeft, ExternalLink, Save, CheckCircle2, AlertCircle, RefreshCw,
@@ -124,16 +124,28 @@ function FieldInput({
   const isMulti = attr.maxValues > 1 || attr.attributeType === "MULTI_SELECT";
 
   if (isBoolean) {
+    const checked = value === true;
     return (
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={value === true}
-          onChange={(e) => onChange(e.target.checked)}
-          className="h-4 w-4 rounded accent-blue-600"
-        />
-        <span className="text-sm text-gray-700">Yes</span>
-      </label>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        className="flex items-center gap-2 cursor-pointer"
+        onClick={() => onChange(!checked)}
+      >
+        <span className={cn(
+          "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
+          checked ? "bg-green-500" : "bg-gray-300"
+        )}>
+          <span className={cn(
+            "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
+            checked ? "translate-x-4" : "translate-x-0.5"
+          )} />
+        </span>
+        <span className={cn("text-sm font-medium", checked ? "text-green-600" : "text-gray-400")}>
+          {checked ? "Yes" : "No"}
+        </span>
+      </button>
     );
   }
 
