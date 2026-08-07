@@ -11,7 +11,13 @@ export default auth((req: NextRequest & { auth: unknown }) => {
   // API routes and auth routes pass through — they handle auth themselves.
   // /share/<token> pages are intentionally public: access is controlled by
   // the unguessable, expiring token itself.
-  if (pathname.startsWith("/api/") || pathname.startsWith("/login") || pathname.startsWith("/share/")) {
+  if (
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/share/")
+  ) {
     return NextResponse.next();
   }
 
