@@ -18,6 +18,7 @@ import { EventCard, type ComplianceEventCardData } from "@/components/compliance
 import { PsirCard, type PsirCardData } from "@/components/psir/psir-card";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface AttributeDef {
   id: string;
@@ -1645,6 +1646,8 @@ function SettingsView({
   project: ProjectWithRelations; canEdit: boolean; onSaved: () => void; allCategories?: CategoryOption[]; userRole?: string;
 }) {
   const router = useRouter();
+  const { can: hasPermission } = usePermissions();
+  const canOverrideStatus = hasPermission("projects:override_status");
 
   // Project fields
   const [name, setName] = useState(project.name);
@@ -2058,7 +2061,7 @@ function SettingsView({
       </section>
 
       {/* Status Override */}
-      {["ADMIN", "DIRECTOR", "PRODUCT_MANAGER"].includes(userRole ?? "") && (
+      {canOverrideStatus && (
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Project Status</h2>
           <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-3">

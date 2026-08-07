@@ -1,9 +1,10 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { canMutateQaRecords } from "@/lib/project-access";
+
 import { createNotificationForMany, getOwnerIdsForProducts } from "@/lib/notifications";
 import { requireInspectionsEnabled } from "@/lib/app-config";
+import { can } from "@/lib/permissions";
 
 export const PSIR_INCLUDE = {
   createdBy: { select: { id: true, name: true, email: true } },
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
   if (disabled) return disabled;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!canMutateQaRecords(session.user.role)) {
+  if (!(await can(session.user.role, "inspections:manage"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

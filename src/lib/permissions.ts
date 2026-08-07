@@ -74,6 +74,8 @@ export const PERMISSIONS = {
   "admin:backup":             { label: "Backup & Restore",         description: "Run backups and restore from snapshots" },
   "admin:settings":           { label: "Global Settings",          description: "Manage Salsify and other integration settings" },
   "projects:create":          { label: "Create Projects",          description: "Create new product development projects" },
+  "compliance:manage":        { label: "Manage Compliance Events", description: "Create, edit, and delete compliance events and their documents" },
+  "inspections:manage":       { label: "Manage Inspection Reports", description: "Create, edit, and delete inspection reports and their documents" },
   "products:sync_salsify":    { label: "Sync to Salsify",          description: "Push product data to Salsify" },
   "projects:override_status": { label: "Override Project Status",  description: "Manually set project status from the Settings tab" },
 } as const;
@@ -85,6 +87,7 @@ export type Permission = keyof typeof PERMISSIONS;
 const PM_PERMISSIONS: Permission[] = [
   "admin:categories", "admin:attributes", "projects:create",
   "products:sync_salsify", "projects:override_status",
+  "compliance:manage", "inspections:manage",
 ];
 
 const PERMISSION_DEFAULTS: Record<string, Permission[]> = {

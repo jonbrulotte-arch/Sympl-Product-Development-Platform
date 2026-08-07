@@ -139,6 +139,14 @@ const sections: Section[] = [
           <LI><strong>Viewer</strong> — read-only access to their projects.</LI>
         </UL>
 
+        <H3>What a role can do</H3>
+        <P>Roles carry two separate kinds of access, and it&apos;s worth keeping them apart:</P>
+        <UL>
+          <LI><strong>Permissions</strong> — global capabilities like creating projects, managing compliance events, or syncing to Salsify. Admins map these to roles in <strong>Admin &rarr; Access Control</strong>, and changes take effect within 30 seconds.</LI>
+          <LI><strong>Project membership</strong> — what you can do <em>inside</em> a given project. Editing products, workflow stages, and members requires being the project owner or a member with edit rights, regardless of your role. A Contributor edits products in projects they belong to and nothing in projects they don&apos;t.</LI>
+        </UL>
+        <Callout>Every permission is enforced by the server, not just hidden in the interface. If a button isn&apos;t visible, the underlying API refuses the request too.</Callout>
+
         <H3>Adding people to Sympl</H3>
         <P>Admins add users from <strong>Admin &rarr; Users &rarr; Add User</strong> by entering a name, email, and role. Sympl creates the account without a password and emails an invitation link — administrators never set or handle anyone else&apos;s password.</P>
         <UL>

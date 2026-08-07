@@ -134,6 +134,36 @@ Accounts that already have a password can't be re-invited; use **Change password
 
 ---
 
+## Access Control
+
+**Admin → Access Control** maps each permission to the roles that hold it. Changes take effect within 30 seconds (the permission cache TTL).
+
+| Permission | Default roles |
+|---|---|
+| Manage Users | Admin |
+| Manage Categories | Admin, Director, Product Manager |
+| Manage Attributes | Admin, Director, Product Manager |
+| Manage Workflow Templates | Admin |
+| Manage Compliance Types | Admin |
+| Manage Inspection Attributes | Admin |
+| Backup & Restore | Admin |
+| Global Settings | Admin |
+| Create Projects | Admin, Director, Product Manager |
+| Manage Compliance Events | Admin, Director, Product Manager |
+| Manage Inspection Reports | Admin, Director, Product Manager |
+| Sync to Salsify | Admin, Director, Product Manager |
+| Override Project Status | Admin, Director, Product Manager |
+
+Every permission is enforced server-side in the API route, not only hidden in the UI. Client components read their own grants from `GET /api/config` (`permissions`) purely to hide actions the API would refuse.
+
+**Not governed by this matrix** — these follow project membership rather than role:
+
+- Editing products, workflow stages, members, and comments within a project requires being the owner or a member with edit rights (`canEditProject`). A Contributor can edit products in projects they belong to, and nothing in projects they don't.
+- Casting approval votes requires being an assigned approver on the stage.
+- Admins bypass both; Directors get read access to every project but still need ownership or membership to edit.
+
+---
+
 ## Project Statuses
 
 | Status | Meaning |

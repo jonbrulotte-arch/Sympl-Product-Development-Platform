@@ -8,6 +8,7 @@ import {
   ClipboardCheck, Plus, Search, X, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { PsirCard } from "@/components/psir/psir-card";
+import { usePermissions } from "@/hooks/use-permissions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -106,6 +107,8 @@ function QuickCreateModal({
 // ─── Main Browser ─────────────────────────────────────────────────────────────
 
 export function PsirBrowser() {
+  const { can: hasPermission } = usePermissions();
+  const canManage = hasPermission("inspections:manage");
   const router = useRouter();
   const [psirs, setPsirs] = useState<PsirRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -182,9 +185,11 @@ export function PsirBrowser() {
               </p>
             </div>
           </div>
-          <Button onClick={() => setShowCreate(true)} size="sm">
-            <Plus className="h-4 w-4 mr-1.5" /> New Report
-          </Button>
+          {canManage && (
+            <Button onClick={() => setShowCreate(true)} size="sm">
+              <Plus className="h-4 w-4 mr-1.5" /> New Report
+            </Button>
+          )}
         </div>
       </div>
 
@@ -220,9 +225,11 @@ export function PsirBrowser() {
             <ClipboardCheck className="h-12 w-12 text-gray-200 mb-3" />
             <p className="text-gray-500 font-medium">No inspection reports yet</p>
             <p className="text-gray-500 text-sm mt-1">Create your first PSIR to track pre-shipment quality inspections.</p>
-            <Button className="mt-4" onClick={() => setShowCreate(true)} size="sm">
-              <Plus className="h-4 w-4 mr-1.5" /> New Report
-            </Button>
+            {canManage && (
+              <Button className="mt-4" onClick={() => setShowCreate(true)} size="sm">
+                <Plus className="h-4 w-4 mr-1.5" /> New Report
+              </Button>
+            )}
           </div>
         )}
         {!loading && psirs.map((psir) => (

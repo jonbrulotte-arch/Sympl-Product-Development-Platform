@@ -9,6 +9,7 @@ import {
   Trash2, Paperclip, FileText, Upload,
 } from "lucide-react";
 import { EventCard } from "@/components/compliance/event-card";
+import { usePermissions } from "@/hooks/use-permissions";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -553,6 +554,8 @@ function EventModal({
 // ─── Main Browser ─────────────────────────────────────────────────────────────
 
 export function ComplianceBrowser() {
+  const { can: hasPermission } = usePermissions();
+  const canManage = hasPermission("compliance:manage");
   const [events, setEvents] = useState<ComplianceEvent[]>([]);
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [total, setTotal] = useState(0);
@@ -644,9 +647,11 @@ export function ComplianceBrowser() {
               </p>
             </div>
           </div>
-          <Button onClick={() => { setEditEvent(null); setShowModal(true); }} size="sm">
-            <Plus className="h-4 w-4 mr-1.5" /> New Event
-          </Button>
+          {canManage && (
+            <Button onClick={() => { setEditEvent(null); setShowModal(true); }} size="sm">
+              <Plus className="h-4 w-4 mr-1.5" /> New Event
+            </Button>
+          )}
         </div>
       </div>
 
@@ -700,9 +705,11 @@ export function ComplianceBrowser() {
             <ShieldCheck className="h-12 w-12 text-gray-200 mb-3" />
             <p className="text-gray-500 font-medium">No compliance events found</p>
             <p className="text-gray-500 text-sm mt-1">Create an event to track product compliance issues</p>
-            <Button className="mt-4" onClick={() => setShowModal(true)} size="sm">
-              <Plus className="h-4 w-4 mr-1.5" /> New Event
-            </Button>
+            {canManage && (
+              <Button className="mt-4" onClick={() => setShowModal(true)} size="sm">
+                <Plus className="h-4 w-4 mr-1.5" /> New Event
+              </Button>
+            )}
           </div>
         )}
         {!loading && events

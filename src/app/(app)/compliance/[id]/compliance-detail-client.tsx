@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDate } from "@/lib/utils";
 import { ShareLinkButton } from "@/components/share-link-button";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   ArrowLeft, Save, CheckCircle2, Trash2, FileText, X, Search,
   ExternalLink, ShieldCheck, Upload, RefreshCw,
@@ -97,7 +98,8 @@ export function ComplianceDetailClient({ eventId, userRole }: { eventId: string;
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const canEdit = ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER", "CONTRIBUTOR"].includes(userRole);
+  const { can: hasPermission } = usePermissions();
+  const canEdit = hasPermission("compliance:manage");
   const canShare = ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER"].includes(userRole);
 
   const hydrate = useCallback((ev: ComplianceEvent) => {

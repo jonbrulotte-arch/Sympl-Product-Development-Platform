@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { projectSchema } from "@/lib/validation";
-import { canEditProject, canDeleteProject } from "@/lib/permissions";
+import { canEditProject, canDeleteProject, can } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
 import { projectStatusEmail } from "@/lib/email";
@@ -92,6 +92,19 @@ export async function PATCH(
   }
 
   const { targetLaunchDate, ownerId, ...rest } = parsed.data;
+
+  // Setting status directly bypasses the workflow, so it needs its own
+  // permission rather than riding on general project-edit rights.
+  if (rest.status !== undefined) {
+    const current = await prisma.project.findUnique({ where: { id }, select: { status: true } });
+    if (current && current.status !== rest.status &&
+        !(await can(session.user.role, "projects:override_status"))) {
+      return NextResponse.json(
+        { error: "You do not have permission to change project status" },
+        { status: 403 }
+      );
+    }
+  }
 
   // Only admins may reassign the project owner
   if (ownerId && session.user.role !== "ADMIN") {
