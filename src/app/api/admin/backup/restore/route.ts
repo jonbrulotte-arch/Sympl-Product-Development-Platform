@@ -85,6 +85,38 @@ export async function GET() {
   }
 }
 
+// DELETE — remove a backup artifact from the backup directory.
+export async function DELETE(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id || !(await can(session.user.role, "admin:backup")))
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const body = await req.json().catch(() => ({}));
+  const name: string = typeof body.name === "string" ? body.name : "";
+  if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
+
+  const config = await prisma.backupConfig.findFirst();
+  if (!config) return NextResponse.json({ error: "Backup not configured" }, { status: 400 });
+
+  // Same sanitization as restore: bare filename matching a known backup
+  // pattern, resolving inside the backup directory.
+  const target = resolveBackupFile(config.backupPath, name);
+  if (!target) return NextResponse.json({ error: "Invalid file name" }, { status: 400 });
+
+  try {
+    unlinkSync(target.path);
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code === "ENOENT")
+      return NextResponse.json({ error: "File not found — it may have already been deleted." }, { status: 404 });
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
+}
+
 // POST — restore from a snapshot. Database dumps replace the database;
 // upload archives are extracted back over data/uploads.
 export async function POST(req: NextRequest) {

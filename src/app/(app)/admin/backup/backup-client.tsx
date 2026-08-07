@@ -80,6 +80,7 @@ export function BackupClient() {
   const [running, setRunning] = useState(false);
   const [runMsg, setRunMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [restoreMsg, setRestoreMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [uploadPct, setUploadPct] = useState<number | null>(null);
@@ -199,6 +200,26 @@ export function BackupClient() {
     );
     await load();
     setRestoring(null);
+  }
+
+  async function deleteFile(file: BackupFile) {
+    if (!confirm(`Delete ${file.name}?\n\nThe file will be permanently removed from the server and can no longer be restored or downloaded.`)) return;
+
+    setDeleting(file.name);
+    setRestoreMsg(null);
+    const res = await fetch("/api/admin/backup/restore", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: file.name }),
+    });
+    if (res.ok) {
+      setRestoreMsg({ ok: true, text: `Deleted ${file.name}.` });
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setRestoreMsg({ ok: false, text: data.error ?? "Delete failed" });
+    }
+    await load();
+    setDeleting(null);
   }
 
   // Raw-body upload via XHR so large dumps report real progress.
@@ -645,6 +666,16 @@ export function BackupClient() {
                     >
                       <RotateCcw className={`h-3.5 w-3.5 mr-1.5 ${restoring === f.name ? "animate-spin" : ""}`} />
                       {restoring === f.name ? "Restoring…" : "Restore"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-300 text-red-600 hover:bg-red-50"
+                      disabled={deleting === f.name}
+                      onClick={() => deleteFile(f)}
+                      title="Delete this backup file"
+                    >
+                      <Trash2 className={`h-3.5 w-3.5 ${deleting === f.name ? "animate-pulse" : ""}`} />
                     </Button>
                   </div>
                 </div>
