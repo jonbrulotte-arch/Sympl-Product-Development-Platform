@@ -80,6 +80,8 @@ export function AccessControlClient({ matrix, permissions, roles }: Props) {
     admin: "Admin Modules",
     projects: "Projects",
     products: "Products",
+    compliance: "Compliance",
+    inspections: "Inspections",
   };
 
   return (

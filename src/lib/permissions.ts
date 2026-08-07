@@ -78,6 +78,7 @@ export const PERMISSIONS = {
   "inspections:manage":       { label: "Manage Inspection Reports", description: "Create, edit, and delete inspection reports and their documents" },
   "products:sync_salsify":    { label: "Sync to Salsify",          description: "Push product data to Salsify" },
   "projects:override_status": { label: "Override Project Status",  description: "Manually set project status from the Settings tab" },
+  "projects:transfer_ownership": { label: "Transfer Project Ownership", description: "Reassign project ownership between managers in bulk" },
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -92,7 +93,8 @@ const PM_PERMISSIONS: Permission[] = [
 
 const PERMISSION_DEFAULTS: Record<string, Permission[]> = {
   ADMIN:           Object.keys(PERMISSIONS) as Permission[],
-  DIRECTOR:        PM_PERMISSIONS,
+  // A Director oversees the whole portfolio, so reassigning it is theirs.
+  DIRECTOR:        [...PM_PERMISSIONS, "projects:transfer_ownership"],
   PRODUCT_MANAGER: PM_PERMISSIONS,
   CONTRIBUTOR:     [],
   REVIEWER:        [],

@@ -11,7 +11,7 @@ import { createNotificationForMany } from "@/lib/notifications";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.id || !(await can(session.user.role, "admin:users"))) {
+  if (!session?.user?.id || !(await can(session.user.role, "projects:transfer_ownership"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.id || !(await can(session.user.role, "admin:users"))) {
+  if (!session?.user?.id || !(await can(session.user.role, "projects:transfer_ownership"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
