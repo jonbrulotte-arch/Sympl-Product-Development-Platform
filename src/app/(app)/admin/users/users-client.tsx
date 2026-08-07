@@ -43,9 +43,9 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pwUser, setPwUser] = useState<UserRow | null>(null);
-  const [newPassword, setNewPassword] = useState("");
   const [pwLoading, setPwLoading] = useState(false);
   const [pwMsg, setPwMsg] = useState<string | null>(null);
+  const [pwDone, setPwDone] = useState(false);
   const [activityUser, setActivityUser] = useState<UserRow | null>(null);
   type ActivityEntry = {
     id: string; action: string; entityType: string; entityId: string;
@@ -114,24 +114,24 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
     }
   }
 
-  async function changePassword() {
-    if (!pwUser || !newPassword) return;
+  async function resetPassword() {
+    if (!pwUser) return;
     setPwLoading(true);
     setPwMsg(null);
-    const res = await fetch(`/api/users/${pwUser.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: newPassword }),
-    });
-    if (res.ok) {
-      setPwMsg("Password updated");
-      setNewPassword("");
-      setTimeout(() => { setPwUser(null); setPwMsg(null); }, 1200);
-    } else {
-      const data = await res.json().catch(() => null);
-      setPwMsg(data?.error ?? "Failed to update password");
+    try {
+      const res = await fetch(`/api/users/${pwUser.id}/reset-password`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setPwDone(true);
+        setPwMsg(`Reset email sent to ${data.email}.${data.warning ? ` ${data.warning}` : ""}`);
+      } else {
+        setPwMsg(data.error ?? "Could not reset the password.");
+      }
+    } catch {
+      setPwMsg("Could not reach the server.");
+    } finally {
+      setPwLoading(false);
     }
-    setPwLoading(false);
   }
 
   async function loadActivity(user: UserRow) {
@@ -264,9 +264,9 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
                         </button>
                       )}
                       <button
-                        onClick={() => { setPwUser(user); setNewPassword(""); setPwMsg(null); }}
+                        onClick={() => { setPwUser(user); setPwMsg(null); setPwDone(false); }}
                         className="text-gray-400 hover:text-gray-700"
-                        title="Change password"
+                        title="Reset password & email the user"
                       >
                         <KeyRound className="h-4 w-4" />
                       </button>
@@ -332,25 +332,34 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
 
       <Dialog open={!!pwUser} onOpenChange={(open) => { if (!open) setPwUser(null); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Change Password — {pwUser?.name ?? pwUser?.email}</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">New Password <span className="text-red-500">*</span></label>
-              <Input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Minimum 6 characters"
-                onKeyDown={(e) => e.key === "Enter" && changePassword()}
-              />
-            </div>
-            {pwMsg && <p className={`text-sm ${pwMsg === "Password updated" ? "text-green-600" : "text-red-600"}`}>{pwMsg}</p>}
+          <DialogHeader><DialogTitle>Reset Password — {pwUser?.name ?? pwUser?.email}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            {pwDone ? (
+              <p className="text-sm text-green-700">{pwMsg}</p>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600">
+                  This replaces <strong>{pwUser?.name ?? pwUser?.email}</strong>&apos;s password with a random
+                  value nobody knows, then emails them a link to choose a new one.
+                </p>
+                <p className="text-sm text-gray-600">
+                  They won&apos;t be able to sign in again until they follow the link, which expires in{" "}
+                  <strong>1 hour</strong>. An already-signed-in session stays valid until it expires —
+                  deactivate the account instead if you need to cut access off immediately.
+                </p>
+                {pwMsg && <p className="text-sm text-red-600">{pwMsg}</p>}
+              </>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPwUser(null)}>Cancel</Button>
-            <Button onClick={changePassword} disabled={pwLoading || newPassword.length < 6}>
-              {pwLoading ? "Updating..." : "Update Password"}
+            <Button variant="outline" onClick={() => setPwUser(null)}>
+              {pwDone ? "Close" : "Cancel"}
             </Button>
+            {!pwDone && (
+              <Button onClick={resetPassword} disabled={pwLoading}>
+                {pwLoading ? "Sending…" : "Reset & Send Email"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

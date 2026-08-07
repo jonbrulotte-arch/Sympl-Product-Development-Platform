@@ -513,6 +513,20 @@ const sections: Section[] = [
           <LI><strong>Import</strong> — created or updated via an Excel import.</LI>
         </UL>
 
+        <H3>Resetting someone&apos;s password (Admin)</H3>
+        <P>The key icon on a user row in <strong>Admin &rarr; Users</strong> resets that person&apos;s password. It replaces the stored password with a random value nobody knows and emails them a link to choose a new one, valid for one hour. Administrators never see, choose, or send a password.</P>
+        <Callout>A session the user is already signed into keeps working until it expires — the reset blocks new sign-ins, not existing ones. To cut access off immediately, deactivate the account instead.</Callout>
+
+        <H3>Transferring project ownership (Admin)</H3>
+        <P><strong>Admin &rarr; Transfer Ownership</strong> reassigns projects in bulk, for when a manager leaves or hands off a portfolio:</P>
+        <UL>
+          <LI>Filter by <strong>current owner</strong> to pull up one person&apos;s whole portfolio, or search the master list by project, brand, or owner.</LI>
+          <LI>Tick the projects to move — or the header checkbox to take everything showing. Archived projects appear only if you ask for them.</LI>
+          <LI>Pick the new owner. Only active Admins, Directors, and Product Managers are offered, since other roles can&apos;t exercise ownership.</LI>
+        </UL>
+        <P><strong>Keep previous owner as an editing member</strong> is on by default: each outgoing owner stays on their projects with edit access, so nothing they were mid-way through becomes unreachable. Turn it off for a clean break.</P>
+        <P>Both the new and previous owners are notified, and every transfer is recorded in the project&apos;s activity log with the old and new owner.</P>
+
         <H3>Per-user activity (Admin)</H3>
         <P>Admins can view any user&apos;s recent activity from <strong>Admin → Users</strong> — click the clock icon on a user&apos;s row to open their last 100 actions across all projects.</P>
       </>

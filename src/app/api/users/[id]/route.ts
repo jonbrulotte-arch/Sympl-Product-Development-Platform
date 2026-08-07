@@ -2,7 +2,6 @@ import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
 
 export async function PATCH(
   req: NextRequest,
@@ -33,21 +32,15 @@ export async function PATCH(
     }
   }
 
-  let passwordHash: string | undefined;
-  if (body.password) {
-    if (typeof body.password !== "string" || body.password.length < 6) {
-      return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
-    }
-    passwordHash = await bcrypt.hash(body.password, 12);
-  }
-
+  // Passwords are never set by an administrator — see
+  // POST /api/users/[id]/reset-password, which scrambles the stored hash and
+  // emails the user a reset link so only they ever know it.
   const user = await prisma.user.update({
     where: { id },
     data: {
       ...(body.role !== undefined ? { role: body.role } : {}),
       ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
       ...(body.name !== undefined ? { name: body.name } : {}),
-      ...(passwordHash ? { passwordHash } : {}),
     },
     select: { id: true, email: true, name: true, role: true, isActive: true },
   });
