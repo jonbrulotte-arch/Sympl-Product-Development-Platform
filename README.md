@@ -27,7 +27,7 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **User invitations** — Adding a user takes name, email, and role; an emailed single-use link (7 days) lets them set their own password. Admins never handle a password. Un-activated accounts show as "Invite pending" with a resend action.
 - **Admin password reset** — Resetting a user scrambles their stored password to a random value and emails them a 1-hour reset link. Nobody, including the admin, ever knows the interim password.
 - **Bulk ownership transfer** — Admin → Transfer Ownership (Admins and Directors by default, configurable in Access Control) reassigns projects between managers in bulk: filter by current owner, select from the master list, and hand the set over, optionally keeping the outgoing owner on as an editing member.
-- **Admin** — Users (including invitations, per-user password reset, and activity log viewer), categories, attributes (with EAV and reorderable Lists of Values), workflow templates, compliance types, inspection attributes, API tokens, backup, access control, and settings.
+- **Admin** — Users (including invitations, per-user password reset, and activity log viewer), categories (drag to reorder and re-parent), attributes (with EAV and reorderable Lists of Values), workflow templates, compliance types, inspection attributes, API tokens, backup, access control, and settings.
 
 ---
 

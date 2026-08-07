@@ -513,6 +513,11 @@ const sections: Section[] = [
           <LI><strong>Import</strong> — created or updated via an Excel import.</LI>
         </UL>
 
+        <H3>Ordering categories (Admin)</H3>
+        <P>In <strong>Admin &rarr; Categories</strong>, drag the handle at the left of any row to change the order categories appear in throughout the app. Dragging works within a level: top-level categories reorder against each other, and sub-categories reorder within their parent.</P>
+        <P>Dropping a sub-category onto a top-level row moves it under that parent. To change a top-level category&apos;s parent, use <strong>Edit</strong> — dragging deliberately won&apos;t demote a category that has sub-categories of its own.</P>
+        <Callout>The new order saves immediately. If the server rejects a move the table snaps back to how it was and tells you why, so what you see is always what was stored.</Callout>
+
         <H3>Resetting someone&apos;s password (Admin)</H3>
         <P>The key icon on a user row in <strong>Admin &rarr; Users</strong> resets that person&apos;s password. It replaces the stored password with a random value nobody knows and emails them a link to choose a new one, valid for one hour. Administrators never see, choose, or send a password.</P>
         <Callout>A session the user is already signed into keeps working until it expires — the reset blocks new sign-ins, not existing ones. To cut access off immediately, deactivate the account instead.</Callout>

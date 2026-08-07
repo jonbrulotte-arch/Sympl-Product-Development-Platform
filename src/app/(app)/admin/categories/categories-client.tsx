@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Pencil, ToggleLeft, ToggleRight, Tag, Trash2 } from "lucide-react";
+import { Plus, Pencil, ToggleLeft, ToggleRight, Tag, Trash2, GripVertical } from "lucide-react";
 
 type Category = {
   id: string;
@@ -100,8 +100,114 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
     }
   };
 
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [reorderError, setReorderError] = useState<string | null>(null);
+
   const rootCategories = categories.filter((c) => !c.parentId);
   const childrenOf = (id: string) => categories.filter((c) => c.parentId === id);
+
+  const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
+    setDraggingId(id);
+    e.dataTransfer.effectAllowed = "move";
+    // Firefox won't start a drag without payload on the transfer.
+    e.dataTransfer.setData("text/plain", id);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingId(null);
+    setDragOverId(null);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, id: string) => {
+    if (!draggingId || draggingId === id) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverId(id);
+  }, [draggingId]);
+
+  // Persists an ordering and rolls the table back if the server rejects it.
+  const persistOrder = useCallback(
+    async (updates: { id: string; sortOrder: number; parentId?: string | null }[], rollback: Category[]) => {
+      setReorderError(null);
+      try {
+        const res = await fetch("/api/admin/categories/reorder", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ updates }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setCategories(rollback);
+          setReorderError(data.error ?? "Could not save the new order.");
+          return;
+        }
+        setCategories(await res.json());
+      } catch {
+        setCategories(rollback);
+        setReorderError("Could not reach the server — order not saved.");
+      }
+    },
+    []
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent, targetId: string) => {
+      e.preventDefault();
+      const dragging = categories.find((c) => c.id === draggingId);
+      const target = categories.find((c) => c.id === targetId);
+      handleDragEnd();
+      if (!dragging || !target || dragging.id === target.id) return;
+
+      const rollback = categories;
+
+      // Same level, same parent — a straight reorder within the sibling group.
+      if (dragging.parentId === target.parentId) {
+        const siblings = categories.filter((c) => c.parentId === dragging.parentId);
+        const without = siblings.filter((c) => c.id !== dragging.id);
+        const targetIdx = without.findIndex((c) => c.id === target.id);
+        without.splice(targetIdx, 0, dragging);
+
+        const updates = without.map((c, i) => ({ id: c.id, sortOrder: i }));
+        const orderById = new Map(updates.map((u) => [u.id, u.sortOrder]));
+        setCategories(
+          [...categories]
+            .map((c) => (orderById.has(c.id) ? { ...c, sortOrder: orderById.get(c.id)! } : c))
+            .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+        );
+        persistOrder(updates, rollback);
+        return;
+      }
+
+      // A sub-category dropped on a top-level row moves under that parent.
+      if (dragging.parentId && !target.parentId) {
+        const newSiblings = [...categories.filter((c) => c.parentId === target.id), dragging];
+        const oldSiblings = categories.filter(
+          (c) => c.parentId === dragging.parentId && c.id !== dragging.id
+        );
+        const updates = [
+          ...newSiblings.map((c, i) => ({
+            id: c.id,
+            sortOrder: i,
+            ...(c.id === dragging.id ? { parentId: target.id } : {}),
+          })),
+          ...oldSiblings.map((c, i) => ({ id: c.id, sortOrder: i })),
+        ];
+        setCategories((prev) =>
+          prev.map((c) => (c.id === dragging.id ? { ...c, parentId: target.id } : c))
+        );
+        persistOrder(updates, rollback);
+        return;
+      }
+
+      // Anything else (promoting a parent, nesting deeper) isn't supported —
+      // use Edit to change a category's parent.
+      setReorderError(
+        "Drag reorders within a level, or moves a sub-category to another parent. Use Edit to change a top-level category's parent."
+      );
+    },
+    [categories, draggingId, handleDragEnd, persistOrder]
+  );
 
   return (
     <>
@@ -116,6 +222,16 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
           </Button>
         </CardHeader>
         <CardContent className="p-0">
+          <p className="px-4 pb-2 text-xs text-gray-500">
+            Drag the <GripVertical className="inline h-3 w-3" /> handle to reorder within a level, or
+            drop a sub-category onto a top-level row to move it there.
+          </p>
+          {reorderError && (
+            <div className="mx-4 mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {reorderError}
+              <button onClick={() => setReorderError(null)} className="ml-2 underline">Dismiss</button>
+            </div>
+          )}
           {categories.length === 0 ? (
             <div className="text-center py-12 text-gray-400 text-sm">
               No categories yet. Add one to get started.
@@ -143,6 +259,13 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
                       onEdit={openEdit}
                       onToggle={toggleActive}
                       onDelete={deleteCategory}
+                      isDragging={draggingId === cat.id}
+                      isOver={dragOverId === cat.id}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={handleDragOver}
+                      onDragLeave={() => setDragOverId(null)}
+                      onDrop={handleDrop}
                     />
                     {childrenOf(cat.id).map((child) => (
                       <CategoryRow
@@ -153,6 +276,13 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
                         onEdit={openEdit}
                         onToggle={toggleActive}
                         onDelete={deleteCategory}
+                        isDragging={draggingId === child.id}
+                        isOver={dragOverId === child.id}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                        onDragOver={handleDragOver}
+                        onDragLeave={() => setDragOverId(null)}
+                        onDrop={handleDrop}
                       />
                     ))}
                   </React.Fragment>
@@ -218,24 +348,51 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
 
 function CategoryRow({
   cat, indent, allCategories, onEdit, onToggle, onDelete,
+  isDragging, isOver, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
 }: {
   cat: Category; indent: number;
   allCategories: Category[];
   onEdit: (c: Category) => void;
   onToggle: (c: Category) => void;
   onDelete: (c: Category) => void;
+  isDragging: boolean;
+  isOver: boolean;
+  onDragStart: (e: React.DragEvent, id: string) => void;
+  onDragEnd: () => void;
+  onDragOver: (e: React.DragEvent, id: string) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent, id: string) => void;
 }) {
   const parent = allCategories.find((c) => c.id === cat.parentId);
   const canDelete = cat._count.products === 0 && cat._count.projects === 0 &&
     allCategories.filter((c) => c.parentId === cat.id).length === 0;
   return (
-    <tr className={`hover:bg-gray-50 ${!cat.isActive ? "opacity-50" : ""}`}>
+    <tr
+      className={`group transition-colors ${
+        isDragging ? "opacity-40 bg-blue-50"
+          : isOver ? "bg-blue-50 border-t-2 border-t-blue-400"
+          : "hover:bg-gray-50"
+      } ${!cat.isActive ? "opacity-50" : ""}`}
+      onDragOver={(e) => onDragOver(e, cat.id)}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => onDrop(e, cat.id)}
+    >
       <td className="px-4 py-2.5">
         <span style={{ paddingLeft: indent * 16 }} className="flex items-center gap-1.5">
+          {/* Only the handle is draggable, so text stays selectable */}
+          <span
+            draggable
+            onDragStart={(e) => onDragStart(e, cat.id)}
+            onDragEnd={onDragEnd}
+            className="cursor-grab active:cursor-grabbing shrink-0 touch-none"
+            title="Drag to reorder"
+          >
+            <GripVertical className="h-4 w-4 text-gray-200 group-hover:text-gray-400 transition-colors" />
+          </span>
           {indent > 0 && <span className="text-gray-300">↳</span>}
           <span className="font-medium text-gray-900">{cat.name}</span>
         </span>
-        <span className="text-xs text-gray-400 pl-1">{cat.slug}</span>
+        <span className="text-xs text-gray-400 pl-6">{cat.slug}</span>
       </td>
       <td className="px-4 py-2.5 text-gray-500 max-w-xs truncate">{cat.description ?? "—"}</td>
       <td className="px-4 py-2.5 text-gray-500">{parent?.name ?? "—"}</td>
