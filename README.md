@@ -22,7 +22,7 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Manual Status Override** — Admins and Product Managers can set a project's status directly from the project Settings tab at any time.
 - **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups plus uploaded-file archives, written to local disk with a retention policy and one-click restore. Snapshots can be downloaded and re-uploaded through the admin UI to migrate an instance between servers, and a scoped API token drives external cron automation (`scripts/backup.sh` backs up database and attachments in one crontab entry).
 - **Security** — Project-level authorization on every route, authenticated file serving with an upload-type allowlist, login rate limiting, immediate session invalidation for deactivated accounts, and last-admin lockout protection.
-- **Reports** — Seven operational reports (Inspections, Compliance, Overdue Stages, Overdue Projects, Roadblocks, Out-of-Sync Products, Pipeline Summary) with filters and one-click Excel export, scoped to the projects each user can see.
+- **Reports** — Seven operational reports (Inspections, Compliance, Overdue Stages, Overdue Projects, Roadblocks, Out-of-Sync Products, Pipeline Summary) with filters and one-click Excel export, scoped to the projects each user can see. Out-of-Sync rows drill into a field-level drift panel (old → new, who and when) with links to the product, project, and Salsify record, and a per-field push back to Salsify.
 - **Module toggles** — Admin → Settings → Modules can disable the Inspections module platform-wide (sidebar, pages, product/project tabs, reports, API). All inspection data is retained; re-enabling restores everything.
 - **Admin** — Users (including per-user password reset and activity log viewer), categories, attributes (with EAV and reorderable Lists of Values), workflow templates, compliance types, inspection attributes, API tokens, backup, access control, and settings.
 
@@ -287,6 +287,30 @@ Admins and Product Managers can create expiring read-only share links for a prod
 
 ---
 
+## Reports
+
+`/reports` — operational reports with filters and one-click Excel export. Open to every signed-in user; rows are scoped to projects the user owns or belongs to (admins see everything). Scoping is applied in the queries, not just hidden in the UI.
+
+| Report | Covers | Filters |
+| --- | --- | --- |
+| Inspections | All inspection reports: result, status, date, inspector, company, factory, country, linked products | Result |
+| Compliance | Events with type, severity, status, due date, computed days overdue, resolution | Status, severity, overdue-only |
+| Overdue Stages | Workflow stages past due, with pending approvers and project owner | — |
+| Overdue Projects | Active projects past target launch, with open stage and product counts | — |
+| Roadblocks | Blocked stages (unmet dependency), stalled projects (Needs Review / Changes Requested, or 14 days idle), failed inspections, aging approvals — tagged by Roadblock Type, sorted by days stuck | — |
+| Out-of-Sync Products | Products edited since their last Salsify push, or never pushed while Export Ready | — |
+| Pipeline Summary | Project and product counts by status and owner, with average days since update | — |
+
+**Excel export** (`GET /api/reports/[type]/export`) returns exactly the on-screen rows with filters applied, as `sympl-<type>-report-<date>.xlsx`. Row keys prefixed with `_` are internal IDs used for drill-down and are stripped from both the table and the sheet.
+
+The Inspections report is hidden and its API returns 404 when the Inspections module is disabled; the Roadblocks report drops its failed-inspection section.
+
+Clicking a row in **Out-of-Sync Products** opens a drift detail panel — see [Salsify Integration](#salsify-integration) below.
+
+**API:** `GET /api/reports/[type]` returns `{ rows }`. `GET /api/projects/[id]/products/[productId]/salsify-drift` returns the detail behind one out-of-sync row.
+
+---
+
 ## Salsify Integration
 
 1. **Admin → Settings** (admins): enter the Organization ID and enable the **Enable Salsify Sync** toggle.
@@ -299,6 +323,19 @@ Admins and Product Managers can create expiring read-only share links for a prod
 5. A pre-sync modal lists every Salsify-enabled attribute with checkboxes. Uncheck any attribute to exclude it from this sync run without permanently changing the attribute's Salsify settings.
 
 **Drift detection:** every successful sync records a per-product timestamp. The grid's **Salsify** column shows *Synced* (green, unchanged since last sync), *Changed* (yellow, edited since last sync — Salsify is stale), or *—* (never synced).
+
+**Resolving drift field by field:** the **Out-of-Sync Products** report (Reports → Out-of-Sync Products) lists every drifted product across the projects you can see. Click a row to open a detail panel with:
+
+- **Changes since last sync** — one card per field: old value → new value, who changed it, when, and the source (Project Grid / Product Record / Import).
+- **Links** to the product record, the project, and the product's page in Salsify.
+- **Per-field sync** for users with `products:sync_salsify` — pushes that one property via `PUT /products/{id}` and leaves the rest of the Salsify record untouched.
+
+Each per-field push is logged as an `EXPORTED` activity entry tagged `Salsify Field Sync`. A field counts as resolved once it has been pushed more recently than it was last edited; when nothing is left outstanding the product's `salsifyLastSyncedAt` is stamped and it flips back to *Synced* everywhere, exactly as a full sync would. The report's **Unsynced Fields** column counts what remains, so it ticks down as fields are resolved.
+
+Two deliberate limits:
+
+- A product with no prior full sync is never auto-cleared — one pushed property is no evidence the rest of the record matches. A per-field push against a part number that doesn't exist in Salsify returns `409` asking for a full sync first.
+- The diff is built from `ActivityLog`, which records core product fields. Drift caused only by custom (EAV) attribute edits shows no field-level detail and must be cleared with a full sync.
 
 **Pull from Salsify:** on the product edit page, pull the product's current Salsify state (digital-asset URLs, version, last-updated) back into Sympl. Assets display as Cloudinary-transformed thumbnails in an "In Salsify" panel with a **View in Salsify** link to the product's page on Salsify (`https://app.salsify.com/app/orgs/{orgId}/products/v2/{partNumber}`). Clicking an image thumbnail opens a lightbox gallery with square (1:1) images and prev/next navigation when multiple assets exist.
 
@@ -330,6 +367,7 @@ src/
       products/     # Global product browser + per-product edit page
       projects/     # Project list + per-project grid
       psir/         # Pre-shipment inspection reports
+      reports/      # Operational reports + Excel export
     api/            # API route handlers (incl. cron/ for scheduled jobs)
     share/          # Public read-only share-link pages (token-gated)
     uploads/        # Authenticated file serving for attachments

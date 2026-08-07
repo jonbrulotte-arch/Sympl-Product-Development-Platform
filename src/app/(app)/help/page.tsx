@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   BookOpen, Package, FolderKanban, Upload, CheckCircle,
   ListFilter, Tag, ChevronDown, ChevronRight, Code2, Zap,
-  Info, Search, ShieldCheck, ClipboardCheck, HardDrive,
+  Info, Search, ShieldCheck, ClipboardCheck, HardDrive, BarChart3,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -376,6 +376,10 @@ const sections: Section[] = [
 
         <H3>Product tab on product edit page</H3>
         <P>When viewing a product at <Code>/products/[id]</Code>, switch to the <strong>Inspections</strong> tab to see all PSIRs linked to that product.</P>
+
+        <H3>Turning the module off</H3>
+        <P>Admins can switch the whole module off under <strong>Admin → Settings → Modules</strong>. The Inspections pages, the inspection attribute admin, the Inspections tabs on products and projects, the inspection dependency option in workflow stages, and the Inspections report all disappear platform-wide.</P>
+        <Callout>Nothing is deleted. Existing inspection reports, attachments, and links stay in the database and reappear intact the moment the module is switched back on.</Callout>
       </>
     ),
   },
@@ -492,6 +496,48 @@ const sections: Section[] = [
 
         <H3>Per-user activity (Admin)</H3>
         <P>Admins can view any user&apos;s recent activity from <strong>Admin → Users</strong> — click the clock icon on a user&apos;s row to open their last 100 actions across all projects.</P>
+      </>
+    ),
+  },
+  {
+    id: "reports",
+    icon: BarChart3,
+    title: "Reports",
+    color: "text-cyan-600 bg-cyan-50",
+    content: (
+      <>
+        <H3>What Reports does</H3>
+        <P>The <strong>Reports</strong> page pulls operational data that normally lives scattered across the dashboard, the browsers, and email alerts into one filterable table you can export to Excel. Pick a report from the cards at the top; the table below refreshes immediately.</P>
+
+        <H3>Who sees what</H3>
+        <P>Reports are open to every signed-in user, but the rows are scoped: you see only data from projects you own or are a member of. Admins see everything. Nobody gains visibility they did not already have — the scoping is applied in the queries, not just hidden in the table.</P>
+
+        <H3>The seven reports</H3>
+        <UL>
+          <LI><strong>Inspections</strong> — every inspection report with result, status, inspection date, inspector, company, factory, country, and linked product count. Filter by result.</LI>
+          <LI><strong>Compliance</strong> — compliance events with type, severity, status, due date, computed days overdue, and resolution date. Filter by status, severity, or overdue-only.</LI>
+          <LI><strong>Overdue Stages</strong> — workflow stages past their due date, with the approvers still holding them up and the project owner to chase.</LI>
+          <LI><strong>Overdue Projects</strong> — active projects past their target launch date, with days overdue, open stage count, and product count.</LI>
+          <LI><strong>Roadblocks</strong> — four kinds of blockage in one list, each tagged with a Roadblock Type: stages waiting on an unmet dependency, stalled projects (Needs Review / Changes Requested, or no activity for 14 days), failed inspections, and aging pending approvals. Sorted by how long each has been stuck.</LI>
+          <LI><strong>Out-of-Sync Products</strong> — products edited since their last Salsify push, or never pushed while the project is Export Ready. See below.</LI>
+          <LI><strong>Pipeline Summary</strong> — project and product counts by status and owner, with average days since last update. Built for leadership check-ins.</LI>
+        </UL>
+
+        <H3>Export to Excel</H3>
+        <P>The <strong>Export to Excel</strong> button downloads exactly the rows on screen, with your filters applied, as an <Code>.xlsx</Code> file named for the report and today&apos;s date. Column widths are sized to the content.</P>
+
+        <H3>Out-of-Sync Products: drilling into drift</H3>
+        <P>Click any row in the Out-of-Sync Products report to open a detail panel showing:</P>
+        <UL>
+          <LI><strong>Changes since last sync</strong> — one card per field, with the old value struck through beside the new one, who changed it, when, and whether it came from the Project Grid, the Product Record, or an Import.</LI>
+          <LI><strong>Links</strong> — jump straight to the product record, the project, or the product&apos;s page in Salsify.</LI>
+          <LI><strong>Per-field sync</strong> — users who can sync to Salsify get a <strong>Sync</strong> button on each field that maps to a Salsify property. It pushes that one property and leaves the rest of the Salsify record untouched.</LI>
+        </UL>
+        <P>The <strong>Unsynced Fields</strong> column counts what is still outstanding, so it ticks down as you resolve fields. Once the last one is pushed, the product is marked synced and drops off the report — the panel closes and the table refreshes on its own.</P>
+        <Callout>Fields not mapped to a Salsify property are listed for context but labelled as non-syncing. A product that has never had a full sync will not clear itself this way: one pushed property is no evidence the rest of the record matches, so run a full sync from the product record instead.</Callout>
+
+        <H3>When the panel shows no changes</H3>
+        <P>The diff is built from the Activity Log, which records core product fields. A product that drifted only through custom-attribute edits, or through changes made before change tracking was in place, will show no field-level detail. A full sync from the product record brings it back in line.</P>
       </>
     ),
   },
@@ -766,6 +812,11 @@ const sections: Section[] = [
 
         <H3>Drift detection</H3>
         <P>Each successful sync records a per-product timestamp. The grid&apos;s <strong>Salsify</strong> column compares it against the product&apos;s last edit: <strong>Synced</strong> (green) means Salsify is current, <strong>Changed</strong> (yellow) means the product has been edited since its last sync and Salsify is stale.</P>
+
+        <H3>Resolving drift field by field</H3>
+        <P>The <strong>Out-of-Sync Products</strong> report (under <strong>Reports</strong>) lists every drifted product across your projects. Clicking a row shows exactly which fields changed, what they were before, and who changed them — and lets anyone who can sync push a single field back to Salsify without touching the rest of the record.</P>
+        <P>Each per-field push is recorded, and a field counts as resolved once it has been pushed more recently than it was last edited. Resolve the last outstanding field and the product flips from <strong>Changed</strong> back to <strong>Synced</strong> everywhere — the grid column included — exactly as a full sync would. Edit that field again afterwards and it reappears as unsynced.</P>
+        <Callout>A product that has never been fully synced is excluded from this: pushing one property proves nothing about the other fifty, so it stays flagged until a full sync runs. Drift caused only by custom-attribute edits also has no field-level detail to resolve, since the change history tracks core product fields.</Callout>
 
         <H3>Pull from Salsify</H3>
         <P>On the product edit page, Admins and Product Managers can click <strong>Pull from Salsify</strong> to fetch the product&apos;s current state from Salsify. An <strong>In Salsify</strong> panel then shows digital-asset thumbnails, Salsify&apos;s last-updated date, version, and property count — so you can see what retail has without leaving Sympl.</P>
