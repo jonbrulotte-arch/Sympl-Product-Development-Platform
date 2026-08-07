@@ -342,6 +342,10 @@ model Project {
   savedViews     SavedGridView[]
   notifications  Notification[]
   salsifySyncLogs SalsifySyncLog[]
+
+  @@index([isArchived, updatedAt(sort: Desc)])
+  @@index([ownerId])
+  @@index([status])
 }
 
 model ProjectMember {
@@ -472,6 +476,13 @@ model ProductRecord {
   @@index([projectId])
   @@index([partNumber])
   @@index([upc])
+  // The global product browser filters on isArchived and sorts by updatedAt;
+  // without this it full-scans and sorts the whole table for every page.
+  @@index([isArchived, updatedAt(sort: Desc)])
+  @@index([projectId, isArchived])
+  @@index([categoryId])
+  @@index([brand])
+  @@index([partNumber, isArchived])
 }
 
 model ProductAttributeValue {
@@ -653,6 +664,9 @@ model ActivityLog {
   @@index([productId])
   @@index([userId])
   @@index([createdAt])
+  // Per-product history and Salsify drift both read one product's log newest-first
+  @@index([productId, createdAt(sort: Desc)])
+  @@index([projectId, createdAt(sort: Desc)])
 }
 
 // ─── Import / Export ──────────────────────────────────────────────────────────
