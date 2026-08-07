@@ -360,7 +360,7 @@ const sections: Section[] = [
         <P>The search bar on the Inspections list matches the report title, reference number, inspector, inspection company, factory, <strong>part number</strong>, and product name. Searching by part number returns all reports that include a product with that part number.</P>
 
         <H3>Custom attributes</H3>
-        <P>Admins can define additional fields to capture on every PSIR — for example AQL level, sample size, or inspection standard — at <strong>Admin → PSIR Attributes</strong>. Supported types: Text, Text Area, Number, Date, Select (dropdown), and Yes/No.</P>
+        <P>Admins can define additional fields to capture on every PSIR — for example AQL level, sample size, or inspection standard — at <strong>Admin → Inspection Attributes</strong>. Supported types: Text, Text Area, Number, Date, Select (dropdown), and Yes/No.</P>
 
         <H3>File uploads</H3>
         <P>Drag and drop files directly onto the Documents section or click Upload File. Files are stored on the server and can be downloaded at any time. Deleting a document removes it from disk immediately.</P>

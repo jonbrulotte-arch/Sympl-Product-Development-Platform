@@ -47,7 +47,7 @@ const adminNavItems: { href: string; label: string; icon: React.ElementType; per
   { href: "/admin/attributes",         label: "Attributes",         icon: ListFilter,     permission: "admin:attributes" },
   { href: "/admin/workflow-templates", label: "Workflows",          icon: GitBranch,      permission: "admin:workflow_templates" },
   { href: "/admin/compliance-types",   label: "Compliance Types",   icon: ShieldCheck,    permission: "admin:compliance_types" },
-  { href: "/admin/psir-attributes",    label: "PSIR Attributes",    icon: ClipboardCheck, permission: "admin:psir_attributes" },
+  { href: "/admin/psir-attributes",    label: "Inspection Attributes",    icon: ClipboardCheck, permission: "admin:psir_attributes" },
   { href: "/admin/backup",             label: "Backup & Restore",   icon: HardDrive,      permission: "admin:backup" },
   { href: "/admin/settings",           label: "Settings",           icon: Settings,       permission: "admin:settings" },
   { href: "/admin/api-tokens",         label: "API Tokens",         icon: KeyRound,       permission: "admin:settings" },

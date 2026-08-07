@@ -125,7 +125,7 @@ export function PsirAttributesManager() {
     <div className="max-w-2xl mx-auto py-8 px-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">PSIR Custom Attributes</h1>
+          <h1 className="text-xl font-semibold text-gray-900">Inspection Attributes</h1>
           <p className="text-sm text-gray-500 mt-0.5">Define additional fields to capture on pre-shipment inspection reports.</p>
         </div>
         {!creating && (

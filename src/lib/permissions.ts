@@ -61,7 +61,7 @@ export const PERMISSIONS = {
   "admin:attributes":         { label: "Manage Attributes",        description: "Create and edit EAV attribute definitions" },
   "admin:workflow_templates": { label: "Manage Workflow Templates", description: "Create and edit reusable workflow templates" },
   "admin:compliance_types":   { label: "Manage Compliance Types",  description: "Create and edit compliance event types" },
-  "admin:psir_attributes":    { label: "Manage PSIR Attributes",   description: "Create and edit inspection report attributes" },
+  "admin:psir_attributes":    { label: "Manage Inspection Attributes",   description: "Create and edit inspection report attributes" },
   "admin:backup":             { label: "Backup & Restore",         description: "Run backups and restore from snapshots" },
   "admin:settings":           { label: "Global Settings",          description: "Manage Salsify and other integration settings" },
   "projects:create":          { label: "Create Projects",          description: "Create new product development projects" },
