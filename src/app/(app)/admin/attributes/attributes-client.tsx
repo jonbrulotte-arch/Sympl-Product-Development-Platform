@@ -85,9 +85,7 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
   const [editTarget, setEditTarget] = useState<AttributeDef | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    () => new Set([...initialSections.map((s) => s.name), "Global"])
-  );
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => new Set());
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
   const [sectionManagerOpen, setSectionManagerOpen] = useState(false);
@@ -405,7 +403,7 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
                 onDragLeave={() => setDragOverSection(null)}
                 onDrop={(e) => handleDropOnSectionHeader(e, sectionName)}
               >
-                {expandedSections.has(sectionName)
+                {(expandedSections.has(sectionName) || (search.trim() && attrs.length > 0))
                   ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
                   : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
                 <span className="font-semibold text-gray-700 text-sm">{sectionName}</span>
@@ -415,7 +413,7 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
                 )}
               </button>
 
-              {expandedSections.has(sectionName) && (
+              {(expandedSections.has(sectionName) || (search.trim() && attrs.length > 0)) && (
                 <div className="divide-y divide-gray-100">
                   {attrs.map((attr) => {
                     const meta = TYPE_META[attr.attributeType] ?? TYPE_META.TEXT;
