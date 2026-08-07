@@ -206,7 +206,7 @@ async function complianceDetail(id: string, ctx: ReportContext): Promise<ReportD
       ...(event.description ? [{ label: "Description", value: event.description }] : []),
       ...(event.notes ? [{ label: "Notes", value: event.notes }] : []),
     ],
-    links: [{ label: "Open compliance", href: "/compliance" }],
+    links: [{ label: "Open compliance event", href: `/compliance/${event.id}` }],
     sections: [
       {
         title: `Affected projects (${byProject.size})`,
@@ -292,7 +292,7 @@ async function stageDetail(id: string, ctx: ReportContext): Promise<ReportDetail
       subtitle: `Depends on compliance event · ${stage.complianceEvent.severity}`,
       meta: titleCase(stage.complianceEvent.status),
       tone: satisfied ? "green" : "red",
-      href: "/compliance",
+      href: `/compliance/${stage.complianceEvent.id}`,
     });
   }
   if (stage.psir) {
