@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { REPORT_TYPES, type ReportType } from "@/lib/reports";
 import { buildReportDetail } from "@/lib/report-detail";
 import { isInspectionsEnabled } from "@/lib/app-config";
+import { seesAllProjects } from "@/lib/permissions";
 
 // Drill-down behind a report row. The row's `_detail` query string is passed
 // through verbatim; the builders re-apply project scoping to whatever ids it
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ type
 
   const detail = await buildReportDetail(type as ReportType, req.nextUrl.searchParams, {
     userId: session.user.id,
-    isAdmin: session.user.role === "ADMIN",
+    seesAllProjects: seesAllProjects(session.user.role),
     filters: {},
   });
   if (!detail) return NextResponse.json({ error: "Not found" }, { status: 404 });

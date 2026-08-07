@@ -18,10 +18,11 @@ type UserRow = {
   isActive: boolean; createdAt: Date;
 };
 
-const ROLES: UserRole[] = ["ADMIN", "PRODUCT_MANAGER", "CONTRIBUTOR", "REVIEWER", "APPROVER", "VIEWER"];
+const ROLES: UserRole[] = ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER", "CONTRIBUTOR", "REVIEWER", "APPROVER", "VIEWER"];
 
 const roleColors: Record<UserRole, string> = {
   ADMIN: "bg-red-100 text-red-700",
+  DIRECTOR: "bg-indigo-100 text-indigo-700",
   PRODUCT_MANAGER: "bg-blue-100 text-blue-700",
   CONTRIBUTOR: "bg-green-100 text-green-700",
   REVIEWER: "bg-yellow-100 text-yellow-700",

@@ -131,6 +131,7 @@ const sections: Section[] = [
         <H3>Roles</H3>
         <UL>
           <LI><strong>Admin</strong> — full access to all projects, users, attributes, settings, and backup.</LI>
+          <LI><strong>Director</strong> — sees every project without being added to it: the project and product browsers, the dashboard, and all reports show the whole organization. Carries the same permissions as a Product Manager, so editing a project still requires owning it or being a member.</LI>
           <LI><strong>Product Manager</strong> — can create and manage projects; access to admin attribute/category pages; can sync products to Salsify.</LI>
           <LI><strong>Contributor</strong> — can edit products in projects they belong to.</LI>
           <LI><strong>Reviewer</strong> — can view and comment on projects; cannot edit product data.</LI>
@@ -181,7 +182,7 @@ const sections: Section[] = [
         </UL>
 
         <H3>Manual status override</H3>
-        <P>Admins and Product Managers can override a project&apos;s status at any time from the project <strong>Settings</strong> tab. Select the desired status from the dropdown and click <strong>Save Status</strong>. This is useful for correcting status without waiting for a workflow stage to complete.</P>
+        <P>Admins, Directors, and Product Managers can override a project&apos;s status at any time from the project <strong>Settings</strong> tab. Select the desired status from the dropdown and click <strong>Save Status</strong>. This is useful for correcting status without waiting for a workflow stage to complete.</P>
 
         <H3>Comments &amp; attachments</H3>
         <P>The <strong>Comments</strong> tab on any project lets team members leave notes and attach files. Click the paperclip icon or drag a file onto the comment box to attach it. Supported file types: images, PDFs, spreadsheets, and most document formats (up to 20 MB per file).</P>
@@ -265,7 +266,7 @@ const sections: Section[] = [
 
         <H3>Full product edit page</H3>
         <P>Click any row to open the full product edit page at <Code>/products/[id]</Code>. This page shows every core field and every EAV attribute organized by section, plus tabs for <strong>Compliance</strong> events, <strong>Inspections</strong>, and <strong>History</strong> — the full field-level change log showing who changed what, when, and the old → new values.</P>
-        <P>The header shows a <strong>% complete</strong> chip (required fields filled in) and, for Admins and Product Managers, <strong>Share</strong>, <strong>Pull from Salsify</strong>, and <strong>Sync to Salsify</strong> buttons.</P>
+        <P>The header shows a <strong>% complete</strong> chip (required fields filled in) and, for Admins, Directors, and Product Managers, <strong>Share</strong>, <strong>Pull from Salsify</strong>, and <strong>Sync to Salsify</strong> buttons.</P>
       </>
     ),
   },
@@ -372,7 +373,7 @@ const sections: Section[] = [
         <P>Reports on the Inspections page expand in place — click the chevron to see notes, linked products, and attachments (with image thumbnails), and change status with one click, without opening the full report. The pencil icon opens the full detail page.</P>
 
         <H3>Sharing a report</H3>
-        <P>Admins and Product Managers can create an expiring read-only <strong>share link</strong> from the report detail page — see the <em>Notifications, Sharing &amp; Alerts</em> section below.</P>
+        <P>Admins, Directors, and Product Managers can create an expiring read-only <strong>share link</strong> from the report detail page — see the <em>Notifications, Sharing &amp; Alerts</em> section below.</P>
 
         <H3>Product tab on product edit page</H3>
         <P>When viewing a product at <Code>/products/[id]</Code>, switch to the <strong>Inspections</strong> tab to see all inspection reports linked to that product.</P>
@@ -831,7 +832,7 @@ const sections: Section[] = [
         <Callout>A product that has never been fully synced is excluded from this: pushing one property proves nothing about the other fifty, so it stays flagged until a full sync runs. Drift caused only by custom-attribute edits also has no field-level detail to resolve, since the change history tracks core product fields.</Callout>
 
         <H3>Pull from Salsify</H3>
-        <P>On the product edit page, Admins and Product Managers can click <strong>Pull from Salsify</strong> to fetch the product&apos;s current state from Salsify. An <strong>In Salsify</strong> panel then shows digital-asset thumbnails, Salsify&apos;s last-updated date, version, and property count — so you can see what retail has without leaving Sympl.</P>
+        <P>On the product edit page, Admins, Directors, and Product Managers can click <strong>Pull from Salsify</strong> to fetch the product&apos;s current state from Salsify. An <strong>In Salsify</strong> panel then shows digital-asset thumbnails, Salsify&apos;s last-updated date, version, and property count — so you can see what retail has without leaving Sympl.</P>
 
         <Callout type="tip">After a project or row-selection sync, the result (how many products sent and any errors) appears next to the Sync button in the project header.</Callout>
       </>
@@ -867,10 +868,10 @@ const sections: Section[] = [
         <P>Compliance events and workflow stages with a due date trigger a one-time in-app notification (and email, when SMTP is configured) once they go overdue. This requires an external cron job hitting <Code>POST /api/cron/overdue-check</Code> with the backup API token — see the README for the exact crontab entry. Changing an item&apos;s due date re-arms its alert.</P>
 
         <H3>Leadership digest</H3>
-        <P>A scheduled email summary for Admins and Product Managers: pipeline by status, open compliance events by severity with overdue count, and an approvals-aging table. Triggered by cron via <Code>POST /api/cron/digest</Code>; Admins can preview the HTML by opening <Code>/api/cron/digest</Code> in the browser.</P>
+        <P>A scheduled email summary for Admins, Directors, and Product Managers: pipeline by status, open compliance events by severity with overdue count, and an approvals-aging table. Triggered by cron via <Code>POST /api/cron/digest</Code>; Admins can preview the HTML by opening <Code>/api/cron/digest</Code> in the browser.</P>
 
         <H3>Read-only share links</H3>
-        <P>Admins and Product Managers can click <strong>Share</strong> on a product or inspection report to create an expiring link (7 / 30 / 90 days). Anyone with the URL sees a clean read-only view — no account, no attachments, no navigation into the app. Links can be copied and revoked from the same menu; expired or revoked links stop working immediately.</P>
+        <P>Admins, Directors, and Product Managers can click <strong>Share</strong> on a product or inspection report to create an expiring link (7 / 30 / 90 days). Anyone with the URL sees a clean read-only view — no account, no attachments, no navigation into the app. Links can be copied and revoked from the same menu; expired or revoked links stop working immediately.</P>
 
         <H3>API tokens for integrations</H3>
         <P>From <strong>Admin → API Tokens</strong>, create scoped <Code>spt_</Code> tokens that let external tools (ERP, BI) call <Code>GET /api/products</Code> with a <Code>Bearer</Code> header — read-only access to product data with full search, filter, and pagination. Tokens are shown once at creation and can be revoked at any time; last-used time is tracked.</P>

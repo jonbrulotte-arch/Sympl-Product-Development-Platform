@@ -98,7 +98,7 @@ async function inspectionDetail(id: string, ctx: ReportContext): Promise<ReportD
   const psir = await prisma.psir.findFirst({
     where: {
       id,
-      ...(ctx.isAdmin ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
+      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
     },
     include: {
       createdBy: { select: { name: true, email: true } },
@@ -175,7 +175,7 @@ async function complianceDetail(id: string, ctx: ReportContext): Promise<ReportD
   const event = await prisma.complianceEvent.findFirst({
     where: {
       id,
-      ...(ctx.isAdmin ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
+      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
     },
     include: {
       type: { select: { name: true } },

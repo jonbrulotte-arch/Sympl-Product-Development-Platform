@@ -610,7 +610,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
   const [showSalsifyModal, setShowSalsifyModal] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
-  const canSync = userRole === "ADMIN" || userRole === "PRODUCT_MANAGER";
+  const canSync = ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER"].includes(userRole);
 
   // % of REQUIRED attributes with a value — drives the completeness chip
   const completeness = useMemo(() => {

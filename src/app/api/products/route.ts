@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { findDuplicatesForProducts } from "@/lib/duplicate-check";
 import { authenticateApiToken } from "@/lib/api-tokens";
+import { seesAllProjects } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
   const categoryId = searchParams.get("categoryId") ?? "";
 
   const userId = session?.user?.id ?? "";
-  const isAdmin = tokenAccess || session?.user?.role === "ADMIN";
+  const isAdmin = tokenAccess || seesAllProjects(session?.user?.role);
 
   const where = {
     isArchived: false,

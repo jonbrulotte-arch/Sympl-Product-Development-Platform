@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { buildReport, REPORT_TYPES, REPORT_LABELS, type ReportType } from "@/lib/reports";
 import { buildXlsxResponse } from "@/lib/xlsx-export";
 import { isInspectionsEnabled } from "@/lib/app-config";
+import { seesAllProjects } from "@/lib/permissions";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ type: string }> }) {
   const session = await auth();
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ type
   const reportType = type as ReportType;
   const rows = await buildReport(reportType, {
     userId: session.user.id,
-    isAdmin: session.user.role === "ADMIN",
+    seesAllProjects: seesAllProjects(session.user.role),
     filters,
   });
   const date = new Date().toISOString().slice(0, 10);

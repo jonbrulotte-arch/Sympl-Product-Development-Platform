@@ -1967,7 +1967,7 @@ function SettingsView({
                     onChange={(e) => updateMember(member.user.id, { role: e.target.value })}
                     className="text-xs text-gray-900 border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
                   >
-                    {["VIEWER","CONTRIBUTOR","REVIEWER","APPROVER","PRODUCT_MANAGER"].map((r) => (
+                    {["VIEWER","CONTRIBUTOR","REVIEWER","APPROVER","PRODUCT_MANAGER","DIRECTOR"].map((r) => (
                       <option key={r} value={r}>{r.replace("_", " ")}</option>
                     ))}
                   </select>
@@ -2058,7 +2058,7 @@ function SettingsView({
       </section>
 
       {/* Status Override */}
-      {(userRole === "ADMIN" || userRole === "PRODUCT_MANAGER") && (
+      {["ADMIN", "DIRECTOR", "PRODUCT_MANAGER"].includes(userRole ?? "") && (
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Project Status</h2>
           <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-3">

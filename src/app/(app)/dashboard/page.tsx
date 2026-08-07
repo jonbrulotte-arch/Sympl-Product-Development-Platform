@@ -6,6 +6,7 @@ import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { formatDate } from "@/lib/utils";
 import { FolderKanban, Package, Clock, CheckCircle2, AlertCircle, ShieldAlert, ExternalLink } from "lucide-react";
+import { seesAllProjects } from "@/lib/permissions";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -75,7 +76,7 @@ export default async function DashboardPage() {
   ]);
 
   // Overdue compliance events on products in projects this user can see
-  const isAdmin = session.user.role === "ADMIN";
+  const isAdmin = seesAllProjects(session.user.role);
   const overdueCompliance = await prisma.complianceEvent.findMany({
     where: {
       status: { in: ["OPEN", "IN_PROGRESS"] },

@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
   const html = await buildDigestHtml();
 
   const recipients = await prisma.user.findMany({
-    where: { isActive: true, role: { in: ["ADMIN", "PRODUCT_MANAGER"] } },
+    where: { isActive: true, role: { in: ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER"] } },
     select: { email: true },
   });
 

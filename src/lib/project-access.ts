@@ -10,6 +10,7 @@ export type ProjectAccessResult =
 // Central authorization check for project-scoped resources.
 //
 // - ADMIN: full access to every project.
+// - DIRECTOR: view of every project; edit only where owner or editing member.
 // - Owner: view + edit.
 // - Member: view; edit only when the membership has canEdit.
 // - Everyone else: no access (404 on view to avoid leaking project existence,
@@ -33,8 +34,15 @@ export async function checkProjectAccess(
 
   const isOwner = membership.ownerId === session.user.id;
   const member = membership.members[0];
+  const isDirector = session.user.role === "DIRECTOR";
 
-  if (!isOwner && !member) return { ok: false, status: 404, error: "Not found" };
+  // Directors can see every project, so a project they aren't on is 403 on
+  // edit rather than 404 — its existence isn't a secret from them.
+  if (!isOwner && !member) {
+    if (!isDirector) return { ok: false, status: 404, error: "Not found" };
+    if (level === "view") return { ok: true, isAdmin: false };
+    return { ok: false, status: 403, error: "Forbidden" };
+  }
   if (level === "view") return { ok: true, isAdmin: false };
 
   if (isOwner || member?.canEdit) return { ok: true, isAdmin: false };
@@ -44,7 +52,7 @@ export async function checkProjectAccess(
 // Roles allowed to create/modify/delete cross-project QA records
 // (compliance events, PSIRs, and their documents). Reviewers, Approvers,
 // and Viewers get read-only access.
-const QA_MUTATION_ROLES = new Set(["ADMIN", "PRODUCT_MANAGER", "CONTRIBUTOR"]);
+const QA_MUTATION_ROLES = new Set(["ADMIN", "DIRECTOR", "PRODUCT_MANAGER", "CONTRIBUTOR"]);
 
 export function canMutateQaRecords(role: string | null | undefined): boolean {
   return !!role && QA_MUTATION_ROLES.has(role);

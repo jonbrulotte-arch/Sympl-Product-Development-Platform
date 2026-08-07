@@ -1,13 +1,14 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ProductsBrowser } from "./products-browser";
+import { seesAllProjects } from "@/lib/permissions";
 
 export default async function ProductsPage() {
   const session = await auth();
   if (!session?.user?.id) return null;
 
   const userId = session.user.id;
-  const isAdmin = session.user.role === "ADMIN";
+  const isAdmin = seesAllProjects(session.user.role);
 
   // Load projects for the filter dropdown
   const projects = await prisma.project.findMany({

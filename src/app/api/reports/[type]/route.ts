@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { buildReport, REPORT_TYPES, type ReportType } from "@/lib/reports";
 import { isInspectionsEnabled } from "@/lib/app-config";
+import { seesAllProjects } from "@/lib/permissions";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ type: string }> }) {
   const session = await auth();
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ type
 
   const rows = await buildReport(type as ReportType, {
     userId: session.user.id,
-    isAdmin: session.user.role === "ADMIN",
+    seesAllProjects: seesAllProjects(session.user.role),
     filters,
   });
   return NextResponse.json({ rows });

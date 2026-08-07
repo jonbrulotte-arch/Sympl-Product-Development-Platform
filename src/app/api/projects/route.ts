@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { projectSchema } from "@/lib/validation";
 import { logActivity } from "@/lib/activity";
+import { seesAllProjects } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
       ]
     : null;
 
-  const accessOR = session.user.role !== "ADMIN"
+  const accessOR = !seesAllProjects(session.user.role)
     ? [{ ownerId: session.user.id }, { members: { some: { userId: session.user.id } } }]
     : null;
 

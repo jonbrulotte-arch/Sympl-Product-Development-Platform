@@ -34,7 +34,8 @@ export type ReportRow = Record<string, string | number | null>;
 
 export type ReportContext = {
   userId: string;
-  isAdmin: boolean;
+  /** Reads across every project (Admin or Director) — skips scoping. */
+  seesAllProjects: boolean;
   filters: Record<string, string>;
 };
 
@@ -51,7 +52,7 @@ function fmtDate(d: Date | null | undefined): string | null {
 
 // Scoping predicate: which projects can this user see?
 export function projectScope(ctx: ReportContext): Prisma.ProjectWhereInput {
-  if (ctx.isAdmin) return {};
+  if (ctx.seesAllProjects) return {};
   return { OR: [{ ownerId: ctx.userId }, { members: { some: { userId: ctx.userId } } }] };
 }
 
@@ -66,7 +67,7 @@ export async function inspectionsReport(ctx: ReportContext): Promise<ReportRow[]
       ...(from || to
         ? { inspectionDate: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
         : {}),
-      ...(ctx.isAdmin ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
+      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
     },
     include: {
       createdBy: { select: { name: true, email: true } },
@@ -103,7 +104,7 @@ export async function complianceReport(ctx: ReportContext): Promise<ReportRow[]>
       ...(overdueOnly === "true"
         ? { dueDate: { lt: now }, status: { in: ["OPEN", "IN_PROGRESS"] } }
         : {}),
-      ...(ctx.isAdmin ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
+      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
     },
     include: {
       type: { select: { name: true } },
@@ -268,7 +269,7 @@ export async function roadblocksReport(ctx: ReportContext): Promise<ReportRow[]>
   const failed = !(await isInspectionsEnabled()) ? [] : await prisma.psir.findMany({
     where: {
       result: "FAIL",
-      ...(ctx.isAdmin ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
+      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
     },
     include: {
       products: {

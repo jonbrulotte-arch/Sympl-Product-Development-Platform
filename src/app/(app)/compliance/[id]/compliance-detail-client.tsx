@@ -97,8 +97,8 @@ export function ComplianceDetailClient({ eventId, userRole }: { eventId: string;
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const canEdit = ["ADMIN", "PRODUCT_MANAGER", "CONTRIBUTOR"].includes(userRole);
-  const canShare = ["ADMIN", "PRODUCT_MANAGER"].includes(userRole);
+  const canEdit = ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER", "CONTRIBUTOR"].includes(userRole);
+  const canShare = ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER"].includes(userRole);
 
   const hydrate = useCallback((ev: ComplianceEvent) => {
     setEvent(ev);

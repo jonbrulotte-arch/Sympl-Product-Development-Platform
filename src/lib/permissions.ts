@@ -3,6 +3,7 @@ import { prisma } from "./prisma";
 
 export const ROLE_WEIGHTS: Record<UserRole, number> = {
   ADMIN: 100,
+  DIRECTOR: 90,
   PRODUCT_MANAGER: 80,
   APPROVER: 60,
   REVIEWER: 40,
@@ -36,6 +37,13 @@ export function canDeleteProject(userRole: UserRole, userId: string, ownerId: st
   return userRole === "ADMIN" || userId === ownerId;
 }
 
+// Roles that read across every project without being a member. Directors get
+// org-wide visibility (reports, dashboard, project and product browsers) but
+// not org-wide edit rights — editing still follows ownership/membership.
+export function seesAllProjects(role: string | null | undefined): boolean {
+  return role === "ADMIN" || role === "DIRECTOR";
+}
+
 export function canManageUsers(userRole: UserRole): boolean {
   return userRole === "ADMIN";
 }
@@ -48,6 +56,7 @@ export function canConfigureSystem(userRole: UserRole): boolean {
 
 export const ROLES = [
   "ADMIN",
+  "DIRECTOR",
   "PRODUCT_MANAGER",
   "CONTRIBUTOR",
   "REVIEWER",
@@ -71,9 +80,17 @@ export const PERMISSIONS = {
 
 export type Permission = keyof typeof PERMISSIONS;
 
+// Director defaults match Product Manager; the role's distinguishing power is
+// org-wide project visibility (see seesAllProjects), not extra admin pages.
+const PM_PERMISSIONS: Permission[] = [
+  "admin:categories", "admin:attributes", "projects:create",
+  "products:sync_salsify", "projects:override_status",
+];
+
 const PERMISSION_DEFAULTS: Record<string, Permission[]> = {
   ADMIN:           Object.keys(PERMISSIONS) as Permission[],
-  PRODUCT_MANAGER: ["admin:categories", "admin:attributes", "projects:create", "products:sync_salsify", "projects:override_status"],
+  DIRECTOR:        PM_PERMISSIONS,
+  PRODUCT_MANAGER: PM_PERMISSIONS,
   CONTRIBUTOR:     [],
   REVIEWER:        [],
   APPROVER:        [],

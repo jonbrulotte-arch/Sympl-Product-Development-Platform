@@ -9,7 +9,7 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Dashboard** — Landing view with pipeline stats, approvals waiting on you, overdue compliance events, projects needing attention, and recent activity.
 - **Projects** — Organize products into projects with statuses, team members, and workflow stages. Search, filter by status, and switch between card and list views.
 - **Product Grid** — Spreadsheet-style inline editing with custom EAV attributes, column tooltips, freezable columns, saved views (named sort/visibility/pinning combos per project), bulk edit, and Excel import & export. Computed columns show per-product required-field completeness (%) and Salsify sync freshness (Synced / Changed / never). Duplicate Part Numbers used in another project are flagged with a warning icon.
-- **Product Record** — Full edit page per product with core fields, custom attributes by section, category inheritance from project, completeness chip, duplicate-part-number banner, Share / Pull-from-Salsify / Sync buttons (Admin/PM), and tabs for Compliance, Inspections, and field-level change History (old → new values, with the source of the change: Project Grid, Product Record, or Import).
+- **Product Record** — Full edit page per product with core fields, custom attributes by section, category inheritance from project, completeness chip, duplicate-part-number banner, Share / Pull-from-Salsify / Sync buttons (Admin/Director/PM), and tabs for Compliance, Inspections, and field-level change History (old → new values, with the source of the change: Project Grid, Product Record, or Import).
 - **Import with dry-run** — Excel import auto-maps columns, matches rows to existing products by Part Number (update-in-place, never duplicates), and shows a Verify step with create/update counts and cell-level old → new diffs before anything is written.
 - **Workflows** — Configurable approval stages per project with per-stage approvers, voting, automatic status transitions, and reusable templates. Stages can be reordered, carry due dates (overdue stages show red chips and a project-header badge, and escalate to pending approvers via the overdue cron), and can declare informational dependencies on other stages, compliance events, or inspection reports.
 - **Compliance** — Track regulatory events (Prop 65, REACH, CPSC, etc.) linked to products. Bulk-link products by pasting part numbers or uploading a spreadsheet. Overdue events surface on the dashboard and trigger notifications. Image attachments preview inline.
@@ -19,7 +19,7 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Salsify Integration** — Per-user API keys (each sync authenticates as the person who ran it) with org-level settings shared. Map attributes to Salsify property IDs; sync all products in a project, a selection of rows from the grid, or a single product from its edit page — with a per-attribute opt-out modal before every sync. Per-product drift detection shows what's stale in Salsify, and Pull-from-Salsify brings digital-asset URLs and state back into Sympl. Enable Salsify Debug mode in Settings for log and inspector pages.
 - **Read-Only Share Links** — Expiring tokenized URLs (7/30/90 days) that let a buyer or vendor view one product or inspection report without an account. Revocable at any time.
 - **Read-Only API Tokens** — Scoped `spt_` tokens (Admin → API Tokens) let ERP/BI tools pull product data via the API without a browser session.
-- **Manual Status Override** — Admins and Product Managers can set a project's status directly from the project Settings tab at any time.
+- **Manual Status Override** — Admins, Directors, and Product Managers can set a project's status directly from the project Settings tab at any time.
 - **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups plus uploaded-file archives, written to local disk with a retention policy and one-click restore. Snapshots can be downloaded and re-uploaded through the admin UI to migrate an instance between servers, and a scoped API token drives external cron automation (`scripts/backup.sh` backs up database and attachments in one crontab entry).
 - **Security** — Project-level authorization on every route, authenticated file serving with an upload-type allowlist, login rate limiting, immediate session invalidation for deactivated accounts, and last-admin lockout protection.
 - **Reports** — Seven operational reports (Inspections, Compliance, Overdue Stages, Overdue Projects, Roadblocks, Out-of-Sync Products, Pipeline Summary) with filters and one-click Excel export, scoped to the projects each user can see. Out-of-Sync rows drill into a field-level drift panel (old → new, who and when) with links to the product, project, and Salsify record, and a per-field push back to Salsify.
@@ -109,6 +109,7 @@ Uploaded attachments are stored in `data/uploads` (outside the public web root) 
 | Role | Access |
 |------|--------|
 | **Admin** | Full access — all projects, users, attributes, settings, backup |
+| **Director** | Read access to *every* project (browsers, dashboard, reports) plus the Product Manager permission set. Editing a project still requires ownership or membership |
 | **Product Manager** | Create/manage projects; admin attribute & category pages; Salsify sync |
 | **Contributor** | Edit products in assigned projects |
 | **Reviewer** | View and comment; cannot edit product data |
@@ -198,7 +199,7 @@ Add the SMTP variables to your `.env` file (see Environment Variables above) and
 | Project status change | Instant | Project team members |
 | Password reset | On demand | Requesting user |
 | Overdue alerts | Cron (`/api/cron/overdue-check`) | Event creator, project owners, pending approvers |
-| Leadership digest | Cron (`/api/cron/digest`) | All active Admins and Product Managers |
+| Leadership digest | Cron (`/api/cron/digest`) | All active Admins, Directors, and Product Managers |
 
 Users control which categories they receive email for in **My Profile → Notification Preferences**. Mentions and assignments default to email on; other categories default to inbox only.
 
@@ -233,7 +234,7 @@ Sympl has no built-in scheduler. Three endpoints are designed to be triggered by
 
 # ── Leadership digest ─────────────────────────────────────────────
 # Pipeline/compliance/approvals-aging summary emailed to all active
-# Admins and Product Managers. Preview the HTML at /api/cron/digest
+# Admins, Directors, and Product Managers. Preview the HTML at /api/cron/digest
 # in the browser (with an admin session) without sending.
 0 7 * * 1 curl -s -X POST http://localhost:4000/api/cron/digest \
   -H "Authorization: Bearer sbk_<your-token>"
@@ -283,7 +284,7 @@ The token grants read access to the products API only — no writes, no other en
 
 ## Share Links
 
-Admins and Product Managers can create expiring read-only share links for a product or inspection report (Share button on the record page). Anyone with the URL can view the data — no account required — until the link expires (7/30/90 days) or is revoked. Shared views show data only: no attachments, no navigation into the app.
+Admins, Directors, and Product Managers can create expiring read-only share links for a product or inspection report (Share button on the record page). Anyone with the URL can view the data — no account required — until the link expires (7/30/90 days) or is revoked. Shared views show data only: no attachments, no navigation into the app.
 
 ---
 
@@ -365,6 +366,8 @@ After modifying `prisma/schema.prisma`, run:
 npx prisma db push
 npx prisma generate
 ```
+
+Both are required after pulling a schema change — a missing `prisma generate` shows up as `Property 'x' does not exist on type 'PrismaClient'` at build time.
 
 ---
 
