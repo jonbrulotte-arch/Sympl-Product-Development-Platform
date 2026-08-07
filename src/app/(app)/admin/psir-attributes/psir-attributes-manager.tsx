@@ -126,7 +126,7 @@ export function PsirAttributesManager() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Inspection Attributes</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Define additional fields to capture on pre-shipment inspection reports.</p>
+          <p className="text-sm text-gray-500 mt-0.5">Define additional fields to capture on inspection reports.</p>
         </div>
         {!creating && (
           <Button size="sm" onClick={() => setCreating(true)}>
