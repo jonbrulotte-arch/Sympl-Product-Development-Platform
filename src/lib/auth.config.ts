@@ -10,7 +10,10 @@ export const authConfig: NextAuthConfig = {
   },
   providers: [],
   callbacks: {
-    authorized({ auth }) {
+    authorized({ auth, request }) {
+      const path = request.nextUrl.pathname;
+      const publicPaths = ["/login", "/forgot-password", "/reset-password", "/share", "/api/auth/"];
+      if (publicPaths.some((p) => path.startsWith(p))) return true;
       return !!auth?.user;
     },
   },
