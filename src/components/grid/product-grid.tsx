@@ -629,6 +629,11 @@ export function ProductGrid({
 
   const deleteSelected = useCallback(async () => {
     if (selectedRows.size === 0) return;
+    const count = selectedRows.size;
+    const msg = count === 1
+      ? "Are you sure you want to delete this product? This cannot be undone."
+      : `Are you sure you want to delete these ${count} products? This cannot be undone.`;
+    if (!confirm(msg)) return;
     const ids = [...selectedRows];
     await Promise.all(
       ids.map((id) =>
