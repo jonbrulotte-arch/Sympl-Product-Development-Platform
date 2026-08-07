@@ -787,6 +787,19 @@ const sections: Section[] = [
         <H3>@mentions</H3>
         <P>In project comments, type <Code>@</Code> followed by a teammate&apos;s first name, full name, or email prefix to send them a dedicated <em>&quot;mentioned you&quot;</em> notification.</P>
 
+        <H3>Email notifications (SMTP)</H3>
+        <P>Sympl can send email for workflow votes, stage completions, approver assignments, project status changes, and password resets. Email is <strong>optional</strong> — without SMTP configured, the app works normally with in-app notifications only.</P>
+        <P>To enable email, set the following environment variables in your <Code>.env</Code> file and restart the server:</P>
+        <UL>
+          <LI><Code>SMTP_HOST</Code> — SMTP server hostname (e.g. <Code>smtp.gmail.com</Code>). <strong>Required</strong> to enable email.</LI>
+          <LI><Code>SMTP_PORT</Code> — port number (default: <Code>587</Code>).</LI>
+          <LI><Code>SMTP_SECURE</Code> — set to <Code>true</Code> for implicit TLS (port 465). Default uses STARTTLS.</LI>
+          <LI><Code>SMTP_USER</Code> / <Code>SMTP_PASS</Code> — credentials for SMTP authentication. For Gmail, use an <strong>App Password</strong>, not your account password.</LI>
+          <LI><Code>SMTP_FROM</Code> — sender address (default: <Code>Sympl &lt;no-reply@sympl.app&gt;</Code>).</LI>
+        </UL>
+        <P>Go to <strong>Admin → Settings → Email Notifications (SMTP)</strong> to verify the connection status and send a test email.</P>
+        <P>Users control which notification categories they receive via email in <strong>My Profile → Notification Preferences</strong>. Mentions and assignments default to email on; other categories default to inbox only.</P>
+
         <H3>Overdue alerts (cron)</H3>
         <P>Compliance events and workflow stages with a due date trigger a one-time in-app notification (and email, when SMTP is configured) once they go overdue. This requires an external cron job hitting <Code>POST /api/cron/overdue-check</Code> with the backup API token — see the README for the exact crontab entry. Changing an item&apos;s due date re-arms its alert.</P>
 

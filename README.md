@@ -53,6 +53,14 @@ AUTH_URL=http://localhost:4000
 # Generate with: openssl rand -hex 32
 BACKUP_ENCRYPTION_KEY=
 
+# Email notifications (optional — without SMTP_HOST, emails are silently skipped)
+# SMTP_HOST=smtp.gmail.com
+# SMTP_PORT=587              # default 587; use 465 with SMTP_SECURE=true
+# SMTP_SECURE=false          # true = implicit TLS (port 465); false = STARTTLS
+# SMTP_USER=you@gmail.com
+# SMTP_PASS=app-specific-password
+# SMTP_FROM=Sympl <no-reply@yourdomain.com>
+
 # Seeding (optional)
 # SEED_DEMO_USERS=true      # create demo accounts + sample project (never use in production)
 # SEED_ADMIN_PASSWORD=      # bootstrap admin password; random one is generated and printed if unset
@@ -167,6 +175,41 @@ Snapshots can be downloaded from one server and uploaded to another entirely thr
 4. Restore the database snapshot, reload the app, then restore the files archive.
 
 Uploaded snapshots must keep their original file names (`sympl-backup-<timestamp>.pgenc` / `sympl-uploads-<timestamp>.tar.gz`) — the name is what identifies the artifact type.
+
+---
+
+## Email Notifications (SMTP)
+
+Sympl sends email notifications for workflow events, status changes, overdue alerts, and password resets. Email is optional — if `SMTP_HOST` is not set, all emails are silently skipped and the app works normally with in-app notifications only.
+
+### Setup
+
+Add the SMTP variables to your `.env` file (see Environment Variables above) and restart the server. Common providers:
+
+| Provider | Host | Port | Secure | Notes |
+|----------|------|------|--------|-------|
+| Gmail | `smtp.gmail.com` | 587 | false | Use an [App Password](https://support.google.com/accounts/answer/185833), not your account password |
+| Outlook/365 | `smtp.office365.com` | 587 | false | |
+| Amazon SES | `email-smtp.us-east-1.amazonaws.com` | 587 | false | Use SES SMTP credentials, not IAM keys |
+| Generic | Your SMTP host | 465 | true | Implicit TLS on port 465 |
+
+### What sends email
+
+| Event | Trigger | Recipient |
+|-------|---------|-----------|
+| Workflow vote cast | Instant | Project owner |
+| Stage completed | Instant | Project owner |
+| Approver assigned | Instant | Assigned user |
+| Project status change | Instant | Project team members |
+| Password reset | On demand | Requesting user |
+| Overdue alerts | Cron (`/api/cron/overdue-check`) | Event creator, project owners, pending approvers |
+| Leadership digest | Cron (`/api/cron/digest`) | All active Admins and Product Managers |
+
+Users control which categories they receive email for in **My Profile → Notification Preferences**. Mentions and assignments default to email on; other categories default to inbox only.
+
+### Testing
+
+Go to **Admin → Settings → Email Notifications (SMTP)** to see the current SMTP status and send a test email. The test verifies the full round-trip: connection, authentication, and delivery.
 
 ---
 
