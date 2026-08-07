@@ -128,9 +128,11 @@ export async function POST(req: NextRequest, { params }: Params) {
       const coreAccessor = CORE_FIELD_ACCESSOR[attr.key];
       let rawValue: unknown;
 
+      // Empty values are sent as null, not omitted: Salsify clears a property
+      // when it receives null, so blanking a field in Sympl clears it there too.
       if (coreAccessor) {
         rawValue = coreAccessor(product);
-        if (rawValue === null || rawValue === undefined || rawValue === "") continue;
+        if (rawValue === undefined || rawValue === "") rawValue = null;
         if (typeof rawValue === "string" && rawValue.includes("\n") && (attr.attributeType === "MULTI_SELECT" || attr.maxValues > 1)) {
           rawValue = rawValue.split("\n").map((s) => s.trim()).filter(Boolean);
         }
@@ -138,9 +140,10 @@ export async function POST(req: NextRequest, { params }: Params) {
         const avs = product.attributeValues
           .filter((v) => v.attributeDefinitionId === attr.id)
           .sort((a, b) => a.valueIndex - b.valueIndex);
-        if (avs.length === 0) continue;
-        const values = avs.map((v) => v.textValue ?? v.numberValue ?? v.booleanValue);
-        rawValue = values.length > 1 ? values : values[0];
+        const values = avs
+          .map((v) => v.textValue ?? v.numberValue ?? v.booleanValue)
+          .filter((v) => v !== null && v !== undefined && v !== "");
+        rawValue = values.length === 0 ? null : values.length > 1 ? values : values[0];
       }
 
       // Salsify localizable properties: the v1 API expects a map keyed
