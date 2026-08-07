@@ -217,6 +217,18 @@ export function BackupClient() {
       if (xhr.status >= 200 && xhr.status < 300) {
         setUploadMsg({ ok: true, text: `Uploaded ${file.name}. Select it below to restore.` });
         await load();
+      } else if (xhr.status === 413) {
+        // Typically rejected by a reverse proxy before reaching the app —
+        // nginx's client_max_body_size defaults to 1 MB.
+        setUploadMsg({
+          ok: false,
+          text: "Upload rejected: file too large (413). If Sympl runs behind a reverse proxy (nginx/Apache), raise its body-size limit — e.g. nginx client_max_body_size — to at least the snapshot size.",
+        });
+      } else if (xhr.status === 504 || xhr.status === 502) {
+        setUploadMsg({
+          ok: false,
+          text: `Upload interrupted (${xhr.status} from the proxy). For large snapshots, raise the reverse proxy's timeout (e.g. nginx proxy_read_timeout / proxy_send_timeout), then check the list below — the file may not have been saved.`,
+        });
       } else {
         setUploadMsg({ ok: false, text: data.error ?? `Upload failed (${xhr.status})` });
       }

@@ -50,13 +50,32 @@ export async function GET() {
   if (!config) return NextResponse.json({ files: [] });
 
   try {
-    const files = readdirSync(config.backupPath)
+    // Stat each file individually: a file pruned or renamed between readdir
+    // and stat (cron backups, concurrent uploads) must only drop that one
+    // entry, not blank the whole listing.
+    const entries = readdirSync(config.backupPath);
+
+    // Sweep leftovers from uploads that died mid-stream (server restart,
+    // dropped connection): .part files older than a day are unfinishable.
+    for (const f of entries.filter((f) => f.endsWith(".part"))) {
+      try {
+        const full = path.join(config.backupPath, f);
+        if (Date.now() - statSync(full).mtime.getTime() > 24 * 60 * 60 * 1000) unlinkSync(full);
+      } catch { /* best-effort */ }
+    }
+
+    const files = entries
       .map((f) => ({ name: f, kind: classifyBackupFile(f) }))
       .filter((f): f is { name: string; kind: BackupKind } => f.kind !== null)
-      .map(({ name, kind }) => {
+      .flatMap(({ name, kind }) => {
         const full = path.join(config.backupPath, name);
-        const stat = statSync(full);
-        return { name, kind, path: full, sizeBytes: stat.size, createdAt: stat.mtime.toISOString() };
+        try {
+          const stat = statSync(full);
+          if (!stat.isFile()) return [];
+          return [{ name, kind, path: full, sizeBytes: stat.size, createdAt: stat.mtime.toISOString() }];
+        } catch {
+          return [];
+        }
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
@@ -155,7 +174,7 @@ export async function POST(req: NextRequest) {
           );
         }
       } finally {
-        unlinkSync(tmpFile);
+        try { unlinkSync(tmpFile); } catch { /* must not mask the real error */ }
       }
 
       // Report what actually landed so a no-op restore is visible immediately.

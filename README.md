@@ -176,6 +176,14 @@ Snapshots can be downloaded from one server and uploaded to another entirely thr
 
 Uploaded snapshots must keep their original file names (`sympl-backup-<timestamp>.pgenc` / `sympl-uploads-<timestamp>.tar.gz`) — the name is what identifies the artifact type.
 
+> **Reverse proxy note:** If Sympl runs behind nginx or Apache, the proxy's request-body limit applies to snapshot uploads before they ever reach the app. nginx defaults to `client_max_body_size 1m`, which rejects any real snapshot with a 413. Raise it (and the read/send timeouts, for multi-GB files) in the server block that proxies Sympl:
+>
+> ```nginx
+> client_max_body_size 10g;
+> proxy_read_timeout   600s;
+> proxy_send_timeout   600s;
+> ```
+
 ---
 
 ## Email Notifications (SMTP)

@@ -42,12 +42,17 @@ export async function POST() {
     const fileSize = statSync(filePath).size;
 
     // Prune old upload archives to the same retention as database backups.
+    // Best-effort per file: a file that vanishes mid-prune must not fail an
+    // archive that already succeeded.
     const archives = readdirSync(config.backupPath)
       .filter((f) => f.startsWith(UPLOADS_PREFIX) && f.endsWith(UPLOADS_EXT))
-      .map((f) => ({ name: f, mtime: statSync(path.join(config.backupPath, f)).mtime.getTime() }))
+      .flatMap((f) => {
+        try { return [{ name: f, mtime: statSync(path.join(config.backupPath, f)).mtime.getTime() }]; }
+        catch { return []; }
+      })
       .sort((a, b) => b.mtime - a.mtime);
     for (const old of archives.slice(config.retainCount)) {
-      unlinkSync(path.join(config.backupPath, old.name));
+      try { unlinkSync(path.join(config.backupPath, old.name)); } catch { /* already gone */ }
     }
 
     await prisma.backupLog.create({
