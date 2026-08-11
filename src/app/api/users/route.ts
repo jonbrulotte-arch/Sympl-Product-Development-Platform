@@ -18,7 +18,8 @@ export async function GET() {
     select: isUserAdmin
       ? {
           id: true, email: true, name: true, image: true, role: true,
-          isActive: true, createdAt: true, updatedAt: true, passwordHash: true,
+          isActive: true, createdAt: true, updatedAt: true, lastAccessedAt: true,
+          passwordHash: true,
         }
       : { id: true, email: true, name: true, image: true, role: true },
     orderBy: { name: "asc" },

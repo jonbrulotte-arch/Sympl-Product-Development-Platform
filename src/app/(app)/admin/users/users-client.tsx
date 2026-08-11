@@ -16,9 +16,24 @@ import type { UserRole } from "@prisma/client";
 type UserRow = {
   id: string; email: string; name: string | null; role: UserRole;
   isActive: boolean; createdAt: Date;
+  lastAccessedAt: Date | string | null;
   /** Account created but never activated — no password set yet. */
   pendingInvite?: boolean;
 };
+
+function formatLastAccessed(v: Date | string | null): string {
+  if (!v) return "Never";
+  const d = typeof v === "string" ? new Date(v) : v;
+  const diff = Date.now() - d.getTime();
+  const min = Math.floor(diff / 60_000);
+  if (min < 1) return "Just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}d ago`;
+  return formatDate(d);
+}
 
 const ROLES: UserRole[] = ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER", "CONTRIBUTOR", "REVIEWER", "APPROVER", "VIEWER"];
 
@@ -35,6 +50,7 @@ const roleColors: Record<UserRole, string> = {
 export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
   const [users, setUsers] = useState(initialUsers);
   const [search, setSearch] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", role: "CONTRIBUTOR" as UserRole });
   const [inviteMsg, setInviteMsg] = useState<{ email: string; url?: string; expiresInDays?: number } | null>(null);
@@ -57,11 +73,13 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
   const [activityLogs, setActivityLogs] = useState<ActivityEntry[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
 
-  const filtered = users.filter(
-    (u) =>
-      u.name?.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = users.filter((u) => {
+    if (!showInactive && !u.isActive) return false;
+    const q = search.toLowerCase();
+    if (!q) return true;
+    return (u.name?.toLowerCase().includes(q) ?? false) || u.email.toLowerCase().includes(q);
+  });
+  const hiddenInactiveCount = users.filter((u) => !u.isActive).length;
 
   async function createUser() {
     setLoading(true);
@@ -191,14 +209,28 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
         </div>
       )}
 
-      <div className="relative">
-        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-        <Input
-          placeholder="Search users..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search users..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-700 whitespace-nowrap">
+          <input
+            type="checkbox"
+            checked={showInactive}
+            onChange={(e) => setShowInactive(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          Show inactive
+          {hiddenInactiveCount > 0 && !showInactive && (
+            <span className="text-xs text-gray-500">({hiddenInactiveCount} hidden)</span>
+          )}
+        </label>
       </div>
 
       <Card>
@@ -209,6 +241,7 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
                 <th className="px-4 py-3 text-left font-medium text-gray-600">User</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Role</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Status</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Last accessed</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Joined</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -247,6 +280,12 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
                         </Badge>
                       )}
                     </div>
+                  </td>
+                  <td
+                    className="px-4 py-3 text-gray-500"
+                    title={user.lastAccessedAt ? formatDate(user.lastAccessedAt) : "Never signed in"}
+                  >
+                    {formatLastAccessed(user.lastAccessedAt)}
                   </td>
                   <td className="px-4 py-3 text-gray-500">{formatDate(user.createdAt)}</td>
                   <td className="px-4 py-3">

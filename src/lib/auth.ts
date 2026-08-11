@@ -28,6 +28,13 @@ async function getUserState(userId: string): Promise<{ role: UserRole; isActive:
   }
   if (userStateCache.size > 5_000) userStateCache.clear();
   userStateCache.set(userId, { ...dbUser, expiresAt: Date.now() + USER_STATE_TTL_MS });
+  // Piggy-back a "last accessed" stamp on the cache miss — that already
+  // throttles us to at most one write per TTL window per user, so the admin
+  // Users page can show real activity without hitting the DB every request.
+  prisma.user.update({
+    where: { id: userId },
+    data: { lastAccessedAt: new Date() },
+  }).catch(() => {});
   return dbUser;
 }
 
@@ -70,6 +77,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         clearLoginFailures(limiterKey);
+        prisma.user.update({
+          where: { id: user.id },
+          data: { lastAccessedAt: new Date() },
+        }).catch(() => {});
         return {
           id: user.id,
           email: user.email,

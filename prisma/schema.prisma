@@ -102,6 +102,9 @@ model User {
   // Salsify credentials are per-person, not per-installation: every sync
   // authenticates as the user who triggered it.
   salsifyApiKey String?   @db.Text
+  // Refreshed by the auth layer on login and periodically as the session is
+  // re-validated; drives the admin "Last accessed" column.
+  lastAccessedAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
