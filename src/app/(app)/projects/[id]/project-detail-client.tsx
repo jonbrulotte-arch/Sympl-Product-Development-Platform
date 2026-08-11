@@ -19,6 +19,7 @@ import { PsirCard, type PsirCardData } from "@/components/psir/psir-card";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useSalsifyStatus } from "@/hooks/use-salsify-status";
 
 interface AttributeDef {
   id: string;
@@ -53,6 +54,8 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
   const [activeTab, setActiveTab] = useState("grid");
   const [salsifySyncing, setSalsifySyncing] = useState(false);
   const [salsifySyncResult, setSalsifySyncResult] = useState<string | null>(null);
+  const [salsifySyncFailed, setSalsifySyncFailed] = useState(false);
+  const { ready: salsifyReady, blockedReason: salsifyBlockedReason, hasApiKey: salsifyHasApiKey } = useSalsifyStatus();
   const [showSalsifyModal, setShowSalsifyModal] = useState(false);
   const [salsifySelectedIds, setSalsifySelectedIds] = useState<string[] | null>(null);
   const [gridReloadKey, setGridReloadKey] = useState(0);
@@ -78,6 +81,7 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
     setShowSalsifyModal(false);
     setSalsifySyncing(true);
     setSalsifySyncResult(null);
+    setSalsifySyncFailed(false);
     try {
       const res = await fetch(`/api/projects/${project.id}/salsify-sync`, {
         method: "POST",
@@ -88,13 +92,17 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
       if (res.ok) {
         const errSummary = data.errors?.length ? ` — ${data.errors.length} error(s): ${data.errors[0]}` : "";
         setSalsifySyncResult(`Synced ${data.synced} of ${data.total} product(s) to Salsify${errSummary}`);
+        // A 200 that synced nothing, or reported per-product errors, is not a success.
+        setSalsifySyncFailed(data.errors?.length > 0 || data.synced === 0);
         // Refresh grid rows so the Salsify drift column reflects the new sync timestamps
         setGridReloadKey((k) => k + 1);
       } else {
         setSalsifySyncResult(data.error ?? "Sync failed");
+        setSalsifySyncFailed(true);
       }
     } catch {
       setSalsifySyncResult("Sync failed — network error");
+      setSalsifySyncFailed(true);
     } finally {
       setSalsifySyncing(false);
     }
@@ -186,17 +194,36 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
             )}
             {project.status === "EXPORT_READY" && (
               <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => openSalsifyModal()}
-                  disabled={salsifySyncing}
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${salsifySyncing ? "animate-spin" : ""}`} />
-                  {salsifySyncing ? "Syncing…" : "Sync to Salsify"}
-                </Button>
+                {salsifyReady ? (
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => openSalsifyModal()}
+                    disabled={salsifySyncing}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${salsifySyncing ? "animate-spin" : ""}`} />
+                    {salsifySyncing ? "Syncing…" : "Sync to Salsify"}
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" disabled title={salsifyBlockedReason ?? undefined}>
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Sync unavailable
+                  </Button>
+                )}
+                {!salsifyReady && salsifyBlockedReason && (
+                  <span className="text-xs text-gray-500">
+                    {salsifyBlockedReason}{" "}
+                    {!salsifyHasApiKey && (
+                      <Link href="/profile" className="text-blue-600 hover:underline">My Profile</Link>
+                    )}
+                  </span>
+                )}
+                {/* Errors have to read as errors — this used to be the same grey
+                    as a successful "Synced 12 of 40". */}
                 {salsifySyncResult && (
-                  <span className="text-xs text-gray-600">{salsifySyncResult}</span>
+                  <span className={`text-xs ${salsifySyncFailed ? "text-red-600 font-medium" : "text-gray-600"}`}>
+                    {salsifySyncResult}
+                  </span>
                 )}
               </div>
             )}

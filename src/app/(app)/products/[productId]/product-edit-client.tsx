@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { SalsifySyncModal } from "@/components/salsify/salsify-sync-modal";
 import { ShareLinkButton } from "@/components/share-link-button";
+import { useSalsifyStatus } from "@/hooks/use-salsify-status";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -611,6 +612,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const canSync = ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER"].includes(userRole);
+  const { ready: salsifyReady, blockedReason: salsifyBlockedReason, hasApiKey: salsifyHasApiKey } = useSalsifyStatus();
 
   // % of REQUIRED attributes with a value — drives the completeness chip
   const completeness = useMemo(() => {
@@ -798,20 +800,36 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
             {canSync && <ShareLinkButton entityType="PRODUCT" entityId={product.id} />}
             {canSync && (
               <div className="flex flex-col items-end gap-0.5">
-                <button
-                  onClick={() => setShowSalsifyModal(true)}
-                  disabled={syncing}
-                  className="flex items-center gap-1.5 text-xs text-emerald-700 hover:text-emerald-900 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-60"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
-                  {syncing ? "Syncing…" : syncStatus === "synced" ? "Synced!" : "Sync to Salsify"}
-                </button>
+                {salsifyReady ? (
+                  <button
+                    onClick={() => setShowSalsifyModal(true)}
+                    disabled={syncing}
+                    className="flex items-center gap-1.5 text-xs text-emerald-700 hover:text-emerald-900 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-60"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+                    {syncing ? "Syncing…" : syncStatus === "synced" ? "Synced!" : "Sync to Salsify"}
+                  </button>
+                ) : (
+                  /* No key (or Salsify off): send them where the fix is rather
+                     than opening a modal that ends in a 400. */
+                  <Link
+                    href={salsifyHasApiKey ? "/help" : "/profile"}
+                    title={salsifyBlockedReason ?? undefined}
+                    className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-300 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-1.5 transition-colors"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Sync unavailable
+                  </Link>
+                )}
+                {!salsifyReady && salsifyBlockedReason && (
+                  <p className="text-xs text-gray-500 max-w-xs text-right">{salsifyBlockedReason}</p>
+                )}
                 {syncStatus === "error" && syncError && (
                   <p className="text-xs text-red-600 max-w-xs text-right">{syncError}</p>
                 )}
               </div>
             )}
-            {canSync && (
+            {canSync && salsifyReady && (
               <div className="flex flex-col items-end gap-0.5">
                 <button
                   onClick={pullFromSalsify}
