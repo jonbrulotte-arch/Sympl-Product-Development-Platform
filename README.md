@@ -282,13 +282,13 @@ Go to **Admin → Settings → Email Notifications (SMTP)** to see the current S
 
 ## Cron Jobs
 
-Sympl has no built-in scheduler. Three endpoints are designed to be triggered by external cron jobs, all authenticated with the same `sbk_` backup API token generated in **Admin → Backup & Restore → API Token**.
+Sympl has no built-in scheduler. Three endpoints are designed to be triggered by external cron jobs, all authenticated with the same `sbk_` automation token generated in **Admin → API Tokens**.
 
 ### Token types
 
 | Prefix | Purpose | Where to generate |
 |--------|---------|-------------------|
-| `sbk_` | Backup & cron endpoints (backup, overdue-check, digest) | Admin → Backup & Restore → API Token |
+| `sbk_` | Backup & cron endpoints (backup, overdue-check, digest) | Admin → API Tokens |
 | `spt_` | Read-only product API for ERP/BI tools | Admin → API Tokens |
 
 > **Important:** `spt_` tokens do **not** work for cron endpoints. Always use the `sbk_` token for all cron jobs.
