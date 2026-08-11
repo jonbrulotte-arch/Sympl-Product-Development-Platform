@@ -917,19 +917,53 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
     if (res.ok) setLovItems((prev) => prev.filter((l) => l.id !== lovId));
   };
 
-  const moveLov = async (index: number, direction: -1 | 1) => {
+  const persistLovOrder = async (next: LovItem[]) => {
     if (!attr?.id) return;
-    const target = index + direction;
-    if (target < 0 || target >= lovItems.length) return;
-    const next = [...lovItems];
-    [next[index], next[target]] = [next[target], next[index]];
-    setLovItems(next);
     const items = next.map((item, i) => ({ id: item.id, sortOrder: i }));
     await fetch(`/api/attributes/${attr.id}/lov`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items }),
     });
+  };
+
+  const moveLov = async (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= lovItems.length) return;
+    const next = [...lovItems];
+    [next[index], next[target]] = [next[target], next[index]];
+    setLovItems(next);
+    await persistLovOrder(next);
+  };
+
+  // Drag handlers — the handle is the only draggable element so labels stay
+  // selectable. Same pattern as the attribute rows themselves.
+  const [lovDragId, setLovDragId] = useState<string | null>(null);
+  const [lovOverId, setLovOverId] = useState<string | null>(null);
+  const handleLovDragStart = (e: React.DragEvent, id: string) => {
+    setLovDragId(id);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", id);
+  };
+  const handleLovDragOver = (e: React.DragEvent, id: string) => {
+    if (!lovDragId || lovDragId === id) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setLovOverId(id);
+  };
+  const handleLovDrop = async (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const draggingId = lovDragId;
+    setLovDragId(null);
+    setLovOverId(null);
+    if (!draggingId || draggingId === targetId) return;
+    const dragging = lovItems.find((i) => i.id === draggingId);
+    if (!dragging) return;
+    const without = lovItems.filter((i) => i.id !== draggingId);
+    const targetIdx = without.findIndex((i) => i.id === targetId);
+    without.splice(targetIdx, 0, dragging);
+    setLovItems(without);
+    await persistLovOrder(without);
   };
 
   const showLov = form.attributeType === "SELECT" || form.attributeType === "MULTI_SELECT";
@@ -1093,35 +1127,61 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
                     {lovItems.length === 0 && (
                       <p className="text-xs text-gray-500 px-3 py-2 italic">No options yet</p>
                     )}
-                    {lovItems.map((item, i) => (
-                      <div key={item.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 group">
-                        <span className="text-xs text-gray-500 w-5">{i + 1}.</span>
-                        <span className="flex-1 text-sm">{item.label}</span>
-                        <code className="text-xs text-gray-500 bg-gray-100 px-1.5 rounded">{item.value}</code>
-                        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => moveLov(i, -1)}
-                            disabled={i === 0}
-                            className="text-gray-400 hover:text-gray-700 disabled:opacity-20 disabled:cursor-not-allowed"
+                    {lovItems.map((item, i) => {
+                      const isDragging = lovDragId === item.id;
+                      const isOver = lovOverId === item.id;
+                      return (
+                        <div
+                          key={item.id}
+                          className={`flex items-center gap-2 px-3 py-2 group transition-colors ${
+                            isDragging ? "opacity-40 bg-blue-50"
+                              : isOver ? "bg-blue-50 border-t-2 border-t-blue-400"
+                              : "hover:bg-gray-50"
+                          }`}
+                          onDragOver={(e) => handleLovDragOver(e, item.id)}
+                          onDragLeave={() => setLovOverId(null)}
+                          onDrop={(e) => handleLovDrop(e, item.id)}
+                        >
+                          <span
+                            draggable
+                            onDragStart={(e) => handleLovDragStart(e, item.id)}
+                            onDragEnd={() => { setLovDragId(null); setLovOverId(null); }}
+                            className="cursor-grab active:cursor-grabbing shrink-0 touch-none"
+                            title="Drag to reorder"
                           >
-                            <ArrowUp className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => moveLov(i, 1)}
-                            disabled={i === lovItems.length - 1}
-                            className="text-gray-400 hover:text-gray-700 disabled:opacity-20 disabled:cursor-not-allowed"
-                          >
-                            <ArrowDown className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => removeLov(item.id)}
-                            className="text-gray-300 hover:text-red-500"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
+                            <GripVertical className="h-4 w-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
+                          </span>
+                          <span className="text-xs text-gray-500 w-5">{i + 1}.</span>
+                          <span className="flex-1 text-sm">{item.label}</span>
+                          <code className="text-xs text-gray-500 bg-gray-100 px-1.5 rounded">{item.value}</code>
+                          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => moveLov(i, -1)}
+                              disabled={i === 0}
+                              className="text-gray-400 hover:text-gray-700 disabled:opacity-20 disabled:cursor-not-allowed"
+                              title="Move up"
+                            >
+                              <ArrowUp className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => moveLov(i, 1)}
+                              disabled={i === lovItems.length - 1}
+                              className="text-gray-400 hover:text-gray-700 disabled:opacity-20 disabled:cursor-not-allowed"
+                              title="Move down"
+                            >
+                              <ArrowDown className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => removeLov(item.id)}
+                              className="text-gray-300 hover:text-red-500"
+                              title="Remove"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   <div className="flex gap-2">
                     <Input

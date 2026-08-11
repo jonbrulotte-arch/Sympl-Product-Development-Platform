@@ -104,12 +104,19 @@ export async function POST(req: NextRequest) {
         created++;
       }
 
-      // Upsert LOV items (format: value:label|value:label|...)
+      // Upsert LOV items. New sheets use `;;` between entries and `::` between
+      // value and label so category paths like "Power Tool Accessories|Circular
+      // Saw Blades" survive intact. Legacy sheets using `|` and `:` still load
+      // when neither of the new separators appears anywhere in the cell.
       if (row.lovValues) {
-        const entries = String(row.lovValues).split("|").filter(Boolean);
+        const raw = String(row.lovValues);
+        const legacy = !raw.includes(";;") && !raw.includes("::");
+        const entrySep = legacy ? "|" : ";;";
+        const pairSep = legacy ? ":" : "::";
+        const entries = raw.split(entrySep).map((e) => e.trim()).filter(Boolean);
         for (let i = 0; i < entries.length; i++) {
-          const [value, ...rest] = entries[i].split(":").map((s) => s.trim());
-          const label = rest.join(":") || value;
+          const [value, ...rest] = entries[i].split(pairSep).map((s) => s.trim());
+          const label = rest.join(pairSep) || value;
           if (!value) continue;
           await prisma.lovItem.upsert({
             where: { attributeDefinitionId_value: { attributeDefinitionId: attrId, value } },

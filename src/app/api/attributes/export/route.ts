@@ -32,8 +32,10 @@ export async function GET(_req: NextRequest) {
     category: a.category?.name ?? "",
     salsifyEnabled: a.salsifyEnabled ? "true" : "false",
     salsifyPropertyId: a.salsifyPropertyId ?? "",
-    // LOV items encoded as value:label pairs separated by |
-    lovValues: a.lovItems.map((l) => `${l.value}:${l.label}`).join("|"),
+    // LOV items: value::label between the pair, ;; between entries. The `|`
+    // and `:` used by earlier versions collided with category paths and value
+    // strings that legitimately contain those characters.
+    lovValues: a.lovItems.map((l) => `${l.value}::${l.label}`).join(";;"),
   }));
 
   const ws = XLSX.utils.json_to_sheet(rows);
