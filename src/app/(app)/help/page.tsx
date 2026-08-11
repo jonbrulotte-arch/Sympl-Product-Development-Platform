@@ -513,6 +513,25 @@ const sections: Section[] = [
           <LI><strong>Import</strong> — created or updated via an Excel import.</LI>
         </UL>
 
+        <H3>Ordering categories (Admin)</H3>
+        <P>In <strong>Admin &rarr; Categories</strong>, drag the handle at the left of any row to change the order categories appear in throughout the app. Dragging works within a level: top-level categories reorder against each other, and sub-categories reorder within their parent.</P>
+        <P>Dropping a sub-category onto a top-level row moves it under that parent. To change a top-level category&apos;s parent, use <strong>Edit</strong> — dragging deliberately won&apos;t demote a category that has sub-categories of its own.</P>
+        <Callout>The new order saves immediately. If the server rejects a move the table snaps back to how it was and tells you why, so what you see is always what was stored.</Callout>
+
+        <H3>Resetting someone&apos;s password (Admin)</H3>
+        <P>The key icon on a user row in <strong>Admin &rarr; Users</strong> resets that person&apos;s password. It replaces the stored password with a random value nobody knows and emails them a link to choose a new one, valid for one hour. Administrators never see, choose, or send a password.</P>
+        <Callout>A session the user is already signed into keeps working until it expires — the reset blocks new sign-ins, not existing ones. To cut access off immediately, deactivate the account instead.</Callout>
+
+        <H3>Transferring project ownership (Admin)</H3>
+        <P><strong>Admin &rarr; Transfer Ownership</strong> reassigns projects in bulk, for when a manager leaves or hands off a portfolio. Admins and Directors hold this by default; the <em>Transfer Project Ownership</em> permission in Access Control decides who else does.</P>
+        <UL>
+          <LI>Filter by <strong>current owner</strong> to pull up one person&apos;s whole portfolio, or search the master list by project, brand, or owner.</LI>
+          <LI>Tick the projects to move — or the header checkbox to take everything showing. Archived projects appear only if you ask for them.</LI>
+          <LI>Pick the new owner. Only active Admins, Directors, and Product Managers are offered, since other roles can&apos;t exercise ownership.</LI>
+        </UL>
+        <P><strong>Keep previous owner as an editing member</strong> is on by default: each outgoing owner stays on their projects with edit access, so nothing they were mid-way through becomes unreachable. Turn it off for a clean break.</P>
+        <P>Both the new and previous owners are notified, and every transfer is recorded in the project&apos;s activity log with the old and new owner.</P>
+
         <H3>Per-user activity (Admin)</H3>
         <P>Admins can view any user&apos;s recent activity from <strong>Admin → Users</strong> — click the clock icon on a user&apos;s row to open their last 100 actions across all projects.</P>
       </>

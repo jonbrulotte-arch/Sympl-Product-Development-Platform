@@ -25,7 +25,9 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Reports** — Seven operational reports (Inspections, Compliance, Overdue Stages, Overdue Projects, Roadblocks, Out-of-Sync Products, Pipeline Summary) with filters and one-click Excel export, scoped to the projects each user can see. Out-of-Sync rows drill into a field-level drift panel (old → new, who and when) with links to the product, project, and Salsify record, and a per-field push back to Salsify.
 - **Module toggles** — Admin → Settings → Modules can disable the Inspections module platform-wide (sidebar, pages, product/project tabs, reports, API). All inspection data is retained; re-enabling restores everything.
 - **User invitations** — Adding a user takes name, email, and role; an emailed single-use link (7 days) lets them set their own password. Admins never handle a password. Un-activated accounts show as "Invite pending" with a resend action.
-- **Admin** — Users (including invitations, per-user password reset, and activity log viewer), categories, attributes (with EAV and reorderable Lists of Values), workflow templates, compliance types, inspection attributes, API tokens, backup, access control, and settings.
+- **Admin password reset** — Resetting a user scrambles their stored password to a random value and emails them a 1-hour reset link. Nobody, including the admin, ever knows the interim password.
+- **Bulk ownership transfer** — Admin → Transfer Ownership (Admins and Directors by default, configurable in Access Control) reassigns projects between managers in bulk: filter by current owner, select from the master list, and hand the set over, optionally keeping the outgoing owner on as an editing member.
+- **Admin** — Users (including invitations, per-user password reset, and activity log viewer), categories (drag to reorder and re-parent), attributes (with EAV and reorderable Lists of Values), workflow templates, compliance types, inspection attributes, API tokens, backup, access control, and settings.
 
 ---
 
@@ -116,7 +118,28 @@ Invitation links are single-use and expire after **7 days**. The user list shows
 
 Requires SMTP (see [Email Notifications](#email-notifications-smtp)). Without it the invitation email is silently skipped — the create response returns the invite URL so an admin can copy and send it manually.
 
-Accounts that already have a password can't be re-invited; use **Change password** on the row, or have the user go through **Forgot password**.
+Accounts that already have a password can't be re-invited. Use the key icon on the row to reset them instead, or have the user go through **Forgot password**.
+
+### Resetting a password
+
+The key icon on a user row replaces their password with a random value nobody knows, then emails them a reset link valid for **1 hour**. Administrators never see, choose, or transmit a password.
+
+An existing signed-in session survives the reset — the JWT is checked against account status, not the password. To cut off access immediately, deactivate the account, which invalidates the session within 60 seconds.
+
+---
+
+## Transferring Project Ownership
+
+**Admin → Transfer Ownership** (requires `projects:transfer_ownership`, granted to Admins and Directors by default) reassigns projects in bulk — for a manager leaving, changing teams, or handing off a portfolio.
+
+1. Filter by **current owner** to pull up one manager's whole portfolio, or leave it on *All owners* and search the master list by project, brand, or owner.
+2. Tick the projects to move (or the header checkbox for everything visible). Archived projects are excluded unless you opt in.
+3. Choose the new owner — only active Admins, Directors, and Product Managers are offered, since other roles can't exercise ownership.
+4. Confirm.
+
+**Keep previous owner as an editing member** (on by default) adds each outgoing owner to their project as a member with edit rights, so nothing they were working on becomes unreachable. Turn it off for a clean break.
+
+Projects already owned by the target are skipped rather than counted. Both the new and previous owners get an inbox notification, and every transfer is written to the project's activity log as an `ownerId` change with old and new values.
 
 ---
 
@@ -153,6 +176,7 @@ Accounts that already have a password can't be re-invited; use **Change password
 | Manage Inspection Reports | Admin, Director, Product Manager |
 | Sync to Salsify | Admin, Director, Product Manager |
 | Override Project Status | Admin, Director, Product Manager |
+| Transfer Project Ownership | Admin, Director |
 
 Every permission is enforced server-side in the API route, not only hidden in the UI. Client components read their own grants from `GET /api/config` (`permissions`) purely to hide actions the API would refuse.
 
