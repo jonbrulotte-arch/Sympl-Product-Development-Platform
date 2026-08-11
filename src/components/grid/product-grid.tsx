@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { ProductRecord } from "@prisma/client";
+import { useSalsifyStatus } from "@/hooks/use-salsify-status";
 
 interface AttrDef {
   id: string;
@@ -514,6 +515,7 @@ export function ProductGrid({
   onSalsifySync,
   reloadKey = 0,
 }: ProductGridProps) {
+  const { ready: salsifyReady, blockedReason: salsifyBlockedReason } = useSalsifyStatus();
   const [products, setProducts] = useState<ProductRow[]>(() => enrichProducts(initialProducts));
 
   // Refetch rows when the parent signals server-side changes (e.g. Salsify
@@ -877,11 +879,19 @@ export function ProductGrid({
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">{selectedRows.size} selected</span>
               {onSalsifySync && (
-                <Button size="sm" variant="outline" onClick={() => onSalsifySync([...selectedRows])}
-                  className="text-emerald-700 border-emerald-300 bg-emerald-50 hover:bg-emerald-100">
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  Sync to Salsify
-                </Button>
+                salsifyReady ? (
+                  <Button size="sm" variant="outline" onClick={() => onSalsifySync([...selectedRows])}
+                    className="text-emerald-700 border-emerald-300 bg-emerald-50 hover:bg-emerald-100">
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Sync to Salsify
+                  </Button>
+                ) : (
+                  // Disabled rather than hidden: the reason is the useful part.
+                  <Button size="sm" variant="outline" disabled title={salsifyBlockedReason ?? undefined}>
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Sync unavailable
+                  </Button>
+                )
               )}
               {canEdit && (
                 <Button size="sm" variant="outline" onClick={() => setBulkEditOpen(true)}>
