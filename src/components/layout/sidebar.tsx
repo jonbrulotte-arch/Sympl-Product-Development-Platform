@@ -46,7 +46,7 @@ const navItems = [
 // Maps each admin nav item to its required permission (null = ADMIN only, no permission key)
 const adminNavItems: { href: string; label: string; icon: React.ElementType; permission: Permission | null }[] = [
   { href: "/admin/users",              label: "Users",              icon: Users,          permission: "admin:users" },
-  { href: "/admin/transfer-ownership", label: "Transfer Ownership", icon: ArrowRightLeft, permission: "projects:transfer_ownership" },
+  { href: "/admin/bulk-projects",      label: "Bulk Project Actions", icon: ArrowRightLeft, permission: "projects:transfer_ownership" },
   { href: "/admin/categories",         label: "Categories",         icon: Tag,            permission: "admin:categories" },
   { href: "/admin/attributes",         label: "Attributes",         icon: ListFilter,     permission: "admin:attributes" },
   { href: "/admin/workflow-templates", label: "Workflows",          icon: GitBranch,      permission: "admin:workflow_templates" },

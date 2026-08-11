@@ -523,7 +523,7 @@ const sections: Section[] = [
         <Callout>A session the user is already signed into keeps working until it expires — the reset blocks new sign-ins, not existing ones. To cut access off immediately, deactivate the account instead.</Callout>
 
         <H3>Transferring project ownership (Admin)</H3>
-        <P><strong>Admin &rarr; Transfer Ownership</strong> reassigns projects in bulk, for when a manager leaves or hands off a portfolio. Admins and Directors hold this by default; the <em>Transfer Project Ownership</em> permission in Access Control decides who else does.</P>
+        <P><strong>Admin &rarr; Bulk Project Actions</strong> transfers ownership, changes status, or archives projects in bulk — for a manager leaving, mid-year status resets, or a portfolio hand-off. Filter by owner and product category, pick the projects, choose an action. Permanent delete stays admin-only; everything else is gated by the <em>Bulk Project Actions</em> permission in Access Control (Admins and Directors by default).</P>
         <UL>
           <LI>Filter by <strong>current owner</strong> to pull up one person&apos;s whole portfolio, or search the master list by project, brand, or owner.</LI>
           <LI>Tick the projects to move — or the header checkbox to take everything showing. Archived projects appear only if you ask for them.</LI>

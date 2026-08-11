@@ -78,7 +78,7 @@ export const PERMISSIONS = {
   "inspections:manage":       { label: "Manage Inspection Reports", description: "Create, edit, and delete inspection reports and their documents" },
   "products:sync_salsify":    { label: "Sync to Salsify",          description: "Push product data to Salsify" },
   "projects:override_status": { label: "Override Project Status",  description: "Manually set project status from the Settings tab" },
-  "projects:transfer_ownership": { label: "Transfer Project Ownership", description: "Reassign project ownership between managers in bulk" },
+  "projects:transfer_ownership": { label: "Bulk Project Actions", description: "Bulk transfer ownership, change status, or archive projects. Permanent delete stays admin-only." },
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
