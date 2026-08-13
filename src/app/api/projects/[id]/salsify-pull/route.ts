@@ -37,6 +37,22 @@ type Warning = {
   reason: string;
 };
 
+// Per-product outcome, so "why did only one of my three part numbers return
+// anything?" is answerable from the confirmation screen instead of by guesswork.
+type ProductResult = {
+  partNumber: string | null;
+  status: "found" | "not_found" | "error" | "no_part_number";
+  httpStatus?: number;
+  detail?: string;
+  /** Mapped Salsify properties actually present on the returned record. */
+  propsPresent: number;
+  /** Mapped properties the record didn't carry — a sample, for diagnosis. */
+  propsMissing: string[];
+  /** Mapped properties skipped because the attribute is scoped to another category. */
+  propsOutOfCategory: number;
+  changeCount: number;
+};
+
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -121,26 +137,47 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   // Modest concurrency — enough to keep a few-hundred-row grid quick without
   // tripping Salsify's rate limiting.
+  const resultByProduct = new Map<string, ProductResult>();
+  for (const p of products) {
+    resultByProduct.set(p.id, {
+      partNumber: p.partNumber,
+      status: p.partNumber?.trim() ? "error" : "no_part_number",
+      propsPresent: 0, propsMissing: [], propsOutOfCategory: 0, changeCount: 0,
+    });
+  }
+
   const CONCURRENCY = 6;
   for (let i = 0; i < withPartNumbers.length; i += CONCURRENCY) {
     const batch = withPartNumbers.slice(i, i + CONCURRENCY);
     await Promise.all(
       batch.map(async (product) => {
         const partNumber = product.partNumber!.trim();
+        const result = resultByProduct.get(product.id)!;
         try {
           const res = await fetch(
             `https://app.salsify.com/api/v1/orgs/${config.organizationId}/products/${encodeURIComponent(partNumber)}`,
             { headers: { Authorization: `Bearer ${config.apiKey}` } },
           );
-          if (res.status === 404) { notFound.push(partNumber); return; }
+          result.httpStatus = res.status;
+          if (res.status === 404) {
+            notFound.push(partNumber);
+            result.status = "not_found";
+            result.detail = "Salsify has no record whose ID is this Part Number";
+            return;
+          }
           if (!res.ok) {
             const text = await res.text();
             fetchErrors.push(`${partNumber}: Salsify returned ${res.status} ${text.slice(0, 120)}`);
+            result.status = "error";
+            result.detail = `Salsify returned ${res.status}: ${text.slice(0, 120)}`;
             return;
           }
           remoteById.set(product.id, await res.json());
+          result.status = "found";
         } catch (err) {
           fetchErrors.push(`${partNumber}: ${String(err)}`);
+          result.status = "error";
+          result.detail = String(err);
         }
       }),
     );
@@ -168,13 +205,21 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const applicable = categoryWithAncestors(product.categoryId ?? project.categoryId);
     const perProduct = new Map<string, unknown>();
+    const result = resultByProduct.get(product.id)!;
 
     for (const attr of salsifyAttrs) {
-      if (attr.categoryId && !applicable.has(attr.categoryId)) continue;
       // The part number is the lookup key; overwriting it would re-point the
       // row at a different Salsify record on the next pull.
       if (attr.key === "partNumber") continue;
-      if (!Object.hasOwn(remote, attr.salsifyPropertyId!)) continue;
+      if (attr.categoryId && !applicable.has(attr.categoryId)) {
+        result.propsOutOfCategory++;
+        continue;
+      }
+      if (!Object.hasOwn(remote, attr.salsifyPropertyId!)) {
+        if (result.propsMissing.length < 10) result.propsMissing.push(attr.salsifyPropertyId!);
+        continue;
+      }
+      result.propsPresent++;
 
       const raw = unwrapSalsifyValue(remote[attr.salsifyPropertyId!], attr.salsifyLocale);
       let current = isCoreField(attr.key)
@@ -231,6 +276,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         incoming: displayValue(incoming),
       });
       attrChanges.set(attr.key, list);
+      result.changeCount++;
     }
 
     incomingByProduct.set(product.id, perProduct);
@@ -260,6 +306,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     errors: fetchErrors.length > 0 ? fetchErrors.slice(0, 20) : undefined,
     warnings: warnings.slice(0, 50),
     warningCount: warnings.length,
+    // Every product's outcome, so a partial result can be diagnosed on the spot.
+    products: [...resultByProduct.values()],
+    salsifyAttrCount: salsifyAttrs.length,
   };
 
   if (dryRun) {

@@ -33,7 +33,20 @@ type PullWarning = {
   reason: string;
 };
 
+type ProductResult = {
+  partNumber: string | null;
+  status: "found" | "not_found" | "error" | "no_part_number";
+  httpStatus?: number;
+  detail?: string;
+  propsPresent: number;
+  propsMissing: string[];
+  propsOutOfCategory: number;
+  changeCount: number;
+};
+
 type PullSummary = {
+  products?: ProductResult[];
+  salsifyAttrCount?: number;
   productsInGrid: number;
   productsWithoutPartNumber: number;
   productsFoundInSalsify: number;
@@ -201,6 +214,47 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
                   . These rows are left untouched.
                 </Note>
               )}
+
+              {summary?.products?.length ? (
+                <details className="rounded-lg border border-gray-200 bg-white">
+                  <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-gray-600 hover:text-gray-900">
+                    Per-product results ({summary.products.length}) — why a product returned nothing
+                  </summary>
+                  <div className="border-t border-gray-100 divide-y divide-gray-100 max-h-56 overflow-y-auto">
+                    {summary.products.map((p, i) => (
+                      <div key={i} className="px-3 py-2 text-xs">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-gray-700">{p.partNumber ?? "(no part number)"}</span>
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${PRODUCT_STATUS[p.status].cls}`}>
+                            {PRODUCT_STATUS[p.status].label}
+                            {p.httpStatus && p.status !== "found" ? ` · HTTP ${p.httpStatus}` : ""}
+                          </span>
+                          {p.status === "found" && (
+                            <span className="text-gray-500">
+                              {p.propsPresent} of {summary.salsifyAttrCount ?? "?"} mapped propert
+                              {p.propsPresent === 1 ? "y" : "ies"} on the record
+                              {p.propsOutOfCategory > 0 && ` · ${p.propsOutOfCategory} skipped (other category)`}
+                              {` · ${p.changeCount} change${p.changeCount !== 1 ? "s" : ""}`}
+                            </span>
+                          )}
+                        </div>
+                        {p.detail && <p className="text-gray-500 mt-0.5">{p.detail}</p>}
+                        {p.status === "found" && p.propsPresent === 0 && (
+                          <p className="text-amber-700 mt-0.5">
+                            Salsify returned this record but none of the mapped property IDs were on
+                            it — check the Salsify Property IDs in Admin &rarr; Attributes.
+                          </p>
+                        )}
+                        {p.status === "found" && p.propsMissing.length > 0 && p.propsPresent > 0 && (
+                          <p className="text-gray-400 mt-0.5 font-mono break-all">
+                            not on record: {p.propsMissing.join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              ) : null}
 
               {summary?.warnings?.length ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
@@ -385,6 +439,13 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
     </div>
   );
 }
+
+const PRODUCT_STATUS: Record<ProductResult["status"], { label: string; cls: string }> = {
+  found:           { label: "Found in Salsify", cls: "bg-green-50 text-green-700" },
+  not_found:       { label: "Not in Salsify",   cls: "bg-amber-50 text-amber-700" },
+  error:           { label: "Lookup failed",    cls: "bg-red-50 text-red-700" },
+  no_part_number:  { label: "No part number",   cls: "bg-gray-100 text-gray-500" },
+};
 
 function Stat({ label, value, muted }: { label: string; value: number; muted?: boolean }) {
   return (
