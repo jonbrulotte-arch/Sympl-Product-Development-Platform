@@ -16,6 +16,11 @@ export function isCoreField(key: string): boolean {
   return CORE_TYPE_BY_KEY.has(key);
 }
 
+/** The declared type of a core column, for error messages. */
+export function coreFieldType(key: string): CoreFieldType | undefined {
+  return CORE_TYPE_BY_KEY.get(key);
+}
+
 /** Reads a core field off a product row. Returns null for empty/unset. */
 export function readCoreField(product: ProductRecord, key: string): unknown {
   if (!isCoreField(key)) return undefined;

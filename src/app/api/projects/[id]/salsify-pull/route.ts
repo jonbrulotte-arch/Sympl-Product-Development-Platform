@@ -6,7 +6,7 @@ import { can } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
 import {
-  isCoreField, readCoreField, coerceSalsifyValue, toBoolean,
+  isCoreField, coreFieldType, readCoreField, coerceSalsifyValue, toBoolean,
   unwrapSalsifyValue, displayValue, sameValue,
 } from "@/lib/salsify-fields";
 import type { AttributeDefinition, ProductRecord, Prisma } from "@prisma/client";
@@ -27,6 +27,14 @@ type Change = {
   itemName: string | null;
   current: string;
   incoming: string;
+};
+
+type Warning = {
+  attributeKey: string;
+  attributeLabel: string;
+  partNumber: string | null;
+  value: string;
+  reason: string;
 };
 
 export async function POST(req: NextRequest, { params }: Params) {
@@ -141,6 +149,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   // ── Compute the incoming value for every (product, attribute) pair ──────
   const incomingByProduct = new Map<string, Map<string, unknown>>();
   const attrChanges = new Map<string, Change[]>();
+  // Values Salsify sent that the target field can't represent. Surfaced on the
+  // confirmation screen so a bad property mapping is visible instead of silent.
+  const warnings: Warning[] = [];
 
   const currentEavValue = (product: (typeof products)[number], attr: AttributeDefinition) => {
     const values = product.attributeValues
@@ -166,7 +177,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (!Object.hasOwn(remote, attr.salsifyPropertyId!)) continue;
 
       const raw = unwrapSalsifyValue(remote[attr.salsifyPropertyId!], attr.salsifyLocale);
-      const current = isCoreField(attr.key)
+      let current = isCoreField(attr.key)
         ? readCoreField(product as ProductRecord, attr.key)
         : currentEavValue(product, attr);
 
@@ -174,17 +185,38 @@ export async function POST(req: NextRequest, { params }: Params) {
       // Salsify returns booleans as "Yes"/"true"/1 and numbers with varying
       // precision; those are not real differences once written, and reporting
       // them as changes fills the report with rows that change nothing.
+      //
+      // A value the field can't represent is reported as a warning rather
+      // than written — mangling it silently would be worse, and dropping it
+      // silently hides a real mapping problem.
       let incoming: unknown = raw;
       if (isCoreField(attr.key)) {
         const coerced = coerceSalsifyValue(attr.key, raw);
-        // A core column that can't hold what Salsify sent is left alone
-        // rather than silently mangled.
-        if (coerced === undefined) continue;
+        if (coerced === undefined) {
+          warnings.push({
+            attributeKey: attr.key, attributeLabel: attr.label,
+            partNumber: product.partNumber, value: displayValue(raw),
+            reason: `Salsify sent a value this ${coreFieldType(attr.key) ?? "field"} field can't hold`,
+          });
+          continue;
+        }
         incoming = coerced;
-      } else if (attr.attributeType === "BOOLEAN" && raw !== null) {
-        const asBool = toBoolean(raw);
-        if (asBool === undefined) continue;
-        incoming = asBool;
+      } else if (attr.attributeType === "BOOLEAN") {
+        // Both sides go through the same parser so "true" (as the grid stores
+        // it) and "Yes" (as Salsify sends it) are seen as the same value.
+        current = current === null ? null : toBoolean(current) ?? null;
+        if (raw !== null) {
+          const asBool = toBoolean(raw);
+          if (asBool === undefined) {
+            warnings.push({
+              attributeKey: attr.key, attributeLabel: attr.label,
+              partNumber: product.partNumber, value: displayValue(raw),
+              reason: "Salsify sent a value that isn't recognizably Yes or No",
+            });
+            continue;
+          }
+          incoming = asBool;
+        }
       }
 
       if (sameValue(current, incoming)) continue;
@@ -226,6 +258,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     notFoundSample: notFound.slice(0, 20),
     totalChanges: attributes.reduce((n, a) => n + a.changeCount, 0),
     errors: fetchErrors.length > 0 ? fetchErrors.slice(0, 20) : undefined,
+    warnings: warnings.slice(0, 50),
+    warningCount: warnings.length,
   };
 
   if (dryRun) {
@@ -283,17 +317,21 @@ export async function POST(req: NextRequest, { params }: Params) {
         const list = Array.isArray(value) ? value : value === null ? [] : [value];
         for (const [index, item] of list.entries()) {
           if (item === null || item === undefined || item === "") continue;
-          const isNumeric = attr.attributeType === "NUMBER" || attr.attributeType === "DECIMAL";
-          const isBool = attr.attributeType === "BOOLEAN";
-          const num = Number(item);
           await tx.productAttributeValue.create({
             data: {
               productId: product.id,
               attributeDefinitionId: attr.id,
               valueIndex: index,
-              textValue: isNumeric || isBool ? null : String(item),
-              numberValue: isNumeric && Number.isFinite(num) ? num : null,
-              booleanValue: isBool ? toBoolean(item) ?? null : null,
+              // Every other writer in the app (grid, product edit, import)
+              // stores EAV values as a string in textValue, and every reader
+              // — including the grid — reads only that column. Writing to
+              // numberValue/booleanValue instead lands the value in a column
+              // nothing displays, so the pull would appear to do nothing.
+              // Booleans serialize to "true"/"false", matching the grid's
+              // own Yes/No editor.
+              textValue: String(item),
+              numberValue: null,
+              booleanValue: null,
             },
           });
         }

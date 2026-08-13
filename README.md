@@ -429,6 +429,7 @@ Two deliberate limits:
 Clicking it opens a **change report** before anything is written:
 
 - A summary of how many products matched in Salsify, how many aren't there yet, and how many values would change. Rows with no Part Number, and Part Numbers Salsify doesn't have, are listed and left untouched.
+- **Warnings** for any value Salsify sent that the target field can't represent — text into a numeric column, something other than Yes/No into a boolean. These are named with their product and attribute rather than skipped silently, since they usually mean a property is mapped to the wrong attribute type in Admin → Attributes. They are never written.
 - One row per Salsify-enabled attribute that actually differs, with its change count. Expand any attribute to see every affected product as `old → new`.
 - A **checkbox per attribute** — uncheck one to leave that column alone for this run.
 - An **Export current data first** button, so the existing grid can be saved to Excel before it is overwritten.

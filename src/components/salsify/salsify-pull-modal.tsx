@@ -25,6 +25,14 @@ type PullAttribute = {
   changeCount: number;
 };
 
+type PullWarning = {
+  attributeKey: string;
+  attributeLabel: string;
+  partNumber: string | null;
+  value: string;
+  reason: string;
+};
+
 type PullSummary = {
   productsInGrid: number;
   productsWithoutPartNumber: number;
@@ -33,6 +41,8 @@ type PullSummary = {
   notFoundSample: string[];
   totalChanges: number;
   errors?: string[];
+  warnings?: PullWarning[];
+  warningCount?: number;
 };
 
 type Props = {
@@ -192,6 +202,38 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
                 </Note>
               )}
 
+              {summary?.warnings?.length ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
+                  <p className="flex items-center gap-2 text-sm font-medium text-amber-900">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    {summary.warningCount} value{summary.warningCount !== 1 ? "s" : ""} could not be
+                    read into their field and will be skipped
+                  </p>
+                  <p className="text-xs text-amber-800">
+                    These are usually a property mapped to the wrong attribute type in
+                    Admin &rarr; Attributes. Nothing below is written either way.
+                  </p>
+                  <div className="max-h-40 overflow-y-auto divide-y divide-amber-100 rounded border border-amber-200 bg-white/60">
+                    {summary.warnings.map((w, i) => (
+                      <div key={i} className="px-2.5 py-1.5 text-xs">
+                        <p className="text-gray-700">
+                          <span className="font-medium">{w.attributeLabel}</span>
+                          <span className="text-gray-400 font-mono"> · {w.partNumber ?? "—"}</span>
+                        </p>
+                        <p className="text-amber-800">
+                          {w.reason}: <span className="font-mono break-all">{w.value}</span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  {summary.warningCount != null && summary.warningCount > summary.warnings.length && (
+                    <p className="text-xs text-amber-700">
+                      +{summary.warningCount - summary.warnings.length} more not shown.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+
               {summary?.errors?.length ? (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 space-y-1">
                   <p className="font-medium">Some lookups failed:</p>
@@ -201,7 +243,9 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
 
               {attributes.length === 0 ? (
                 <div className="text-center py-12 text-sm text-gray-500">
-                  Nothing to pull — every Salsify-enabled attribute already matches what Salsify has.
+                  {summary?.warningCount
+                    ? "Nothing can be pulled — every difference found is listed above as a warning."
+                    : "Nothing to pull — every Salsify-enabled attribute already matches what Salsify has."}
                 </div>
               ) : (
                 <>
