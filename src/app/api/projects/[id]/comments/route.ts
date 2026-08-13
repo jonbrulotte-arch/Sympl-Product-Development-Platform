@@ -87,16 +87,43 @@ export async function POST(
     const bodyLower = body.toLowerCase();
 
     // A user counts as mentioned when the comment contains @ immediately
-    // followed by their full name, first name, or email prefix.
+    // followed by their full name, first name, or email prefix — and the
+    // character after the match is a word boundary, so "@Jon 2" doesn't
+    // fire "@jon" for a different Jon and "@joe" doesn't hit "@joeseph".
+    const firstNameCounts = new Map<string, number>();
+    for (const u of team) {
+      const first = u.name?.toLowerCase().split(" ")[0];
+      if (first) firstNameCounts.set(first, (firstNameCounts.get(first) ?? 0) + 1);
+    }
+
+    const matchAt = (needle: string) => {
+      let from = 0;
+      while (from < bodyLower.length) {
+        const at = bodyLower.indexOf(`@${needle}`, from);
+        if (at === -1) return false;
+        const tail = bodyLower.charAt(at + 1 + needle.length);
+        // A word char after the match means this is a longer token — keep looking.
+        if (!tail || !/[a-z0-9_.-]/.test(tail)) return true;
+        from = at + 1;
+      }
+      return false;
+    };
+
     const mentionedIds = new Set<string>();
     for (const u of team) {
       if (u.id === session.user.id) continue;
-      const candidates = [
-        u.name?.toLowerCase(),
-        u.name?.toLowerCase().split(" ")[0],
-        u.email.toLowerCase().split("@")[0],
-      ].filter((c): c is string => !!c && c.length >= 2);
-      if (candidates.some((c) => bodyLower.includes(`@${c}`))) mentionedIds.add(u.id);
+      const fullName = u.name?.toLowerCase();
+      const firstName = fullName?.split(" ")[0];
+      const emailPrefix = u.email.toLowerCase().split("@")[0];
+      const candidates: string[] = [];
+      if (fullName && fullName.length >= 2) candidates.push(fullName);
+      // Skip the first-name candidate when it's ambiguous across the team —
+      // "@Jon" shouldn't notify both Jons; the author has to be specific.
+      if (firstName && firstName.length >= 2 && (firstNameCounts.get(firstName) ?? 0) <= 1) {
+        candidates.push(firstName);
+      }
+      if (emailPrefix.length >= 2) candidates.push(emailPrefix);
+      if (candidates.some(matchAt)) mentionedIds.add(u.id);
     }
 
     const preview = body.slice(0, 120);
