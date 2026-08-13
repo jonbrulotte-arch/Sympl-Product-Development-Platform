@@ -12,6 +12,7 @@ import {
   ArrowLeft, Save, CheckCircle2, Trash2, FileText, X, Search,
   ExternalLink, ShieldCheck, Upload, RefreshCw,
 } from "lucide-react";
+import { ProductPicker } from "@/components/compliance/product-picker";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,10 @@ export function ComplianceDetailClient({ eventId, userRole }: { eventId: string;
   const [severity, setSeverity] = useState("MEDIUM");
   const [status, setStatus] = useState("OPEN");
   const [dueDate, setDueDate] = useState("");
+  const [typeId, setTypeId] = useState<string>("");
+  const [eventTypes, setEventTypes] = useState<{ id: string; name: string; color: string }[]>([]);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkSelection, setBulkSelection] = useState<{ id: string; label: string }[]>([]);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
@@ -110,7 +115,15 @@ export function ComplianceDetailClient({ eventId, userRole }: { eventId: string;
     setSeverity(ev.severity);
     setStatus(ev.status);
     setDueDate(ev.dueDate ? new Date(ev.dueDate).toISOString().slice(0, 10) : "");
+    setTypeId(ev.type.id);
     setDirty(false);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/compliance/event-types")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setEventTypes(Array.isArray(data) ? data : []))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -160,6 +173,7 @@ export function ComplianceDetailClient({ eventId, userRole }: { eventId: string;
       severity,
       status,
       dueDate: dueDate || null,
+      typeId,
     });
     setSaveMsg(ok ? "Saved." : "Save failed.");
     setSaving(false);
@@ -171,20 +185,32 @@ export function ComplianceDetailClient({ eventId, userRole }: { eventId: string;
     setSearchOpen(false);
   };
 
+  const commitBulkAdd = async () => {
+    if (bulkSelection.length === 0) { setBulkOpen(false); return; }
+    // Filter out ids already on the event so the count in the toast is honest.
+    const existing = new Set(event?.products.map((p) => p.product.id) ?? []);
+    const ids = bulkSelection.map((s) => s.id).filter((id) => !existing.has(id));
+    if (ids.length > 0) await patch({ addProductIds: ids });
+    setBulkSelection([]);
+    setBulkOpen(false);
+  };
+
   const removeProduct = (productId: string) => patch({ removeProductIds: [productId] });
 
   const uploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!file) return;
+    if (files.length === 0) return;
     setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch(`/api/compliance/events/${eventId}/documents`, { method: "POST", body: fd });
-    if (res.ok) {
-      const fresh = await fetch(`/api/compliance/events/${eventId}`);
-      if (fresh.ok) hydrate(await fresh.json());
+    // Serial rather than parallel: the documents endpoint takes one file at a
+    // time and a burst of 10+ can trip formidable's default concurrency limit.
+    for (const file of files) {
+      const fd = new FormData();
+      fd.append("file", file);
+      await fetch(`/api/compliance/events/${eventId}/documents`, { method: "POST", body: fd });
     }
+    const fresh = await fetch(`/api/compliance/events/${eventId}`);
+    if (fresh.ok) hydrate(await fresh.json());
     setUploading(false);
   };
 
@@ -264,7 +290,18 @@ export function ComplianceDetailClient({ eventId, userRole }: { eventId: string;
         <div className="max-w-5xl mx-auto px-6 py-6 space-y-5">
 
           {/* Core fields */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-5 grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
+              <select
+                disabled={!canEdit}
+                value={typeId}
+                onChange={(e) => { setTypeId(e.target.value); setDirty(true); }}
+                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50"
+              >
+                {eventTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
               <select
@@ -296,7 +333,7 @@ export function ComplianceDetailClient({ eventId, userRole }: { eventId: string;
                 onChange={(e) => { setDueDate(e.target.value); setDirty(true); }}
               />
             </div>
-            <div className="sm:col-span-3">
+            <div className="sm:col-span-4">
               <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
               <textarea
                 disabled={!canEdit}
@@ -306,7 +343,7 @@ export function ComplianceDetailClient({ eventId, userRole }: { eventId: string;
                 className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-900 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50"
               />
             </div>
-            <div className="sm:col-span-3">
+            <div className="sm:col-span-4">
               <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
               <textarea
                 disabled={!canEdit}
@@ -320,8 +357,44 @@ export function ComplianceDetailClient({ eventId, userRole }: { eventId: string;
 
           {/* Affected products */}
           <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
-            <h2 className="text-sm font-semibold text-gray-700">Affected Products ({event.products.length})</h2>
-            {canEdit && (
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-700">Affected Products ({event.products.length})</h2>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => setBulkOpen((v) => !v)}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-md px-2 py-1 hover:bg-indigo-50"
+                >
+                  {bulkOpen ? "Close bulk add" : "Bulk Add"}
+                </button>
+              )}
+            </div>
+            {canEdit && bulkOpen && (
+              <div className="border border-indigo-100 bg-indigo-50/40 rounded-lg p-3 space-y-3">
+                <p className="text-xs text-gray-600">
+                  Paste part numbers, upload a .xlsx, or search — then confirm to link them all at once.
+                </p>
+                <ProductPicker selected={bulkSelection} onChange={setBulkSelection} />
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setBulkSelection([]); setBulkOpen(false); }}
+                    className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={commitBulkAdd}
+                    disabled={bulkSelection.length === 0}
+                    className="text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-md px-3 py-1 disabled:opacity-50"
+                  >
+                    Add {bulkSelection.length || ""} product{bulkSelection.length === 1 ? "" : "s"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {canEdit && !bulkOpen && (
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
                 <Input
@@ -382,7 +455,7 @@ export function ComplianceDetailClient({ eventId, userRole }: { eventId: string;
                 <>
                   <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading}>
                     {uploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                    {uploading ? "Uploading…" : "Upload File"}
+                    {uploading ? "Uploading…" : "Upload Files"}
                   </Button>
                   <input ref={fileRef} type="file" className="hidden" onChange={uploadFile} />
                 </>

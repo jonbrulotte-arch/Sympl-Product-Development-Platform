@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import {
   HardDrive, Play, RotateCcw, CheckCircle, XCircle, Clock,
-  RefreshCw, ShieldCheck, AlertTriangle, Key, Copy, Eye, EyeOff, Trash2, Terminal,
-  Download, Upload, Archive,
+  RefreshCw, ShieldCheck, AlertTriangle, Copy, Terminal,
+  Download, Upload, Archive, Trash2,
 } from "lucide-react";
 
 type BackupConfig = {
@@ -86,10 +86,6 @@ export function BackupClient() {
   const [uploadPct, setUploadPct] = useState<number | null>(null);
   const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [activeTab, setActiveTab] = useState<"config" | "logs" | "restore">("config");
-  const [hasToken, setHasToken] = useState(false);
-  const [newToken, setNewToken] = useState<string | null>(null);
-  const [showToken, setShowToken] = useState(false);
-  const [tokenWorking, setTokenWorking] = useState(false);
 
   // Form state
   const [form, setForm] = useState({
@@ -119,7 +115,6 @@ export function BackupClient() {
           scheduleMinute: data.config.scheduleMinute,
           retainCount: data.config.retainCount,
         });
-        setHasToken(!!data.config.hasApiToken);
       }
     }
     if (restoreRes.ok) {
@@ -389,104 +384,8 @@ export function BackupClient() {
             </div>
           </div>
 
-          {/* API Token */}
-          <div className="border border-gray-200 rounded-lg p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Key className="h-4 w-4 text-gray-500" />
-              <h3 className="text-sm font-medium text-gray-800">API Token</h3>
-              <span className="text-xs text-gray-500">for automation / external triggers</span>
-            </div>
-
-            {newToken ? (
-              <div className="space-y-2">
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                  Copy this token now — it will not be shown again.
-                </p>
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      readOnly
-                      type={showToken ? "text" : "password"}
-                      value={newToken}
-                      className="w-full font-mono text-xs bg-gray-50 border border-gray-200 rounded px-3 py-2 pr-8 text-gray-800"
-                    />
-                    <button
-                      onClick={() => setShowToken((v) => !v)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                    </button>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      if (!(await copyToClipboard(newToken))) window.prompt("Copy this token:", newToken);
-                    }}
-                  >
-                    <Copy className="h-3.5 w-3.5 mr-1" /> Copy
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setNewToken(null)}>Done</Button>
-                </div>
-              </div>
-            ) : hasToken ? (
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-gray-500">A token is active. Use it as <code className="font-mono bg-gray-100 px-1 rounded">Authorization: Bearer &lt;token&gt;</code> when calling <code className="font-mono bg-gray-100 px-1 rounded">POST /api/admin/backup/run</code>.</p>
-                <div className="flex items-center gap-2 shrink-0 ml-4">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={tokenWorking}
-                    onClick={async () => {
-                      if (!confirm("This will invalidate the current token. Generate a new one?")) return;
-                      setTokenWorking(true);
-                      const res = await fetch("/api/admin/backup/token", { method: "POST" });
-                      if (res.ok) { const d = await res.json(); setNewToken(d.token); setHasToken(true); setShowToken(false); }
-                      setTokenWorking(false);
-                    }}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5 mr-1" /> Regenerate
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={tokenWorking}
-                    onClick={async () => {
-                      if (!confirm("Revoke the API token? Automations using it will stop working.")) return;
-                      setTokenWorking(true);
-                      await fetch("/api/admin/backup/token", { method: "DELETE" });
-                      setHasToken(false);
-                      setTokenWorking(false);
-                    }}
-                    className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Revoke
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-gray-500">No token active. Generate one to trigger backups from external automations.</p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={tokenWorking}
-                  onClick={async () => {
-                    setTokenWorking(true);
-                    const res = await fetch("/api/admin/backup/token", { method: "POST" });
-                    if (res.ok) { const d = await res.json(); setNewToken(d.token); setHasToken(true); setShowToken(false); }
-                    setTokenWorking(false);
-                  }}
-                >
-                  <Key className="h-3.5 w-3.5 mr-1" /> Generate Token
-                </Button>
-              </div>
-            )}
-          </div>
-
           {/* Cron Setup */}
-          {hasToken && (
-            <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+          <div className="border border-gray-200 rounded-lg p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Terminal className="h-4 w-4 text-gray-500" />
                 <h3 className="text-sm font-medium text-gray-800">Cron Job Setup</h3>
@@ -523,13 +422,13 @@ export function BackupClient() {
                 );
               })()}
               <p className="text-xs text-gray-500">
-                Replace <code className="font-mono bg-gray-100 px-1 rounded">YOUR_APP_URL</code> with your application URL
-                and <code className="font-mono bg-gray-100 px-1 rounded">&lt;API_TOKEN&gt;</code> with the token shown above.
+                Replace <code className="font-mono bg-gray-100 px-1 rounded">YOUR_APP_URL</code> with your application URL,
+                and <code className="font-mono bg-gray-100 px-1 rounded">&lt;API_TOKEN&gt;</code> with the automation token from{" "}
+                <a href="/admin/api-tokens" className="text-indigo-600 hover:underline">Admin → API Tokens</a>.
                 Copy <code className="font-mono bg-gray-100 px-1 rounded">scripts/backup.sh</code> to <code className="font-mono bg-gray-100 px-1 rounded">/opt/sympl/scripts/</code> on
                 your server and make it executable (<code className="font-mono bg-gray-100 px-1 rounded">chmod +x</code>).
               </p>
             </div>
-          )}
 
           <div className="flex justify-end">
             <Button onClick={save} disabled={saving} size="sm">

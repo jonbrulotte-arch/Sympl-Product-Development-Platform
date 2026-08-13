@@ -23,7 +23,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   const { id } = await params;
   const body = await req.json();
-  const { title, description, notes, severity, status, dueDate, resolvedAt, addProductIds, removeProductIds } = body;
+  const { title, description, notes, severity, status, dueDate, resolvedAt, addProductIds, removeProductIds, typeId } = body;
 
   const previous = status !== undefined
     ? await prisma.complianceEvent.findUnique({ where: { id }, select: { status: true, title: true } })
@@ -33,6 +33,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     where: { id },
     data: {
       ...(title !== undefined && { title: title.trim() }),
+      ...(typeId !== undefined && { typeId }),
       ...(description !== undefined && { description }),
       ...(notes !== undefined && { notes }),
       ...(severity !== undefined && { severity }),

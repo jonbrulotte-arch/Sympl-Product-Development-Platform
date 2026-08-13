@@ -62,6 +62,21 @@ export default function InboxPage() {
   const [category, setCategory] = useState("");
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
+  const [inspectionsEnabled, setInspectionsEnabled] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setInspectionsEnabled(d.inspectionsEnabled !== false); })
+      .catch(() => {});
+  }, []);
+
+  const visibleTabs = CATEGORY_TABS.filter((t) => inspectionsEnabled || t.key !== "INSPECTION");
+
+  // If the module was disabled while parked on that tab, fall back to All.
+  useEffect(() => {
+    if (!inspectionsEnabled && category === "INSPECTION") setCategory("");
+  }, [inspectionsEnabled, category]);
 
   const load = useCallback(async (cat: string) => {
     const params = new URLSearchParams();
@@ -121,7 +136,7 @@ export default function InboxPage() {
 
       {/* Category tabs */}
       <div className="flex gap-1 border-b border-gray-200 overflow-x-auto">
-        {CATEGORY_TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setCategory(t.key)}

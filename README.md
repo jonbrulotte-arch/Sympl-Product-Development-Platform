@@ -26,7 +26,7 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Module toggles** — Admin → Settings → Modules can disable the Inspections module platform-wide (sidebar, pages, product/project tabs, reports, API). All inspection data is retained; re-enabling restores everything.
 - **User invitations** — Adding a user takes name, email, and role; an emailed single-use link (7 days) lets them set their own password. Admins never handle a password. Un-activated accounts show as "Invite pending" with a resend action.
 - **Admin password reset** — Resetting a user scrambles their stored password to a random value and emails them a 1-hour reset link. Nobody, including the admin, ever knows the interim password.
-- **Bulk ownership transfer** — Admin → Transfer Ownership (Admins and Directors by default, configurable in Access Control) reassigns projects between managers in bulk: filter by current owner, select from the master list, and hand the set over, optionally keeping the outgoing owner on as an editing member.
+- **Bulk project actions** — Admin → Bulk Project Actions (Admins and Directors by default, configurable in Access Control) works over a filtered set of projects: transfer ownership, change status, or archive. Filter by owner and product category. Permanent delete is admin-only.
 - **Admin** — Users (including invitations, per-user password reset, and activity log viewer), categories (drag to reorder and re-parent), attributes (with EAV and reorderable Lists of Values), workflow templates, compliance types, inspection attributes, API tokens, backup, access control, and settings.
 
 ---
@@ -130,7 +130,7 @@ An existing signed-in session survives the reset — the JWT is checked against 
 
 ## Transferring Project Ownership
 
-**Admin → Transfer Ownership** (requires `projects:transfer_ownership`, granted to Admins and Directors by default) reassigns projects in bulk — for a manager leaving, changing teams, or handing off a portfolio.
+**Admin → Bulk Project Actions** (requires `projects:transfer_ownership`, granted to Admins and Directors by default) transfers ownership, changes status, or archives projects in bulk. Filter by current owner and product category. Permanent delete stays admin-only.
 
 1. Filter by **current owner** to pull up one manager's whole portfolio, or leave it on *All owners* and search the master list by project, brand, or owner.
 2. Tick the projects to move (or the header checkbox for everything visible). Archived projects are excluded unless you opt in.
@@ -176,7 +176,7 @@ Projects already owned by the target are skipped rather than counted. Both the n
 | Manage Inspection Reports | Admin, Director, Product Manager |
 | Sync to Salsify | Admin, Director, Product Manager |
 | Override Project Status | Admin, Director, Product Manager |
-| Transfer Project Ownership | Admin, Director |
+| Bulk Project Actions | Admin, Director |
 
 Every permission is enforced server-side in the API route, not only hidden in the UI. Client components read their own grants from `GET /api/config` (`permissions`) purely to hide actions the API would refuse.
 
@@ -282,13 +282,13 @@ Go to **Admin → Settings → Email Notifications (SMTP)** to see the current S
 
 ## Cron Jobs
 
-Sympl has no built-in scheduler. Three endpoints are designed to be triggered by external cron jobs, all authenticated with the same `sbk_` backup API token generated in **Admin → Backup & Restore → API Token**.
+Sympl has no built-in scheduler. Three endpoints are designed to be triggered by external cron jobs, all authenticated with the same `sbk_` automation token generated in **Admin → API Tokens**.
 
 ### Token types
 
 | Prefix | Purpose | Where to generate |
 |--------|---------|-------------------|
-| `sbk_` | Backup & cron endpoints (backup, overdue-check, digest) | Admin → Backup & Restore → API Token |
+| `sbk_` | Backup & cron endpoints (backup, overdue-check, digest) | Admin → API Tokens |
 | `spt_` | Read-only product API for ERP/BI tools | Admin → API Tokens |
 
 > **Important:** `spt_` tokens do **not** work for cron endpoints. Always use the `sbk_` token for all cron jobs.
