@@ -17,7 +17,7 @@ import {
   type Row,
   type Column,
 } from "@tanstack/react-table";
-import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw, AlertTriangle, Bookmark, X } from "lucide-react";
+import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw, AlertTriangle, Bookmark, X, DownloadCloud } from "lucide-react";
 import { CORE_FIELDS } from "@/lib/core-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -500,6 +500,8 @@ interface ProductGridProps {
   onExport?: () => void;
   onImport?: () => void;
   onSalsifySync?: (selectedIds: string[]) => void;
+  /** Opens the pull change-report. Passed the selection, or [] for the whole grid. */
+  onSalsifyPull?: (selectedIds: string[]) => void;
   reloadKey?: number;
 }
 
@@ -513,6 +515,7 @@ export function ProductGrid({
   onExport,
   onImport,
   onSalsifySync,
+  onSalsifyPull,
   reloadKey = 0,
 }: ProductGridProps) {
   const { ready: salsifyReady, blockedReason: salsifyBlockedReason } = useSalsifyStatus();
@@ -546,6 +549,13 @@ export function ProductGrid({
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ rowId: string; columnId: string } | null>(null);
   const saveTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  // A Salsify pull looks products up by Part Number, so it's only offered once
+  // the grid actually has some.
+  const hasPartNumbers = useMemo(
+    () => products.some((p) => String((p as { partNumber?: unknown }).partNumber ?? "").trim() !== ""),
+    [products],
+  );
 
   const saveCell = useCallback(
     async (productId: string, field: string, value: unknown, attrDef?: AttrDef) => {
@@ -893,6 +903,13 @@ export function ProductGrid({
                   </Button>
                 )
               )}
+              {onSalsifyPull && salsifyReady && hasPartNumbers && (
+                <Button size="sm" variant="outline" onClick={() => onSalsifyPull([...selectedRows])}
+                  className="text-blue-700 border-blue-300 bg-blue-50 hover:bg-blue-100">
+                  <DownloadCloud className="h-3.5 w-3.5" />
+                  Pull from Salsify
+                </Button>
+              )}
               {canEdit && (
                 <Button size="sm" variant="outline" onClick={() => setBulkEditOpen(true)}>
                   <Edit3 className="h-3.5 w-3.5" />
@@ -927,6 +944,22 @@ export function ProductGrid({
               <Upload className="h-3.5 w-3.5" />
               Import
             </Button>
+          )}
+          {/* Pulling is only meaningful when there are Part Numbers to look
+              Salsify products up by, so the button stays hidden without them. */}
+          {onSalsifyPull && hasPartNumbers && (
+            salsifyReady ? (
+              <Button size="sm" variant="outline" onClick={() => onSalsifyPull([])}
+                className="text-blue-700 border-blue-300 hover:bg-blue-50">
+                <DownloadCloud className="h-3.5 w-3.5" />
+                Pull from Salsify
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" disabled title={salsifyBlockedReason ?? undefined}>
+                <DownloadCloud className="h-3.5 w-3.5" />
+                Pull unavailable
+              </Button>
+            )
           )}
           {onExport && (
             <Button size="sm" variant="outline" onClick={onExport}>

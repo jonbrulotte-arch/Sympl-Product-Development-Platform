@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   BookOpen, Package, FolderKanban, Upload, CheckCircle,
   ListFilter, Tag, ChevronDown, ChevronRight, Code2, Zap,
-  Info, Search, ShieldCheck, ClipboardCheck, HardDrive, BarChart3,
+  Info, Search, ShieldCheck, ClipboardCheck, HardDrive, BarChart3, AlertTriangle,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -35,9 +35,18 @@ const LI = ({ children }: { children: React.ReactNode }) => (
   <li className="text-sm text-gray-600 leading-relaxed list-disc">{children}</li>
 );
 
-const Callout = ({ children, type = "info" }: { children: React.ReactNode; type?: "info" | "tip" }) => (
-  <div className={`rounded-lg px-4 py-3 mb-3 flex gap-2 ${type === "tip" ? "bg-amber-50 text-amber-800 border border-amber-200" : "bg-blue-50 text-blue-800 border border-blue-200"}`}>
-    <Info className="h-4 w-4 shrink-0 mt-0.5" />
+const CALLOUT_STYLES = {
+  info: "bg-blue-50 text-blue-800 border-blue-200",
+  tip: "bg-amber-50 text-amber-800 border-amber-200",
+  // Reserved for things that overwrite or destroy data.
+  warning: "bg-red-50 text-red-800 border-red-200",
+} as const;
+
+const Callout = ({ children, type = "info" }: { children: React.ReactNode; type?: keyof typeof CALLOUT_STYLES }) => (
+  <div className={`rounded-lg px-4 py-3 mb-3 flex gap-2 border ${CALLOUT_STYLES[type]}`}>
+    {type === "warning"
+      ? <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+      : <Info className="h-4 w-4 shrink-0 mt-0.5" />}
     <p className="text-sm leading-relaxed">{children}</p>
   </div>
 );
@@ -868,7 +877,13 @@ const sections: Section[] = [
         <P>Each per-field push is recorded, and a field counts as resolved once it has been pushed more recently than it was last edited. Resolve the last outstanding field and the product flips from <strong>Changed</strong> back to <strong>Synced</strong> everywhere — the grid column included — exactly as a full sync would. Edit that field again afterwards and it reappears as unsynced.</P>
         <Callout>A product that has never been fully synced is excluded from this: pushing one property proves nothing about the other fifty, so it stays flagged until a full sync runs. Drift caused only by custom-attribute edits also has no field-level detail to resolve, since the change history tracks core product fields.</Callout>
 
-        <H3>Pull from Salsify</H3>
+        <H3>Pull data into the product grid</H3>
+        <P>Once a grid has Part Numbers, a blue <strong>Pull from Salsify</strong> button appears in the grid toolbar — and in the selection toolbar when rows are checked, to pull just those. It brings Salsify&apos;s current values back into Sympl for every Salsify-enabled attribute. Unlike a sync, it does <em>not</em> require Export Ready status.</P>
+        <P>Nothing is written until you confirm. Clicking the button opens a <strong>change report</strong> showing how many products were found in Salsify, which Part Numbers it doesn&apos;t have, and every attribute whose value would change. Expand an attribute to see each affected product as old &rarr; new, and untick any attribute you want left alone.</P>
+        <P>Because a pull overwrites what&apos;s in the grid, the confirmation screen carries an <strong>Export current data first</strong> button — one click saves the existing grid to Excel as a backup before you commit.</P>
+        <Callout type="warning">A pull replaces your grid values with Salsify&apos;s and cannot be undone. Products with no Part Number, and Part Numbers that don&apos;t exist in Salsify, are skipped and reported. The Part Number column itself is never overwritten — it&apos;s the key each product is looked up by.</Callout>
+
+        <H3>Pull from Salsify (single product)</H3>
         <P>On the product edit page, Admins, Directors, and Product Managers can click <strong>Pull from Salsify</strong> to fetch the product&apos;s current state from Salsify. An <strong>In Salsify</strong> panel then shows digital-asset thumbnails, Salsify&apos;s last-updated date, version, and property count — so you can see what retail has without leaving Sympl.</P>
 
         <Callout type="tip">After a project or row-selection sync, the result (how many products sent and any errors) appears next to the Sync button in the project header.</Callout>
