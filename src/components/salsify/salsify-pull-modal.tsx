@@ -68,9 +68,13 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
         const data = await r.json().catch(() => ({}));
         if (cancelled) return;
         if (!r.ok) { setError(data.error ?? "Could not read data from Salsify."); return; }
-        setAttributes(data.attributes ?? []);
+        const attrs: PullAttribute[] = data.attributes ?? [];
+        setAttributes(attrs);
         setSummary(data.summary ?? null);
-        setChecked(new Set((data.attributes ?? []).map((a: PullAttribute) => a.key)));
+        setChecked(new Set(attrs.map((a) => a.key)));
+        // Expanded by default — the diff is the point of this screen, so it
+        // shouldn't take a click per attribute to see it.
+        setExpanded(new Set(attrs.map((a) => a.key)));
       })
       .catch(() => { if (!cancelled) setError("Could not reach the server."); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -120,6 +124,7 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
     .filter((a) => checked.has(a.key))
     .reduce((n, a) => n + a.changeCount, 0);
   const allChecked = attributes.length > 0 && checked.size === attributes.length;
+  const allExpanded = attributes.length > 0 && expanded.size === attributes.length;
 
   // Group by section, preserving the change-count ordering within each.
   const groups = attributes.reduce<Record<string, PullAttribute[]>>((acc, a) => {
@@ -221,13 +226,24 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
                     </Button>
                   </div>
 
-                  <button
-                    onClick={toggleAll}
-                    className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-                  >
-                    {allChecked ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-                    {allChecked ? "Deselect all" : "Select all"}
-                  </button>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={toggleAll}
+                      className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                    >
+                      {allChecked ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                      {allChecked ? "Deselect all" : "Select all"}
+                    </button>
+                    <button
+                      onClick={() =>
+                        setExpanded(allExpanded ? new Set() : new Set(attributes.map((a) => a.key)))
+                      }
+                      className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 font-medium"
+                    >
+                      <ChevronRight className={`h-3.5 w-3.5 transition-transform ${allExpanded ? "rotate-90" : ""}`} />
+                      {allExpanded ? "Collapse all" : "Expand all"}
+                    </button>
+                  </div>
 
                   {/* Per-attribute change report */}
                   {Object.entries(groups).map(([section, sectionAttrs]) => (
