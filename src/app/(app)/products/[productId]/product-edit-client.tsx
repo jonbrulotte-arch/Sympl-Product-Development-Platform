@@ -17,6 +17,7 @@ import {
 import { SalsifySyncModal } from "@/components/salsify/salsify-sync-modal";
 import { ShareLinkButton } from "@/components/share-link-button";
 import { useSalsifyStatus } from "@/hooks/use-salsify-status";
+import { usePermissions } from "@/hooks/use-permissions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -612,6 +613,10 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const canSync = ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER"].includes(userRole);
+  // Pulling has its own grant — it overwrites Sympl data with Salsify's, which
+  // is a different risk from pushing, so it's configurable separately.
+  const { can: hasPermission } = usePermissions();
+  const canPull = hasPermission("products:pull_salsify");
   const { ready: salsifyReady, blockedReason: salsifyBlockedReason, hasApiKey: salsifyHasApiKey } = useSalsifyStatus();
 
   // % of REQUIRED attributes with a value — drives the completeness chip
@@ -829,7 +834,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
                 )}
               </div>
             )}
-            {canSync && salsifyReady && (
+            {canPull && salsifyReady && (
               <div className="flex flex-col items-end gap-0.5">
                 <button
                   onClick={pullFromSalsify}

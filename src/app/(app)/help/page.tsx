@@ -293,7 +293,7 @@ const sections: Section[] = [
 
         <H3>Full product edit page</H3>
         <P>Click any row to open the full product edit page at <Code>/products/[id]</Code>. This page shows every core field and every EAV attribute organized by section, plus tabs for <strong>Compliance</strong> events, <strong>Inspections</strong>, and <strong>History</strong> — the full field-level change log showing who changed what, when, and the old → new values.</P>
-        <P>The header shows a <strong>% complete</strong> chip (required fields filled in) and, for Admins, Directors, and Product Managers, <strong>Share</strong>, <strong>Pull from Salsify</strong>, and <strong>Sync to Salsify</strong> buttons.</P>
+        <P>The header shows a <strong>% complete</strong> chip (required fields filled in) and, for Admins, Directors, and Product Managers, <strong>Share</strong> and <strong>Sync to Salsify</strong> buttons — plus <strong>Pull from Salsify</strong> for anyone holding that permission.</P>
       </>
     ),
   },
@@ -879,12 +879,13 @@ const sections: Section[] = [
 
         <H3>Pull data into the product grid</H3>
         <P>Once a grid has Part Numbers, a blue <strong>Pull from Salsify</strong> button appears in the grid toolbar — and in the selection toolbar when rows are checked, to pull just those. It brings Salsify&apos;s current values back into Sympl for every Salsify-enabled attribute. Unlike a sync, it does <em>not</em> require Export Ready status.</P>
+        <P>Pulling needs the <strong>Pull from Salsify</strong> permission (Admins, Directors, and Product Managers by default — adjustable in <strong>Admin &rarr; Access Control</strong>) plus edit access to the project. It is granted separately from <strong>Sync to Salsify</strong> because the two carry opposite risks: a sync overwrites Salsify, a pull overwrites your own grid.</P>
         <P>Nothing is written until you confirm. Clicking the button opens a <strong>change report</strong> showing how many products were found in Salsify, which Part Numbers it doesn&apos;t have, and every attribute whose value would change. Expand an attribute to see each affected product as old &rarr; new, and untick any attribute you want left alone.</P>
         <P>Because a pull overwrites what&apos;s in the grid, the confirmation screen carries an <strong>Export current data first</strong> button — one click saves the existing grid to Excel as a backup before you commit.</P>
         <Callout type="warning">A pull replaces your grid values with Salsify&apos;s and cannot be undone. Products with no Part Number, and Part Numbers that don&apos;t exist in Salsify, are skipped and reported. The Part Number column itself is never overwritten — it&apos;s the key each product is looked up by.</Callout>
 
         <H3>Pull from Salsify (single product)</H3>
-        <P>On the product edit page, Admins, Directors, and Product Managers can click <strong>Pull from Salsify</strong> to fetch the product&apos;s current state from Salsify. An <strong>In Salsify</strong> panel then shows digital-asset thumbnails, Salsify&apos;s last-updated date, version, and property count — so you can see what retail has without leaving Sympl.</P>
+        <P>On the product edit page, users with the <strong>Pull from Salsify</strong> permission can click <strong>Pull from Salsify</strong> to fetch the product&apos;s current state from Salsify. An <strong>In Salsify</strong> panel then shows digital-asset thumbnails, Salsify&apos;s last-updated date, version, and property count — so you can see what retail has without leaving Sympl.</P>
 
         <Callout type="tip">After a project or row-selection sync, the result (how many products sent and any errors) appears next to the Sync button in the project header.</Callout>
       </>

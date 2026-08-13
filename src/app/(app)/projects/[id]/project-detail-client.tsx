@@ -61,6 +61,7 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
   const [salsifySelectedIds, setSalsifySelectedIds] = useState<string[] | null>(null);
   const [showPullModal, setShowPullModal] = useState(false);
   const [pullSelectedIds, setPullSelectedIds] = useState<string[] | undefined>(undefined);
+  const canPullSalsify = usePermissions().can("products:pull_salsify");
   const [gridReloadKey, setGridReloadKey] = useState(0);
   const router = useRouter();
 
@@ -287,8 +288,9 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
             onImport={() => router.push(`/import?projectId=${project.id}`)}
             onSalsifySync={project.status === "EXPORT_READY" ? openSalsifyModal : undefined}
             // Unlike push, a pull doesn't require EXPORT_READY — bringing
-            // retail's current values in is useful at any stage.
-            onSalsifyPull={canEdit ? openPullModal : undefined}
+            // retail's current values in is useful at any stage. It does need
+            // its own grant on top of edit access, since it overwrites data.
+            onSalsifyPull={canEdit && canPullSalsify ? openPullModal : undefined}
             reloadKey={gridReloadKey}
           />
         </div>
