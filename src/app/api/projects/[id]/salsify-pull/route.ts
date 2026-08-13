@@ -6,7 +6,7 @@ import { can } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
 import {
-  isCoreField, readCoreField, coerceSalsifyValue,
+  isCoreField, readCoreField, coerceSalsifyValue, toBoolean,
   unwrapSalsifyValue, displayValue, sameValue,
 } from "@/lib/salsify-fields";
 import type { AttributeDefinition, ProductRecord, Prisma } from "@prisma/client";
@@ -165,16 +165,29 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (attr.key === "partNumber") continue;
       if (!Object.hasOwn(remote, attr.salsifyPropertyId!)) continue;
 
-      const incoming = unwrapSalsifyValue(remote[attr.salsifyPropertyId!], attr.salsifyLocale);
+      const raw = unwrapSalsifyValue(remote[attr.salsifyPropertyId!], attr.salsifyLocale);
       const current = isCoreField(attr.key)
         ? readCoreField(product as ProductRecord, attr.key)
         : currentEavValue(product, attr);
 
-      if (sameValue(current, incoming)) continue;
+      // Compare against what would actually be stored, not the raw payload.
+      // Salsify returns booleans as "Yes"/"true"/1 and numbers with varying
+      // precision; those are not real differences once written, and reporting
+      // them as changes fills the report with rows that change nothing.
+      let incoming: unknown = raw;
+      if (isCoreField(attr.key)) {
+        const coerced = coerceSalsifyValue(attr.key, raw);
+        // A core column that can't hold what Salsify sent is left alone
+        // rather than silently mangled.
+        if (coerced === undefined) continue;
+        incoming = coerced;
+      } else if (attr.attributeType === "BOOLEAN" && raw !== null) {
+        const asBool = toBoolean(raw);
+        if (asBool === undefined) continue;
+        incoming = asBool;
+      }
 
-      // A core column that can't hold what Salsify sent is reported as
-      // unchanged rather than silently mangled.
-      if (isCoreField(attr.key) && coerceSalsifyValue(attr.key, incoming) === undefined) continue;
+      if (sameValue(current, incoming)) continue;
 
       perProduct.set(attr.key, incoming);
       const list = attrChanges.get(attr.key) ?? [];
@@ -280,9 +293,7 @@ export async function POST(req: NextRequest, { params }: Params) {
               valueIndex: index,
               textValue: isNumeric || isBool ? null : String(item),
               numberValue: isNumeric && Number.isFinite(num) ? num : null,
-              booleanValue: isBool
-                ? ["true", "yes", "y", "1"].includes(String(item).trim().toLowerCase())
-                : null,
+              booleanValue: isBool ? toBoolean(item) ?? null : null,
             },
           });
         }

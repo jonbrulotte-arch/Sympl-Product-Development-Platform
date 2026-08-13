@@ -58,14 +58,23 @@ export function coerceSalsifyValue(key: string, value: unknown): unknown {
       const n = parseInt(String(value).replace(/,/g, "").trim(), 10);
       return Number.isFinite(n) ? n : undefined;
     }
-    case "boolean": {
-      if (typeof value === "boolean") return value;
-      const s = String(value).trim().toLowerCase();
-      if (["true", "yes", "y", "1"].includes(s)) return true;
-      if (["false", "no", "n", "0"].includes(s)) return false;
-      return undefined;
-    }
+    case "boolean":
+      return toBoolean(value);
   }
+}
+
+/**
+ * Parses the many shapes Salsify uses for a yes/no property — real booleans,
+ * "Yes"/"No", "true"/"false", 1/0 — into a boolean. Returns `undefined` when
+ * the value isn't recognizably boolean, which callers treat as "leave alone".
+ */
+export function toBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (value === null || value === undefined) return undefined;
+  const s = String(value).trim().toLowerCase();
+  if (["true", "yes", "y", "1"].includes(s)) return true;
+  if (["false", "no", "n", "0"].includes(s)) return false;
+  return undefined;
 }
 
 /**
@@ -86,23 +95,42 @@ export function unwrapSalsifyValue(raw: unknown, locale: string | null): unknown
   return raw;
 }
 
+/**
+ * Reduces a DB value to something comparable and printable.
+ *
+ * Prisma hands back `Decimal` for every numeric column, and `Decimal` is an
+ * object — so without this, JSON.stringify renders it as a quoted `"72"` and
+ * it never compares equal to the plain `72` Salsify returns, making every
+ * decimal column a guaranteed false positive in the change report.
+ */
+function unwrapScalar(value: unknown): unknown {
+  if (value === null || value === undefined || typeof value !== "object") return value;
+  if (typeof (value as { toNumber?: unknown }).toNumber === "function") {
+    return (value as { toNumber: () => number }).toNumber();
+  }
+  if (value instanceof Date) return value.toISOString();
+  return value;
+}
+
 /** Renders a value for the change report. Empty reads as an em dash. */
 export function displayValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—";
-  if (Array.isArray(value)) return value.map((v) => String(v)).join(", ");
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  const v = unwrapScalar(value);
+  if (v === null || v === undefined || v === "") return "—";
+  if (Array.isArray(v)) return v.map((x) => displayValue(x)).join(", ");
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
 }
 
 /** True when two values are the same as far as the change report cares. */
 export function sameValue(a: unknown, b: unknown): boolean {
-  const norm = (v: unknown) => {
+  const norm = (raw: unknown): string => {
+    const v = unwrapScalar(raw);
     if (v === null || v === undefined || v === "") return "";
     if (typeof v === "boolean") return v ? "true" : "false";
-    if (Array.isArray(v)) return v.map(String).join(" ");
+    if (Array.isArray(v)) return v.map((x) => norm(x)).join(" ");
     if (typeof v === "object") return JSON.stringify(v);
-    // Numeric strings compare by value so "1.50" matches Decimal(1.5).
+    // Numeric strings compare by value so "72.00" matches Decimal(72).
     const s = String(v).trim();
     const n = Number(s);
     return Number.isFinite(n) && s !== "" ? String(n) : s;
