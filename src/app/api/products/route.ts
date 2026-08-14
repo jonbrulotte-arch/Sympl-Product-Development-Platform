@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
         }
       : {}),
     ...(projectId ? { projectId } : {}),
-    ...(brand ? { brand } : {}),
+    ...(brand ? { brand: { equals: brand, mode: "insensitive" as const } } : {}),
     ...(inventoryStatus ? {
       OR: [
         { inventoryStatus: { contains: inventoryStatus, mode: "insensitive" as const } },

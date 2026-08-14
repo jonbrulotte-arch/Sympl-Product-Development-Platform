@@ -250,8 +250,10 @@ export function ProductsBrowser({
   const hasActiveFilters =
     filters.projectId || filters.brand || filters.inventoryStatus || filters.categoryId || debouncedSearch;
 
-  // Distinct brands from loaded projects
-  const brands = [...new Set(projects.map((p) => p.brand).filter(Boolean))] as string[];
+  // Distinct brands from loaded products (case-insensitive dedup, display in original casing)
+  const brands = [...new Map(
+    products.map((p) => p.brand).filter(Boolean).map((b) => [b!.toLowerCase(), b!])
+  ).values()].sort();
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
