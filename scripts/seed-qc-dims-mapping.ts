@@ -7,6 +7,7 @@
 
 import { config } from "dotenv";
 config({ path: ".env.local" });
+config({ path: ".env" }); // fallback — dotenv skips vars already set
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
