@@ -335,7 +335,7 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
         <SalsifySyncModal
           mode="project"
           projectId={project.id}
-          syncProductCount={salsifySelectedIds?.length}
+          productIds={salsifySelectedIds ?? undefined}
           syncing={salsifySyncing}
           onConfirm={handleSalsifySync}
           onClose={() => setShowSalsifyModal(false)}

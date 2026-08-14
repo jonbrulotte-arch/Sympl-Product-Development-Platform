@@ -4,10 +4,38 @@ import { prisma } from "@/lib/prisma";
 import { resolveSalsifyCredentials } from "@/lib/salsify-auth";
 import { can } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
-import { isCoreField, readCoreField } from "@/lib/salsify-fields";
-import type { ProductRecord } from "@prisma/client";
+import {
+  buildSalsifyPayload, categoryAncestry, unwrapSalsifyValue,
+  displayValue, sameValue,
+} from "@/lib/salsify-fields";
 
 type Params = { params: Promise<{ id: string }> };
+
+// A push overwrites whatever Salsify currently holds, so `dryRun: true`
+// returns a change report — Salsify's current value vs. what Sympl would
+// send — instead of writing. The payload is built by the same
+// buildSalsifyPayload the real push uses, so the preview can't drift from it.
+
+type Change = {
+  productId: string;
+  partNumber: string | null;
+  itemName: string | null;
+  current: string;
+  incoming: string;
+  /** Sympl is blank here, so the push would clear a value Salsify holds. */
+  clearing: boolean;
+  /** The product doesn't exist in Salsify yet; this write creates it. */
+  creating: boolean;
+};
+
+type ProductResult = {
+  partNumber: string | null;
+  status: "found" | "will_create" | "error";
+  httpStatus?: number;
+  detail?: string;
+  changeCount: number;
+  clearingCount: number;
+};
 
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await auth();
@@ -22,7 +50,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 
   const body = await req.json().catch(() => ({}));
-  const skipAttributeKeys: string[] = Array.isArray(body.skipAttributeKeys) ? body.skipAttributeKeys : [];
+  const dryRun: boolean = body.dryRun === true;
+  // A dry run reports on every mapped attribute so the user can decide what to
+  // skip; the opt-out only applies to the write itself.
+  const skipAttributeKeys: string[] = !dryRun && Array.isArray(body.skipAttributeKeys) ? body.skipAttributeKeys : [];
   const productIds: string[] | null = Array.isArray(body.productIds) && body.productIds.length > 0 ? body.productIds : null;
 
   const project = await prisma.project.findUnique({ where: { id: projectId } });
@@ -45,6 +76,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       isActive: true,
       ...(skipAttributeKeys.length > 0 ? { key: { notIn: skipAttributeKeys } } : {}),
     },
+    include: { section: { select: { name: true } } },
   });
 
   // Get products with their attribute values
@@ -57,76 +89,122 @@ export async function POST(req: NextRequest, { params }: Params) {
     },
   });
 
-  // Category scoping: an attribute tied to a category only applies to products
-  // in that category (or a descendant). Since blank values now clear Salsify
-  // data, sending another category's attributes would wipe them — they must be
-  // excluded per product, not just left empty.
   const allCats = await prisma.category.findMany({ select: { id: true, parentId: true } });
   const parentOf = new Map(allCats.map((c) => [c.id, c.parentId]));
-  const categoryWithAncestors = (start: string | null) => {
-    const set = new Set<string>();
-    let current: string | null | undefined = start;
-    while (current && !set.has(current)) {
-      set.add(current);
-      current = parentOf.get(current);
+
+  const baseUrl = `https://app.salsify.com/api/v1/orgs/${config.organizationId}/products`;
+  const authHeaders = { Authorization: `Bearer ${config.apiKey}` };
+
+  // ── Dry run: report what the push would overwrite, write nothing ─────────
+  if (dryRun) {
+    const attrChanges = new Map<string, Change[]>();
+    const productResults: ProductResult[] = [];
+    const attrMeta = new Map(salsifyAttrs.map((a) => [a.key, a]));
+
+    const CONCURRENCY = 6;
+    for (let i = 0; i < products.length; i += CONCURRENCY) {
+      await Promise.all(
+        products.slice(i, i + CONCURRENCY).map(async (product) => {
+          const applicable = categoryAncestry(product.categoryId ?? project.categoryId, parentOf);
+          const { values } = buildSalsifyPayload(product, salsifyAttrs, applicable);
+          const salsifyId = product.partNumber ?? product.id;
+          const result: ProductResult = {
+            partNumber: product.partNumber, status: "found",
+            changeCount: 0, clearingCount: 0,
+          };
+          productResults.push(result);
+
+          let remote: Record<string, unknown> | null = null;
+          try {
+            const res = await fetch(`${baseUrl}/${encodeURIComponent(salsifyId)}`, { headers: authHeaders });
+            result.httpStatus = res.status;
+            if (res.status === 404) {
+              result.status = "will_create";
+              result.detail = "No Salsify record with this ID — the push creates one";
+            } else if (!res.ok) {
+              result.status = "error";
+              result.detail = `Salsify returned ${res.status}: ${(await res.text()).slice(0, 120)}`;
+              return;
+            } else {
+              remote = await res.json();
+            }
+          } catch (err) {
+            result.status = "error";
+            result.detail = String(err);
+            return;
+          }
+
+          const creating = remote === null;
+          for (const [key, outgoing] of values) {
+            const attr = attrMeta.get(key)!;
+            const current = creating
+              ? null
+              : unwrapSalsifyValue(remote![attr.salsifyPropertyId!], attr.salsifyLocale);
+            if (sameValue(current, outgoing)) continue;
+            // On a create there is nothing to overwrite, so an empty field is
+            // a non-event rather than a change worth listing.
+            if (creating && (outgoing === null || outgoing === "")) continue;
+
+            const clearing = !creating && (outgoing === null || outgoing === "");
+            const list = attrChanges.get(key) ?? [];
+            list.push({
+              productId: product.id,
+              partNumber: product.partNumber,
+              itemName: product.itemName,
+              current: displayValue(current),
+              incoming: displayValue(outgoing),
+              clearing, creating,
+            });
+            attrChanges.set(key, list);
+            result.changeCount++;
+            if (clearing) result.clearingCount++;
+          }
+        }),
+      );
     }
-    return set;
-  };
+
+    const attributes = salsifyAttrs
+      .map((a) => {
+        const changes = attrChanges.get(a.key) ?? [];
+        return {
+          key: a.key,
+          label: a.label,
+          salsifyPropertyId: a.salsifyPropertyId,
+          section: a.section?.name ?? "General",
+          changes,
+          changeCount: changes.length,
+          clearingCount: changes.filter((c) => c.clearing).length,
+        };
+      })
+      .filter((a) => a.changeCount > 0)
+      .sort((a, b) => b.changeCount - a.changeCount || a.label.localeCompare(b.label));
+
+    return NextResponse.json({
+      dryRun: true,
+      attributes,
+      summary: {
+        productsInGrid: products.length,
+        productsFoundInSalsify: productResults.filter((p) => p.status === "found").length,
+        productsToCreate: productResults.filter((p) => p.status === "will_create").length,
+        totalChanges: attributes.reduce((n, a) => n + a.changeCount, 0),
+        totalClearing: attributes.reduce((n, a) => n + a.clearingCount, 0),
+        products: productResults,
+        salsifyAttrCount: salsifyAttrs.length,
+        errors: productResults.filter((p) => p.status === "error").map((p) => `${p.partNumber}: ${p.detail}`),
+      },
+    });
+  }
 
   const errors: string[] = [];
   let synced = 0;
 
   for (const product of products) {
-    // Salsify PUT expects a flat JSON object (no { product: {} } wrapper).
-    // salsify:id is the record identifier; Part Number (product_id role) is sent
-    // as an explicit named property alongside it.
     const productId = product.partNumber ?? product.id;
-    const salsifyProduct: Record<string, unknown> = {
-      "salsify:id": productId,
-    };
-
-    const applicableCategories = categoryWithAncestors(product.categoryId ?? project.categoryId);
-
-    // Map salsify-enabled attributes — core fields read from ProductRecord directly,
-    // EAV fields read from attributeValues
-    for (const attr of salsifyAttrs) {
-      if (!attr.salsifyPropertyId) continue;
-      if (attr.categoryId && !applicableCategories.has(attr.categoryId)) continue;
-
-      let rawValue: unknown;
-
-      // Empty values are sent as null, not omitted: Salsify clears a property
-      // when it receives null, so blanking a field in Sympl clears it there too.
-      if (isCoreField(attr.key)) {
-        rawValue = readCoreField(product as ProductRecord, attr.key);
-        if (rawValue === undefined || rawValue === "") rawValue = null;
-        if (typeof rawValue === "string" && rawValue.includes("\n") && (attr.attributeType === "MULTI_SELECT" || attr.maxValues > 1)) {
-          rawValue = rawValue.split("\n").map((s) => s.trim()).filter(Boolean);
-        }
-      } else {
-        const avs = product.attributeValues
-          .filter((v) => v.attributeDefinitionId === attr.id)
-          .sort((a, b) => a.valueIndex - b.valueIndex);
-        const values = avs
-          .map((v) => v.textValue ?? v.numberValue ?? v.booleanValue)
-          .filter((v) => v !== null && v !== undefined && v !== "");
-        rawValue = values.length === 0 ? null : values.length > 1 ? values : values[0];
-      }
-
-      // Salsify localizable properties: the v1 API expects a map keyed
-      // by locale, e.g. { "en-US": "value" } or { "en-US": ["v1","v2"] }
-      if (attr.salsifyLocale) {
-        salsifyProduct[attr.salsifyPropertyId] = {
-          [attr.salsifyLocale]: rawValue,
-        };
-      } else {
-        salsifyProduct[attr.salsifyPropertyId] = rawValue;
-      }
-    }
+    const applicableCategories = categoryAncestry(product.categoryId ?? project.categoryId, parentOf);
+    const { payload: salsifyProduct } = buildSalsifyPayload(product, salsifyAttrs, applicableCategories);
 
     try {
       const salsifyId = encodeURIComponent(productId);
-      const baseUrl = `https://app.salsify.com/api/v1/orgs/${config.organizationId}/products`;
       const headers = {
         Authorization: `Bearer ${config.apiKey}`,
         "Content-Type": "application/json",

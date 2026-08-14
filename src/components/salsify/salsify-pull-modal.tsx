@@ -78,6 +78,10 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [exported, setExported] = useState(false);
 
+  // Callers may pass array literals, which change identity on every render —
+  // key the fetch on a stable string so the preview runs once, not in a loop.
+  const productKey = productIds?.length ? productIds.join(",") : "";
+
   // Load the change report up front — nothing is written until the user
   // confirms, so this is safe to run the moment the modal opens.
   useEffect(() => {
@@ -85,7 +89,7 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
     fetch(`/api/projects/${projectId}/salsify-pull`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dryRun: true, productIds }),
+      body: JSON.stringify({ dryRun: true, productIds: productKey ? productKey.split(",") : undefined }),
     })
       .then(async (r) => {
         const data = await r.json().catch(() => ({}));
@@ -102,7 +106,7 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
       .catch(() => { if (!cancelled) setError("Could not reach the server."); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [projectId, productIds]);
+  }, [projectId, productKey]);
 
   function toggle(key: string) {
     setChecked((prev) => {

@@ -259,7 +259,7 @@ const sections: Section[] = [
         <P>If a product&apos;s Part Number is already used by a product in <em>another</em> project (system-wide), an amber warning triangle appears next to the Part Number cell — hover it to see which project. The same alert appears in the global Products browser and as a banner on the product record page.</P>
 
         <H3>Sync to Salsify from the grid</H3>
-        <P>When one or more rows are selected, a green <strong>Sync to Salsify</strong> button appears in the selection toolbar (alongside Bulk Edit, Duplicate, and Delete). Clicking it opens the same attribute opt-out modal and syncs only the selected products. The button is only shown when the project is in <strong>Export Ready</strong> status and Salsify is enabled.</P>
+        <P>When one or more rows are selected, a green <strong>Sync to Salsify</strong> button appears in the selection toolbar (alongside Bulk Edit, Duplicate, and Delete). Clicking it opens the same change report, scoped to just the selected products. The button is only shown when the project is in <strong>Export Ready</strong> status and Salsify is enabled.</P>
 
         <H3>Import / Export</H3>
         <UL>
@@ -859,9 +859,12 @@ const sections: Section[] = [
           <LI><strong>Single product</strong> — open a product at <Code>/products/[id]</Code> and click <strong>Sync to Salsify</strong> in the top-right header. Useful for pushing a single update without touching the rest of the project.</LI>
         </UL>
 
-        <H3>Attribute opt-out per sync</H3>
-        <P>Before every sync a confirmation modal appears listing all Salsify-enabled attributes grouped by section. Each attribute has a checkbox — uncheck any attribute you want to exclude from <em>this particular sync</em>. This does not permanently change the attribute&apos;s Salsify settings; the exclusion applies only to the current sync run. Use this to avoid overwriting data that already exists correctly in Salsify.</P>
-        <Callout>Syncing overwrites the corresponding Salsify property values for each checked attribute. Attributes you uncheck are left untouched in Salsify. This action cannot be undone.</Callout>
+        <H3>The change report before every sync</H3>
+        <P>Before anything is written, Sympl reads each product&apos;s current state from Salsify and shows you exactly what the push would change. The top of the screen counts products already in Salsify, products that will be <strong>newly created</strong>, values that change, and values that will be <strong>cleared</strong>.</P>
+        <P>Below that, every property whose value actually differs is listed with its change count, grouped by section and expanded by default. Each row reads <em>Salsify&apos;s current value &rarr; what Sympl will send</em>, so you can see precisely what you are overwriting before you commit.</P>
+        <P>Sympl sends blank fields as <Code>null</Code>, which <strong>empties</strong> that property in Salsify. Those are the destructive case, so they&apos;re counted separately up front, tagged on each attribute with a red <em>clears</em> badge, and shown as <Code>(cleared)</Code> in the diff.</P>
+        <P>Each attribute has a checkbox — uncheck any you want excluded from <em>this particular sync</em>. That does not change the attribute&apos;s Salsify settings; it applies only to this run. Attributes with nothing to change are still sent, which is a no-op, so a product whose lookup failed is never silently under-sent.</P>
+        <Callout type="warning">Syncing overwrites the corresponding Salsify property values for each checked attribute, and clears any whose Sympl field is blank. Attributes you uncheck are left untouched in Salsify. This action cannot be undone.</Callout>
 
         <H3>Multi-value attributes</H3>
         <P>Attributes with Max Values &gt; 1 are sent to Salsify as JSON arrays, making them compatible with multi-value Salsify properties. Only values that are actually stored are sent — if a product has a single value for a multi-value attribute, a scalar (not an array) is sent to Salsify.</P>

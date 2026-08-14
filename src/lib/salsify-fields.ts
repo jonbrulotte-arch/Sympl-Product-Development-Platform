@@ -127,6 +127,98 @@ export function displayValue(value: unknown): string {
   return String(v);
 }
 
+// ─── Outbound payload ───────────────────────────────────────────────────────
+
+export type SyncableProduct = ProductRecord & {
+  attributeValues: {
+    attributeDefinitionId: string;
+    valueIndex: number;
+    textValue: string | null;
+    numberValue: unknown;
+    booleanValue: boolean | null;
+  }[];
+};
+
+export type SyncableAttribute = {
+  id: string;
+  key: string;
+  salsifyPropertyId: string | null;
+  salsifyLocale: string | null;
+  categoryId: string | null;
+  attributeType: string;
+  maxValues: number;
+};
+
+/**
+ * Builds the flat JSON body Salsify's v1 API expects for one product.
+ *
+ * Returns the payload *and* the per-attribute values that went into it, so a
+ * dry run can diff exactly what a real push would send — a preview built from
+ * separate logic would eventually drift from the push and lie to the user.
+ *
+ * Empty values are sent as null rather than omitted: Salsify clears a property
+ * when it receives null, so blanking a field in Sympl clears it there too.
+ */
+export function buildSalsifyPayload(
+  product: SyncableProduct,
+  attrs: SyncableAttribute[],
+  applicableCategories: Set<string>,
+): { payload: Record<string, unknown>; values: Map<string, unknown> } {
+  const salsifyId = product.partNumber ?? product.id;
+  const payload: Record<string, unknown> = { "salsify:id": salsifyId };
+  const values = new Map<string, unknown>();
+
+  for (const attr of attrs) {
+    if (!attr.salsifyPropertyId) continue;
+    // An attribute tied to a category only applies to products in that
+    // category or a descendant. Since blank values clear Salsify data,
+    // sending another category's attributes would wipe them.
+    if (attr.categoryId && !applicableCategories.has(attr.categoryId)) continue;
+
+    let rawValue: unknown;
+    if (isCoreField(attr.key)) {
+      rawValue = readCoreField(product, attr.key);
+      if (rawValue === undefined || rawValue === "") rawValue = null;
+      if (
+        typeof rawValue === "string" && rawValue.includes("\n") &&
+        (attr.attributeType === "MULTI_SELECT" || attr.maxValues > 1)
+      ) {
+        rawValue = rawValue.split("\n").map((s) => s.trim()).filter(Boolean);
+      }
+    } else {
+      const vals = product.attributeValues
+        .filter((v) => v.attributeDefinitionId === attr.id)
+        .sort((a, b) => a.valueIndex - b.valueIndex)
+        .map((v) => v.textValue ?? v.numberValue ?? v.booleanValue)
+        .filter((v) => v !== null && v !== undefined && v !== "");
+      rawValue = vals.length === 0 ? null : vals.length > 1 ? vals : vals[0];
+    }
+
+    values.set(attr.key, rawValue);
+    // Salsify localizable properties expect a map keyed by locale,
+    // e.g. { "en-US": "value" } or { "en-US": ["v1","v2"] }.
+    payload[attr.salsifyPropertyId] = attr.salsifyLocale
+      ? { [attr.salsifyLocale]: rawValue }
+      : rawValue;
+  }
+
+  return { payload, values };
+}
+
+/** The category chain a product belongs to, for scoping category-bound attributes. */
+export function categoryAncestry(
+  start: string | null | undefined,
+  parentOf: Map<string, string | null>,
+): Set<string> {
+  const set = new Set<string>();
+  let current: string | null | undefined = start;
+  while (current && !set.has(current)) {
+    set.add(current);
+    current = parentOf.get(current);
+  }
+  return set;
+}
+
 /** True when two values are the same as far as the change report cares. */
 export function sameValue(a: unknown, b: unknown): boolean {
   const norm = (raw: unknown): string => {

@@ -407,7 +407,13 @@ Detail builders re-apply project scoping to whatever ids the query string names 
    - **Full project** — click **Sync to Salsify** in the project header.
    - **Selected rows** — check rows in the product grid, then click **Sync to Salsify** in the selection toolbar.
    - **Single product** — click **Sync to Salsify** on the product edit page (`/products/[id]`).
-5. A pre-sync modal lists every Salsify-enabled attribute with checkboxes. Uncheck any attribute to exclude it from this sync run without permanently changing the attribute's Salsify settings.
+5. A pre-sync **change report** opens before anything is written. It reads each product's current state from Salsify and shows what the push would do:
+   - **Summary** — products already in Salsify, products that will be newly created, values that change, and values that will be **cleared**.
+   - **Per attribute** — every property whose value differs, expandable to the per-product `Salsify's current value → what Sympl will send`. New records are marked, and each attribute carries a count of how many products it clears.
+   - **Clearing warning** — Sympl sends blank fields as `null`, which empties the property in Salsify. Those are counted up front, tagged per attribute, and rendered as `(cleared)` in red, since they are the destructive case.
+   - **Checkboxes** — uncheck any attribute to exclude it from this run without changing its Salsify settings. Attributes with no pending change are still sent (a no-op) so a product whose preview lookup failed is never silently under-sent.
+
+   The preview builds its payload with the same `buildSalsifyPayload` the real push uses, so it cannot drift from what actually gets sent.
 
 **Drift detection:** every successful sync records a per-product timestamp. The grid's **Salsify** column shows *Synced* (green, unchanged since last sync), *Changed* (yellow, edited since last sync — Salsify is stale), or *—* (never synced).
 
