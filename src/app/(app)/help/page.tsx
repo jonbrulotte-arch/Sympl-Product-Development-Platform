@@ -261,6 +261,16 @@ const sections: Section[] = [
         <H3>Sync to Salsify from the grid</H3>
         <P>When one or more rows are selected, a green <strong>Sync to Salsify</strong> button appears in the selection toolbar (alongside Bulk Edit, Duplicate, and Delete). Clicking it opens the same change report, scoped to just the selected products. The button is only shown when the project is in <strong>Export Ready</strong> status and Salsify is enabled.</P>
 
+        <H3>Export QC Dims</H3>
+        <P>Select one or more rows and click <strong>Export QC Dims</strong> in the selection toolbar to download the QC dimensions sheet for those products, in the exact layout the inspection vendor expects. Requires the <strong>Export QC Dims</strong> permission (Admins, Directors, and Product Managers by default).</P>
+        <P>Which attribute fills each column is configured per attribute in <strong>Admin &rarr; Attributes</strong> — open an attribute and choose a column under <em>QC Dims Export</em>. Mapped attributes show a blue <strong>QC</strong> badge in the attributes list. Each column can only be fed by one attribute; picking one that is already taken is refused and tells you which attribute holds it.</P>
+        <UL>
+          <LI><strong>Customer Item Number</strong> uses the Model Number, falling back to the Part Number when it is blank.</LI>
+          <LI><strong>Discontinued Item</strong> and <strong>No Inventory</strong> are fixed values the vendor requires — they are not mappable.</LI>
+          <LI><strong>Packaging Description</strong> and the <strong>Shipping</strong> columns are included but left empty, ready to be mapped later if you start tracking them.</LI>
+        </UL>
+        <Callout type="tip">UPC and GTIN columns are written as text so leading zeros survive — a UPC of <Code>099198568294</Code> stays intact rather than becoming 99198568294. Dimensions and weights are written as numbers so they still work in formulas.</Callout>
+
         <H3>Import / Export</H3>
         <UL>
           <LI><strong>Import</strong> — upload an Excel (<Code>.xlsx</Code>) file. Map source columns to Sympl fields on the next screen (auto-detected by header name), then review a <strong>Verify</strong> step showing exactly how many rows will be created vs. updated — including cell-level old → new diffs — before anything is written.</LI>

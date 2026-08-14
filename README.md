@@ -176,6 +176,7 @@ Projects already owned by the target are skipped rather than counted. Both the n
 | Manage Inspection Reports | Admin, Director, Product Manager |
 | Sync to Salsify | Admin, Director, Product Manager |
 | Pull from Salsify | Admin, Director, Product Manager |
+| Export QC Dims | Admin, Director, Product Manager |
 | Override Project Status | Admin, Director, Product Manager |
 | Bulk Project Actions | Admin, Director |
 
@@ -395,6 +396,26 @@ Every report row is clickable and opens a side panel with the context behind it 
 **API:** `GET /api/reports/[type]` returns `{ rows }`. Each row carries a `_detail` query string; `GET /api/reports/[type]/detail?<_detail>` returns `{ title, subtitle, badges, meta, links, sections }`, which the client renders with one generic drawer. Out-of-Sync uses `GET /api/projects/[id]/products/[productId]/salsify-drift` instead, since it needs per-field sync actions.
 
 Detail builders re-apply project scoping to whatever ids the query string names — a hand-crafted request can't reach another user's data.
+
+---
+
+## QC Dims Export
+
+Select rows in a project's product grid and click **Export QC Dims** to download the QC dimensions sheet for those products, in the exact layout the inspection vendor expects: 39 columns, fixed order, styled header. Requires `products:export_qc_dims` (Admin, Director, and Product Manager by default) plus view access to the project.
+
+**Configuring the mapping.** Which attribute feeds each column is set per attribute in **Admin → Attributes** — open an attribute and pick a column under *QC Dims Export*. Mapped attributes carry a blue **QC** badge in the list. A column can only be fed by one attribute; claiming one already in use is rejected with a message naming the attribute holding it.
+
+Three column types behave specially, per the vendor's rules:
+
+- **Constants** — `Discontinued Item` always exports `FALSE`, `No Inventory` always the text `NULL`. Neither is mappable.
+- **Fallback** — `Customer Item Number` uses Model Number, falling back to Part Number when blank.
+- **Present but unmapped** — `Packaging Description` and the five `Shipping *` columns ship empty and stay available in the dropdown.
+
+Cell types are chosen per column so the sheet survives Excel: UPC and GTIN columns are written as **text** (a numeric cell would eat the leading zero on `099198568294`), while dimensions, weights, and quantities are written as numbers so they stay usable in formulas. `JS Item Number` is numeric when the part number is, and text otherwise.
+
+Defaults for the 31 standard columns are applied by `npm run db:seed-qc-dims`, which maps by attribute key — stable across relabeling — and never overwrites a mapping that is already set. It is safe to re-run.
+
+The sheet's formatting comes from a committed template at `src/lib/templates/qc-dims-template.xlsx`. To change the header, edit that file in Excel rather than the export code; update `src/lib/qc-dims.ts` only if columns are added, removed, or reordered.
 
 ---
 

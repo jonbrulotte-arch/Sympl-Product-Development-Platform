@@ -17,7 +17,7 @@ import {
   type Row,
   type Column,
 } from "@tanstack/react-table";
-import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw, AlertTriangle, Bookmark, X, DownloadCloud } from "lucide-react";
+import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw, AlertTriangle, Bookmark, X, DownloadCloud, FileSpreadsheet } from "lucide-react";
 import { CORE_FIELDS } from "@/lib/core-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -502,6 +502,8 @@ interface ProductGridProps {
   onSalsifySync?: (selectedIds: string[]) => void;
   /** Opens the pull change-report. Passed the selection, or [] for the whole grid. */
   onSalsifyPull?: (selectedIds: string[]) => void;
+  /** Downloads the QC Dims sheet for the selection. Undefined hides the button. */
+  onExportQcDims?: (selectedIds: string[]) => void;
   reloadKey?: number;
 }
 
@@ -516,6 +518,7 @@ export function ProductGrid({
   onImport,
   onSalsifySync,
   onSalsifyPull,
+  onExportQcDims,
   reloadKey = 0,
 }: ProductGridProps) {
   const { ready: salsifyReady, blockedReason: salsifyBlockedReason } = useSalsifyStatus();
@@ -908,6 +911,13 @@ export function ProductGrid({
                   className="text-blue-700 border-blue-300 bg-blue-50 hover:bg-blue-100">
                   <DownloadCloud className="h-3.5 w-3.5" />
                   Pull from Salsify
+                </Button>
+              )}
+              {onExportQcDims && (
+                <Button size="sm" variant="outline" onClick={() => onExportQcDims([...selectedRows])}
+                  className="text-sky-700 border-sky-300 bg-sky-50 hover:bg-sky-100">
+                  <FileSpreadsheet className="h-3.5 w-3.5" />
+                  Export QC Dims
                 </Button>
               )}
               {canEdit && (
