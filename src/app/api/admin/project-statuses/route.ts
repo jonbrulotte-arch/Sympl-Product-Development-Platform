@@ -3,16 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-const DEFAULTS = [
-  { code: "DRAFT",              label: "Draft",               color: "gray",   sortOrder: 0, description: "Initial state — work in progress" },
-  { code: "IN_PROGRESS",       label: "In Progress",         color: "blue",   sortOrder: 1, description: "Actively being worked on" },
-  { code: "NEEDS_REVIEW",      label: "Needs Review",        color: "yellow", sortOrder: 2, description: "Ready for stakeholder review" },
-  { code: "CHANGES_REQUESTED", label: "Changes Requested",   color: "orange", sortOrder: 3, description: "Reviewer requested revisions" },
-  { code: "APPROVED",          label: "Approved",            color: "green",  sortOrder: 4, description: "All approvals obtained" },
-  { code: "EXPORT_READY",      label: "Export Ready",        color: "purple", sortOrder: 5, description: "Data verified and ready for export" },
-  { code: "ARCHIVED",          label: "Archived",            color: "gray",   sortOrder: 6, description: "Hidden from active projects list" },
-];
+import { PROJECT_STATUS_DEFAULTS, getProjectStatuses } from "@/lib/project-statuses";
 
+const DEFAULTS = PROJECT_STATUS_DEFAULTS;
 const DEFAULT_CODES = new Set(DEFAULTS.map((d) => d.code));
 
 export async function GET() {
@@ -20,23 +13,7 @@ export async function GET() {
   if (!session?.user?.id || !(await can(session.user.role, "admin:settings"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-
-  let configs: { code: string; label: string; color: string; description: string | null; sortOrder: number; isActive: boolean; id: string }[] = [];
-  try {
-    configs = await prisma.projectStatusConfig.findMany({ orderBy: { sortOrder: "asc" } });
-  } catch {
-    // Table may not exist yet — fall through to defaults
-  }
-  const configMap = new Map(configs.map((c) => [c.code, c]));
-
-  // Merge DB records with hardcoded defaults so all built-in statuses always appear
-  const merged = DEFAULTS.map((d) => configMap.get(d.code) ?? { id: null, ...d, isActive: true });
-
-  // Also include any custom statuses (in DB but not in DEFAULTS), ordered by sortOrder
-  const extras = configs.filter((c) => !DEFAULT_CODES.has(c.code));
-  const all = [...merged, ...extras].sort((a, b) => a.sortOrder - b.sortOrder);
-
-  return NextResponse.json(all);
+  return NextResponse.json(await getProjectStatuses());
 }
 
 export async function POST(req: NextRequest) {

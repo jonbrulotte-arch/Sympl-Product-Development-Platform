@@ -25,21 +25,21 @@ type ProjectItem = {
   _count: { products: number };
 };
 
-const STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "All Statuses" },
-  { value: "DRAFT", label: "Draft" },
-  { value: "IN_REVIEW", label: "In Review" },
-  { value: "APPROVED", label: "Approved" },
-  { value: "IN_PRODUCTION", label: "In Production" },
-  { value: "LAUNCHED", label: "Launched" },
-  { value: "ON_HOLD", label: "On Hold" },
-  { value: "CANCELLED", label: "Cancelled" },
-];
+type ProjectsView = "card" | "list";
 
-export function ProjectsClient({ initialProjects }: { initialProjects: ProjectItem[] }) {
+export function ProjectsClient({
+  initialProjects,
+  statuses,
+  initialView = "card",
+}: {
+  initialProjects: ProjectItem[];
+  /** Configured in Admin → Settings; not a hardcoded list. */
+  statuses: { code: string; label: string }[];
+  initialView?: ProjectsView;
+}) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [view, setView] = useState<"card" | "list">("card");
+  const [view, setView] = useState<ProjectsView>(initialView);
   const [projects, setProjects] = useState<ProjectItem[]>(initialProjects);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(initialProjects.length);
@@ -69,6 +69,17 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectIt
     }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [search, statusFilter, fetchProjects]);
+
+  // Switch immediately and persist in the background — the toggle shouldn't
+  // wait on a round trip, and a failed save just means it doesn't stick.
+  const chooseView = (next: ProjectsView) => {
+    setView(next);
+    fetch("/api/users/me/ui-prefs", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectsView: next }),
+    }).catch(() => {});
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -102,20 +113,21 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectIt
           onChange={(e) => setStatusFilter(e.target.value)}
           className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
         >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
+          <option value="">All Statuses</option>
+          {statuses.map((s) => (
+            <option key={s.code} value={s.code}>{s.label}</option>
           ))}
         </select>
         <div className="flex items-center border border-gray-200 rounded-md overflow-hidden">
           <button
-            onClick={() => setView("card")}
+            onClick={() => chooseView("card")}
             className={`p-2 ${view === "card" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-700"}`}
             title="Card view"
           >
             <LayoutGrid className="h-4 w-4" />
           </button>
           <button
-            onClick={() => setView("list")}
+            onClick={() => chooseView("list")}
             className={`p-2 ${view === "list" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-700"}`}
             title="List view"
           >
