@@ -1114,6 +1114,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
       <SalsifySyncModal
         mode="product"
         projectId={product.projectId}
+        productIds={[product.id]}
         syncing={syncing}
         onConfirm={syncToSalsify}
         onClose={() => setShowSalsifyModal(false)}

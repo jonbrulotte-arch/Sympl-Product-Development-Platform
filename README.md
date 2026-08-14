@@ -7,7 +7,7 @@ A product lifecycle management platform for retail brands — centralizes produc
 ## Features
 
 - **Dashboard** — Landing view with pipeline stats, approvals waiting on you, overdue compliance events, projects needing attention, and recent activity.
-- **Projects** — Organize products into projects with statuses, team members, and workflow stages. Search, filter by status, and switch between card and list views.
+- **Projects** — Organize products into projects with statuses, team members, and workflow stages. Search and filter by status — the filter is built from the statuses configured in Admin → Settings, so relabelling or deactivating one is reflected here. Card and list views are remembered per user and persist across sessions and devices. The list view carries a **Last Activity** column (newest activity-log entry for the project, not just when the project row itself changed) and every column header sorts.
 - **Product Grid** — Spreadsheet-style inline editing with custom EAV attributes, column tooltips, freezable columns, saved views (named sort/visibility/pinning combos per project), bulk edit, and Excel import & export. Computed columns show per-product required-field completeness (%) and Salsify sync freshness (Synced / Changed / never). Duplicate Part Numbers used in another project are flagged with a warning icon.
 - **Product Record** — Full edit page per product with core fields, custom attributes by section, category inheritance from project, completeness chip, duplicate-part-number banner, Share / Pull-from-Salsify / Sync buttons (Admin/Director/PM), and tabs for Compliance, Inspections, and field-level change History (old → new values, with the source of the change: Project Grid, Product Record, or Import).
 - **Import with dry-run** — Excel import auto-maps columns, matches rows to existing products by Part Number (update-in-place, never duplicates), and shows a Verify step with create/update counts and cell-level old → new diffs before anything is written.
@@ -407,7 +407,13 @@ Detail builders re-apply project scoping to whatever ids the query string names 
    - **Full project** — click **Sync to Salsify** in the project header.
    - **Selected rows** — check rows in the product grid, then click **Sync to Salsify** in the selection toolbar.
    - **Single product** — click **Sync to Salsify** on the product edit page (`/products/[id]`).
-5. A pre-sync modal lists every Salsify-enabled attribute with checkboxes. Uncheck any attribute to exclude it from this sync run without permanently changing the attribute's Salsify settings.
+5. A pre-sync **change report** opens before anything is written. It reads each product's current state from Salsify and shows what the push would do:
+   - **Summary** — products already in Salsify, products that will be newly created, values that change, and values that will be **cleared**.
+   - **Per attribute** — every property whose value differs, expandable to the per-product `Salsify's current value → what Sympl will send`. New records are marked, and each attribute carries a count of how many products it clears.
+   - **Clearing warning** — Sympl sends blank fields as `null`, which empties the property in Salsify. Those are counted up front, tagged per attribute, and rendered as `(cleared)` in red, since they are the destructive case.
+   - **Checkboxes** — uncheck any attribute to exclude it from this run without changing its Salsify settings. Attributes with no pending change are still sent (a no-op) so a product whose preview lookup failed is never silently under-sent.
+
+   The preview builds its payload with the same `buildSalsifyPayload` the real push uses, so it cannot drift from what actually gets sent.
 
 **Drift detection:** every successful sync records a per-product timestamp. The grid's **Salsify** column shows *Synced* (green, unchanged since last sync), *Changed* (yellow, edited since last sync — Salsify is stale), or *—* (never synced).
 
@@ -440,6 +446,34 @@ Values are matched to Salsify by Part Number, scoped by category the same way a 
 **Pull from Salsify (single product):** on the product edit page, pull the product's current Salsify state (digital-asset URLs, version, last-updated) back into Sympl. Assets display as Cloudinary-transformed thumbnails in an "In Salsify" panel with a **View in Salsify** link to the product's page on Salsify (`https://app.salsify.com/app/orgs/{orgId}/products/v2/{partNumber}`). Clicking an image thumbnail opens a lightbox gallery with square (1:1) images and prev/next navigation when multiple assets exist.
 
 Enable **Salsify Debug** in Admin → Settings to show **Salsify Log** and **Salsify Debug** pages in the admin sidebar (useful for troubleshooting payloads and sync errors).
+
+---
+
+## Scripts
+
+Utility scripts are in the `scripts/` directory. Make them executable once after cloning (`chmod +x scripts/*.sh`).
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/deploy.sh` | Pull latest code, sync schema, regenerate Prisma client, build, and restart via pm2. Run this for every deployment. |
+| `scripts/report.sh` | Print a server resource report: pm2 process status, Node memory, database size and top tables, disk usage, and overall RAM/disk. |
+| `scripts/backup.sh` | Encrypted database dump + uploaded-file archive. Designed for cron — see [Cron Jobs](#cron-jobs). |
+
+### deploy.sh
+
+```bash
+./scripts/deploy.sh
+```
+
+Runs: `git pull` → `prisma db push` → `prisma generate` → `npm run build` → `pm2 restart sympl`. Requires pm2 to be installed and the `sympl` process to be registered (`pm2 start "npm run start" --name sympl`).
+
+### report.sh
+
+```bash
+./scripts/report.sh
+```
+
+Outputs a snapshot of resource consumption: pm2 uptime/restarts, Node.js RSS and CPU, PostgreSQL database and table sizes, app directory breakdown, server RAM, and disk usage. The database credentials in the script (`DB_USER`, `PGPASSWORD`, `DB_NAME`) must match your `.env`.
 
 ---
 

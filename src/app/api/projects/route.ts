@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { projectSchema } from "@/lib/validation";
 import { logActivity } from "@/lib/activity";
 import { seesAllProjects, can } from "@/lib/permissions";
+import { withLastActivity } from "@/lib/project-activity";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
   ]);
 
   return NextResponse.json({
-    data: projects,
+    data: await withLastActivity(projects),
     total,
     page,
     pageSize,
