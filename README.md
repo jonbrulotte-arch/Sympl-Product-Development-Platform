@@ -149,7 +149,7 @@ Projects already owned by the target are skipped rather than counted. Both the n
 |------|--------|
 | **Admin** | Full access — all projects, users, attributes, settings, backup |
 | **Director** | Read access to *every* project (browsers, dashboard, reports) plus the Product Manager permission set. Editing a project still requires ownership or membership |
-| **Product Manager** | Create/manage projects; admin attribute & category pages; Salsify sync |
+| **Product Manager** | Create/manage projects; admin attribute & category pages; Salsify sync and pull |
 | **Contributor** | Edit products in assigned projects |
 | **Reviewer** | View and comment; cannot edit product data |
 | **Approver** | Cast approval votes on assigned workflow stages |
@@ -175,6 +175,7 @@ Projects already owned by the target are skipped rather than counted. Both the n
 | Manage Compliance Events | Admin, Director, Product Manager |
 | Manage Inspection Reports | Admin, Director, Product Manager |
 | Sync to Salsify | Admin, Director, Product Manager |
+| Pull from Salsify | Admin, Director, Product Manager |
 | Override Project Status | Admin, Director, Product Manager |
 | Bulk Project Actions | Admin, Director |
 
@@ -423,7 +424,20 @@ Two deliberate limits:
 - A product with no prior full sync is never auto-cleared — one pushed property is no evidence the rest of the record matches. A per-field push against a part number that doesn't exist in Salsify returns `409` asking for a full sync first.
 - The diff is built from `ActivityLog`, which records core product fields. Drift caused only by custom (EAV) attribute edits shows no field-level detail and must be cleared with a full sync.
 
-**Pull from Salsify:** on the product edit page, pull the product's current Salsify state (digital-asset URLs, version, last-updated) back into Sympl. Assets display as Cloudinary-transformed thumbnails in an "In Salsify" panel with a **View in Salsify** link to the product's page on Salsify (`https://app.salsify.com/app/orgs/{orgId}/products/v2/{partNumber}`). Clicking an image thumbnail opens a lightbox gallery with square (1:1) images and prev/next navigation when multiple assets exist.
+**Bulk pull into the product grid:** with Salsify configured and the grid holding Part Numbers, users with `products:pull_salsify` and edit access to the project get a **Pull from Salsify** button — in the grid toolbar for every row, or in the selection toolbar for checked rows only. Unlike push, a pull does not require `EXPORT_READY`.
+
+Clicking it opens a **change report** before anything is written:
+
+- A summary of how many products matched in Salsify, how many aren't there yet, and how many values would change. Rows with no Part Number, and Part Numbers Salsify doesn't have, are listed and left untouched.
+- **Warnings** for any value Salsify sent that the target field can't represent — text into a numeric column, something other than Yes/No into a boolean. These are named with their product and attribute rather than skipped silently, since they usually mean a property is mapped to the wrong attribute type in Admin → Attributes. They are never written.
+- One row per Salsify-enabled attribute that actually differs, with its change count. Expand any attribute to see every affected product as `old → new`.
+- A **checkbox per attribute** — uncheck one to leave that column alone for this run.
+- An **Export current data first** button, so the existing grid can be saved to Excel before it is overwritten.
+- An explicit warning that the data will be overwritten and cannot be undone; nothing is written until **Overwrite & Pull** is clicked.
+
+Values are matched to Salsify by Part Number, scoped by category the same way a push is, and the Part Number column itself is never overwritten (it is the lookup key). Multi-valued attributes are replaced wholesale rather than merged, so a property that shrank in Salsify shrinks in Sympl too. The whole pull is recorded as one activity-log entry.
+
+**Pull from Salsify (single product):** on the product edit page, pull the product's current Salsify state (digital-asset URLs, version, last-updated) back into Sympl. Assets display as Cloudinary-transformed thumbnails in an "In Salsify" panel with a **View in Salsify** link to the product's page on Salsify (`https://app.salsify.com/app/orgs/{orgId}/products/v2/{partNumber}`). Clicking an image thumbnail opens a lightbox gallery with square (1:1) images and prev/next navigation when multiple assets exist.
 
 Enable **Salsify Debug** in Admin → Settings to show **Salsify Log** and **Salsify Debug** pages in the admin sidebar (useful for troubleshooting payloads and sync errors).
 

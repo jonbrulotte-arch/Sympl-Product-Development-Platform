@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { ProjectWithRelations, ProductWithAttributes } from "@/types";
 import { SalsifySyncModal } from "@/components/salsify/salsify-sync-modal";
+import { SalsifyPullModal } from "@/components/salsify/salsify-pull-modal";
 import { EventCard, type ComplianceEventCardData } from "@/components/compliance/event-card";
 import { PsirCard, type PsirCardData } from "@/components/psir/psir-card";
 import Link from "next/link";
@@ -58,6 +59,9 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
   const { ready: salsifyReady, blockedReason: salsifyBlockedReason, hasApiKey: salsifyHasApiKey } = useSalsifyStatus();
   const [showSalsifyModal, setShowSalsifyModal] = useState(false);
   const [salsifySelectedIds, setSalsifySelectedIds] = useState<string[] | null>(null);
+  const [showPullModal, setShowPullModal] = useState(false);
+  const [pullSelectedIds, setPullSelectedIds] = useState<string[] | undefined>(undefined);
+  const canPullSalsify = usePermissions().can("products:pull_salsify");
   const [gridReloadKey, setGridReloadKey] = useState(0);
   const router = useRouter();
 
@@ -75,6 +79,11 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
   const openSalsifyModal = (selectedIds?: string[]) => {
     setSalsifySelectedIds(selectedIds && selectedIds.length > 0 ? selectedIds : null);
     setShowSalsifyModal(true);
+  };
+
+  const openPullModal = (selectedIds: string[]) => {
+    setPullSelectedIds(selectedIds.length > 0 ? selectedIds : undefined);
+    setShowPullModal(true);
   };
 
   const handleSalsifySync = async (skipKeys: string[]) => {
@@ -278,6 +287,10 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
             onExport={handleExport}
             onImport={() => router.push(`/import?projectId=${project.id}`)}
             onSalsifySync={project.status === "EXPORT_READY" ? openSalsifyModal : undefined}
+            // Unlike push, a pull doesn't require EXPORT_READY — bringing
+            // retail's current values in is useful at any stage. It does need
+            // its own grant on top of edit access, since it overwrites data.
+            onSalsifyPull={canEdit && canPullSalsify ? openPullModal : undefined}
             reloadKey={gridReloadKey}
           />
         </div>
@@ -326,6 +339,24 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
           syncing={salsifySyncing}
           onConfirm={handleSalsifySync}
           onClose={() => setShowSalsifyModal(false)}
+        />
+      )}
+      {showPullModal && (
+        <SalsifyPullModal
+          projectId={project.id}
+          productIds={pullSelectedIds}
+          onExport={handleExport}
+          onClose={() => setShowPullModal(false)}
+          onApplied={({ productsUpdated, fieldsUpdated }) => {
+            setShowPullModal(false);
+            setSalsifySyncFailed(false);
+            setSalsifySyncResult(
+              fieldsUpdated === 0
+                ? "Nothing to pull — the grid already matches Salsify."
+                : `Pulled ${fieldsUpdated} value${fieldsUpdated !== 1 ? "s" : ""} from Salsify across ${productsUpdated} product${productsUpdated !== 1 ? "s" : ""}.`
+            );
+            setGridReloadKey((k) => k + 1);
+          }}
         />
       )}
     </div>

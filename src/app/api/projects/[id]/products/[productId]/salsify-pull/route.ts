@@ -15,7 +15,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!(await can(session.user.role, "products:sync_salsify"))) {
+  if (!(await can(session.user.role, "products:pull_salsify"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
