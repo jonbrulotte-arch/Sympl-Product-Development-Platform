@@ -449,6 +449,34 @@ Enable **Salsify Debug** in Admin → Settings to show **Salsify Log** and **Sal
 
 ---
 
+## Scripts
+
+Utility scripts are in the `scripts/` directory. Make them executable once after cloning (`chmod +x scripts/*.sh`).
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/deploy.sh` | Pull latest code, sync schema, regenerate Prisma client, build, and restart via pm2. Run this for every deployment. |
+| `scripts/report.sh` | Print a server resource report: pm2 process status, Node memory, database size and top tables, disk usage, and overall RAM/disk. |
+| `scripts/backup.sh` | Encrypted database dump + uploaded-file archive. Designed for cron — see [Cron Jobs](#cron-jobs). |
+
+### deploy.sh
+
+```bash
+./scripts/deploy.sh
+```
+
+Runs: `git pull` → `prisma db push` → `prisma generate` → `npm run build` → `pm2 restart sympl`. Requires pm2 to be installed and the `sympl` process to be registered (`pm2 start "npm run start" --name sympl`).
+
+### report.sh
+
+```bash
+./scripts/report.sh
+```
+
+Outputs a snapshot of resource consumption: pm2 uptime/restarts, Node.js RSS and CPU, PostgreSQL database and table sizes, app directory breakdown, server RAM, and disk usage. The database credentials in the script (`DB_USER`, `PGPASSWORD`, `DB_NAME`) must match your `.env`.
+
+---
+
 ## Database Schema Changes
 
 After modifying `prisma/schema.prisma`, run:
