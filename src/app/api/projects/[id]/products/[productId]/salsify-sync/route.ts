@@ -7,6 +7,7 @@ import { checkProjectAccess } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
 import { SALSIFY_FIELD_SYNC, unresolvedDriftForProduct } from "@/lib/salsify-drift";
 import { buildSalsifyPayload, categoryAncestry } from "@/lib/salsify-fields";
+import { salsifyFetch, describeFetchError } from "@/lib/salsify-http";
 
 type Params = { params: Promise<{ id: string; productId: string }> };
 
@@ -83,17 +84,27 @@ export async function POST(req: NextRequest, { params }: Params) {
   };
   const payload = JSON.stringify(salsifyProduct);
 
-  let res = await fetch(`${baseUrl}/${encoded}`, { method: "PUT", headers, body: payload });
-  if (res.status === 404) {
-    // A partial push must never create the record — it would land in Salsify
-    // with only the one property set. Ask for a full sync instead.
-    if (isPartial) {
-      return NextResponse.json(
-        { error: `${salsifyId} does not exist in Salsify yet — run a full sync first.` },
-        { status: 409 }
-      );
+  let res: Response;
+  try {
+    res = await salsifyFetch(`${baseUrl}/${encoded}`, { method: "PUT", headers, body: payload });
+    if (res.status === 404 && !isPartial) {
+      res = await salsifyFetch(baseUrl, { method: "POST", headers, body: payload });
     }
-    res = await fetch(baseUrl, { method: "POST", headers, body: payload });
+  } catch (err) {
+    // Retries are already exhausted by this point, so report the underlying
+    // socket reason rather than letting it surface as an unhandled 500.
+    return NextResponse.json(
+      { error: `Could not reach Salsify: ${describeFetchError(err)}` },
+      { status: 502 }
+    );
+  }
+  // A partial push must never create the record — it would land in Salsify
+  // with only the one property set. Ask for a full sync instead.
+  if (res.status === 404 && isPartial) {
+    return NextResponse.json(
+      { error: `${salsifyId} does not exist in Salsify yet — run a full sync first.` },
+      { status: 409 }
+    );
   }
 
   if (!res.ok) {

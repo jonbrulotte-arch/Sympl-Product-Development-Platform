@@ -5,6 +5,7 @@ import { resolveSalsifyCredentials } from "@/lib/salsify-auth";
 import { can } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
+import { salsifyFetch, describeFetchError } from "@/lib/salsify-http";
 import {
   isCoreField, coreFieldType, readCoreField, coerceSalsifyValue, toBoolean,
   unwrapSalsifyValue, displayValue, sameValue,
@@ -154,7 +155,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         const partNumber = product.partNumber!.trim();
         const result = resultByProduct.get(product.id)!;
         try {
-          const res = await fetch(
+          const res = await salsifyFetch(
             `https://app.salsify.com/api/v1/orgs/${config.organizationId}/products/${encodeURIComponent(partNumber)}`,
             { headers: { Authorization: `Bearer ${config.apiKey}` } },
           );
@@ -175,9 +176,10 @@ export async function POST(req: NextRequest, { params }: Params) {
           remoteById.set(product.id, await res.json());
           result.status = "found";
         } catch (err) {
-          fetchErrors.push(`${partNumber}: ${String(err)}`);
+          const why = describeFetchError(err);
+          fetchErrors.push(`${partNumber}: ${why}`);
           result.status = "error";
-          result.detail = String(err);
+          result.detail = why;
         }
       }),
     );

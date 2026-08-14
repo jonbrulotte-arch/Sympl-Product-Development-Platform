@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveSalsifyCredentials } from "@/lib/salsify-auth";
 import { checkProjectAccess } from "@/lib/project-access";
+import { salsifyFetch, describeFetchError } from "@/lib/salsify-http";
 
 type Params = { params: Promise<{ id: string; productId: string }> };
 
@@ -38,10 +39,20 @@ export async function POST(_req: NextRequest, { params }: Params) {
   }
 
   const salsifyId = encodeURIComponent(product.partNumber ?? product.id);
-  const res = await fetch(
-    `https://app.salsify.com/api/v1/orgs/${config.organizationId}/products/${salsifyId}`,
-    { headers: { Authorization: `Bearer ${config.apiKey}` } }
-  );
+  let res: Response;
+  try {
+    res = await salsifyFetch(
+      `https://app.salsify.com/api/v1/orgs/${config.organizationId}/products/${salsifyId}`,
+      { headers: { Authorization: `Bearer ${config.apiKey}` } }
+    );
+  } catch (err) {
+    // Retries are already exhausted by this point, so report the underlying
+    // socket reason rather than letting it surface as an unhandled 500.
+    return NextResponse.json(
+      { error: `Could not reach Salsify: ${describeFetchError(err)}` },
+      { status: 502 }
+    );
+  }
 
   if (res.status === 404) {
     return NextResponse.json({ error: "Product does not exist in Salsify yet — sync it first." }, { status: 404 });

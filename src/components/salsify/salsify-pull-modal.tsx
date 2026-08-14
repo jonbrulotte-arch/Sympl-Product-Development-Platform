@@ -86,10 +86,14 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
   // confirms, so this is safe to run the moment the modal opens.
   useEffect(() => {
     let cancelled = false;
+    // Abort on close so cancelling actually stops the preview instead of
+    // leaving it running while a re-opened modal starts another one.
+    const controller = new AbortController();
     fetch(`/api/projects/${projectId}/salsify-pull`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ dryRun: true, productIds: productKey ? productKey.split(",") : undefined }),
+      signal: controller.signal,
     })
       .then(async (r) => {
         const data = await r.json().catch(() => ({}));
@@ -103,9 +107,11 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
         // shouldn't take a click per attribute to see it.
         setExpanded(new Set(attrs.map((a) => a.key)));
       })
-      .catch(() => { if (!cancelled) setError("Could not reach the server."); })
+      .catch((err) => {
+        if (!cancelled && err?.name !== "AbortError") setError("Could not reach the server.");
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [projectId, productKey]);
 
   function toggle(key: string) {

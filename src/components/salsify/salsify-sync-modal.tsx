@@ -81,11 +81,15 @@ export function SalsifySyncModal({ mode, projectId, productIds, onConfirm, onClo
 
   useEffect(() => {
     let cancelled = false;
+    // Abort on close so cancelling actually stops the preview instead of
+    // leaving it running while a re-opened modal starts another one.
+    const controller = new AbortController();
     const ids = productKey ? productKey.split(",") : undefined;
     fetch(`/api/projects/${projectId}/salsify-sync`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ dryRun: true, productIds: ids }),
+      signal: controller.signal,
     })
       .then(async (r) => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))
       .then((preview) => {
@@ -100,9 +104,11 @@ export function SalsifySyncModal({ mode, projectId, productIds, onConfirm, onClo
         setChecked(new Set(list.map((a) => a.key)));
         setExpanded(new Set(list.map((a) => a.key)));
       })
-      .catch(() => { if (!cancelled) setError("Could not reach the server."); })
+      .catch((err) => {
+        if (!cancelled && err?.name !== "AbortError") setError("Could not reach the server.");
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [projectId, productKey]);
 
   function toggle(key: string) {

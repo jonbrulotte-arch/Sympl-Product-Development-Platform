@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveSalsifyCredentials } from "@/lib/salsify-auth";
 import { can } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
+import { salsifyFetch, describeFetchError } from "@/lib/salsify-http";
 import {
   buildSalsifyPayload, categoryAncestry, unwrapSalsifyValue,
   displayValue, sameValue,
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
           let remote: Record<string, unknown> | null = null;
           try {
-            const res = await fetch(`${baseUrl}/${encodeURIComponent(salsifyId)}`, { headers: authHeaders });
+            const res = await salsifyFetch(`${baseUrl}/${encodeURIComponent(salsifyId)}`, { headers: authHeaders });
             result.httpStatus = res.status;
             if (res.status === 404) {
               result.status = "will_create";
@@ -130,7 +131,7 @@ export async function POST(req: NextRequest, { params }: Params) {
             }
           } catch (err) {
             result.status = "error";
-            result.detail = String(err);
+            result.detail = describeFetchError(err);
             return;
           }
 
@@ -213,9 +214,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       const body = JSON.stringify(salsifyProduct);
 
       // PUT updates an existing product; POST creates a new one
-      let res = await fetch(`${baseUrl}/${salsifyId}`, { method: "PUT", headers, body });
+      let res = await salsifyFetch(`${baseUrl}/${salsifyId}`, { method: "PUT", headers, body });
       if (res.status === 404) {
-        res = await fetch(baseUrl, { method: "POST", headers, body });
+        res = await salsifyFetch(baseUrl, { method: "POST", headers, body });
       }
 
       if (!res.ok) {
@@ -240,7 +241,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         await prisma.$executeRaw`UPDATE "ProductRecord" SET "salsifyLastSyncedAt" = ${new Date()} WHERE id = ${product.id}`.catch(() => {});
       }
     } catch (err) {
-      errors.push(`Product ${product.partNumber ?? product.id}: ${String(err)}`);
+      errors.push(`Product ${product.partNumber ?? product.id}: ${describeFetchError(err)}`);
     }
   }
 
