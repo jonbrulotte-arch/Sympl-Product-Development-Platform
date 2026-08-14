@@ -4,6 +4,7 @@ import { ProjectsClient } from "./projects-client";
 import { seesAllProjects } from "@/lib/permissions";
 import { getFilterableProjectStatuses } from "@/lib/project-statuses";
 import { getUiPrefs } from "@/lib/ui-prefs";
+import { withLastActivity } from "@/lib/project-activity";
 
 export default async function ProjectsPage() {
   const session = await auth();
@@ -44,7 +45,7 @@ export default async function ProjectsPage() {
 
   return (
     <ProjectsClient
-      initialProjects={projects}
+      initialProjects={await withLastActivity(projects)}
       statuses={statuses.map((s) => ({ code: s.code, label: s.label }))}
       initialView={uiPrefs.projectsView ?? "card"}
     />
