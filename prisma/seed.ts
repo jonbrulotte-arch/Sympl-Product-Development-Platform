@@ -18,6 +18,10 @@ const prisma = new PrismaClient({ adapter } as never);
 const SEED_DEMO = process.env.SEED_DEMO_USERS === "true";
 
 async function main() {
+  if (SEED_DEMO) {
+    console.warn("\n⚠  SEED_DEMO_USERS is enabled — demo accounts will use weak default passwords.");
+    console.warn("   Do NOT use this in production. Set SEED_ADMIN_PASSWORD for a strong admin password.\n");
+  }
   console.log("Seeding database...");
 
   // ─── Admin user ────────────────────────────────────────────────────────────

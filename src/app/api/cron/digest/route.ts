@@ -23,6 +23,13 @@ async function isAuthorized(req: NextRequest): Promise<boolean> {
   const match = authHeader.match(/^Bearer\s+(.+)$/i);
   if (match) {
     const tokenHash = createHash("sha256").update(match[1]).digest("hex");
+    // Prefer a dedicated cron token so a compromise doesn't also expose backups.
+    const cronSecret = process.env.CRON_API_TOKEN;
+    if (cronSecret) {
+      const expected = createHash("sha256").update(cronSecret).digest("hex");
+      if (expected === tokenHash) return true;
+    }
+    // Fall back to the backup token for existing deployments.
     const config = await prisma.backupConfig.findFirst({ select: { apiTokenHash: true } });
     if (config?.apiTokenHash && config.apiTokenHash === tokenHash) return true;
   }

@@ -38,6 +38,7 @@ export function wrap(title: string, body: string) {
 }
 
 export async function sendMail(to: string, subject: string, html: string) {
+  if (/[\r\n]/.test(to) || /[\r\n]/.test(subject)) return;
   const transport = getTransport();
   if (!transport) return; // SMTP not configured — silently skip
   try {
