@@ -78,6 +78,7 @@ export const PERMISSIONS = {
   "inspections:manage":       { label: "Manage Inspection Reports", description: "Create, edit, and delete inspection reports and their documents" },
   "products:sync_salsify":    { label: "Sync to Salsify",          description: "Push product data to Salsify" },
   "products:pull_salsify":    { label: "Pull from Salsify",        description: "Overwrite Sympl product data with the current values from Salsify" },
+  "products:export_qc_dims":  { label: "Export QC Dims",           description: "Export selected products as a QC dimensions sheet" },
   "projects:override_status": { label: "Override Project Status",  description: "Manually set project status from the Settings tab" },
   "projects:transfer_ownership": { label: "Bulk Project Actions", description: "Bulk transfer ownership, change status, or archive projects. Permanent delete stays admin-only." },
 } as const;
@@ -88,8 +89,8 @@ export type Permission = keyof typeof PERMISSIONS;
 // org-wide project visibility (see seesAllProjects), not extra admin pages.
 const PM_PERMISSIONS: Permission[] = [
   "admin:categories", "admin:attributes", "projects:create",
-  "products:sync_salsify", "products:pull_salsify", "projects:override_status",
-  "compliance:manage", "inspections:manage",
+  "products:sync_salsify", "products:pull_salsify", "products:export_qc_dims",
+  "projects:override_status", "compliance:manage", "inspections:manage",
 ];
 
 const PERMISSION_DEFAULTS: Record<string, Permission[]> = {

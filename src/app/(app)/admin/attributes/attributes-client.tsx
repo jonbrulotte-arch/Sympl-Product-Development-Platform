@@ -7,8 +7,9 @@ import {
   Plus, X, Pencil, ChevronDown, ChevronRight, Download, Upload,
   Type, AlignLeft, Hash, ToggleLeft, CalendarDays, List, Link2,
   Mail, Barcode, GripVertical, Layers, Zap, Settings2, Trash2, Check,
-  Eye, EyeOff, ArrowUp, ArrowDown,
+  Eye, EyeOff, ArrowUp, ArrowDown, FileSpreadsheet,
 } from "lucide-react";
+import { QC_DIMS_MAPPABLE } from "@/lib/qc-dims";
 
 interface Section {
   id: string;
@@ -36,6 +37,9 @@ interface AttributeDef {
   isActive: boolean;
   salsifyEnabled: boolean;
   salsifyPropertyId: string | null;
+  salsifyLocale: string | null;
+  /** Which QC Dims export column this attribute feeds, if any. */
+  qcDimsColumn: string | null;
   categoryId: string | null;
   sectionId: string | null;
   sortOrder: number;
@@ -487,6 +491,15 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
                               Salsify
                             </span>
                           )}
+                          {attr.qcDimsColumn && (
+                            <span
+                              className="flex items-center gap-1 text-xs text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded"
+                              title={`Fills the "${attr.qcDimsColumn}" column of the QC Dims export`}
+                            >
+                              <FileSpreadsheet className="h-3 w-3" />
+                              QC
+                            </span>
+                          )}
                           <button
                             onClick={() => toggleActive(attr)}
                             className={`ml-1 p-1.5 rounded transition-colors ${attr.isActive ? "text-gray-300 hover:text-gray-600 hover:bg-gray-100" : "text-amber-500 hover:text-amber-600 hover:bg-amber-50"}`}
@@ -526,6 +539,7 @@ export function AttributesClient({ initialAttributes, initialSections, categorie
           attr={editTarget}
           categories={categories}
           sections={sections}
+          allAttributes={attributes}
           onClose={() => { setEditTarget(null); setCreateOpen(false); }}
           onSaved={(saved) => {
             setAttributes((prev) => {
@@ -825,11 +839,13 @@ interface DialogProps {
   attr: AttributeDef | null;
   categories: Category[];
   sections: Section[];
+  /** Used to warn before saving when a QC Dims column is already taken. */
+  allAttributes: AttributeDef[];
   onClose: () => void;
   onSaved: (attr: AttributeDef) => void;
 }
 
-function AttributeDialog({ attr, categories, sections, onClose, onSaved }: DialogProps) {
+function AttributeDialog({ attr, categories, sections, allAttributes, onClose, onSaved }: DialogProps) {
   const isNew = !attr;
   const [form, setForm] = useState({
     key: attr?.key ?? "",
@@ -842,7 +858,8 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
     sectionId: attr?.sectionId ?? "",
     salsifyEnabled: attr?.salsifyEnabled ?? false,
     salsifyPropertyId: attr?.salsifyPropertyId ?? "",
-    salsifyLocale: (attr as AttributeDef & { salsifyLocale?: string | null })?.salsifyLocale ?? "",
+    salsifyLocale: attr?.salsifyLocale ?? "",
+    qcDimsColumn: attr?.qcDimsColumn ?? "",
   });
 
   const [lovItems, setLovItems] = useState<LovItem[]>(attr?.lovItems ?? []);
@@ -862,6 +879,7 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
         sectionId: form.sectionId || null,
         salsifyPropertyId: form.salsifyPropertyId || null,
         salsifyLocale: form.salsifyLocale || null,
+        qcDimsColumn: form.qcDimsColumn || null,
       };
 
       const res = isNew
@@ -968,6 +986,10 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
 
   const showLov = form.attributeType === "SELECT" || form.attributeType === "MULTI_SELECT";
   const isMultiValue = Number(form.maxValues) > 1;
+  // Surfaced inline so the clash is visible before saving; the API enforces it too.
+  const qcConflict = form.qcDimsColumn
+    ? allAttributes.find((a) => a.qcDimsColumn === form.qcDimsColumn && a.id !== attr?.id) ?? null
+    : null;
 
   return (
     <div
@@ -1111,6 +1133,35 @@ function AttributeDialog({ attr, categories, sections, onClose, onSaved }: Dialo
                 </div>
               </>
             )}
+          </div>
+
+          {/* QC Dims section */}
+          <div className="border border-sky-200 rounded-lg p-4 space-y-3 bg-sky-50">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-sky-800">QC Dims Export</span>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">QC Dims Column</label>
+              <select
+                value={form.qcDimsColumn}
+                onChange={(e) => setForm((f) => ({ ...f, qcDimsColumn: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              >
+                <option value="">— Not mapped —</option>
+                {QC_DIMS_MAPPABLE.map((c) => (
+                  <option key={c.column} value={c.column}>{c.column}</option>
+                ))}
+              </select>
+              {qcConflict ? (
+                <p className="text-xs text-red-600 mt-1">
+                  Already mapped to <strong>{qcConflict.label}</strong>. Clear that mapping first — a column can only be fed by one attribute.
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">
+                  The column of the QC Dims export sheet this attribute&apos;s value fills. Leave unmapped to keep it out of the sheet.
+                </p>
+              )}
+            </div>
           </div>
 
           {/* LOV items */}

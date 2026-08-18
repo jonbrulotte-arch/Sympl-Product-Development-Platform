@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CORE_FIELD_KEYS } from "@/lib/core-fields";
 import { expandWithAncestors } from "@/lib/category-tree";
+import { isQcDimsColumn } from "@/lib/qc-dims";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -111,6 +112,12 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // POST spreads the whole body, so an unrecognized mapping would land in the
+  // column and silently never export. There is no zod schema here to catch it.
+  if (body.qcDimsColumn && !isQcDimsColumn(body.qcDimsColumn)) {
+    return NextResponse.json({ error: "Unknown QC Dims column" }, { status: 400 });
+  }
+
   try {
     // A definition whose key matches a core product field IS that field's
     // definition — flag it so it can't be deleted out from under the column
@@ -123,6 +130,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(attribute, { status: 201 });
   } catch (e) {
     if (e && typeof e === "object" && "code" in e && (e as { code: string }).code === "P2002") {
+      // Both `key` and `qcDimsColumn` are unique — name the right one.
+      const target = (e as { meta?: { target?: string[] | string } }).meta?.target;
+      const fields = Array.isArray(target) ? target : [target ?? ""];
+      if (fields.includes("qcDimsColumn")) {
+        return NextResponse.json({ error: `"${body.qcDimsColumn}" is already mapped to another attribute. A QC Dims column can only be fed by one attribute.` }, { status: 409 });
+      }
       return NextResponse.json({ error: `An attribute with the key "${key}" already exists. Choose a different key.` }, { status: 409 });
     }
     throw e;

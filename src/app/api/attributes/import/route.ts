@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseUploadedWorkbook } from "@/lib/xlsx-parse";
+import { isQcDimsColumn } from "@/lib/qc-dims";
 
 const VALID_TYPES = ["TEXT","TEXTAREA","NUMBER","DECIMAL","BOOLEAN","DATE","SELECT","MULTI_SELECT","URL","EMAIL","UPC","GTIN"];
 const VALID_REQS  = ["REQUIRED","CONDITIONAL","OPTIONAL"];
@@ -87,6 +88,12 @@ export async function POST(req: NextRequest) {
         ...(sortOrder !== undefined ? { sortOrder } : {}),
         salsifyEnabled: String(row.salsifyEnabled ?? "").toLowerCase() === "true",
         salsifyPropertyId: row.salsifyPropertyId ? String(row.salsifyPropertyId) : null,
+        salsifyLocale: row.salsifyLocale ? String(row.salsifyLocale) : null,
+        // Unrecognized values are dropped rather than failing the row — the
+        // column is unique, so a stale sheet must not wedge the whole import.
+        ...(isQcDimsColumn(String(row.qcDimsColumn ?? "").trim())
+          ? { qcDimsColumn: String(row.qcDimsColumn).trim() }
+          : {}),
         sectionId,
         categoryId,
         isActive: true,

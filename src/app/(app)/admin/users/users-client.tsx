@@ -55,7 +55,7 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
   const [form, setForm] = useState({ name: "", email: "", role: "CONTRIBUTOR" as UserRole });
   const [inviteMsg, setInviteMsg] = useState<{ email: string; url?: string; expiresInDays?: number } | null>(null);
   const [resending, setResending] = useState<string | null>(null);
-  const [resendMsg, setResendMsg] = useState<string | null>(null);
+  const [resendMsg, setResendMsg] = useState<{ email: string; url?: string; expiresInDays?: number } | string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pwUser, setPwUser] = useState<UserRow | null>(null);
@@ -112,12 +112,17 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
     try {
       const res = await fetch(`/api/users/${user.id}/invite`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
-      setResendMsg(res.ok ? `Invitation re-sent to ${user.email}.` : (data.error ?? "Could not send invitation."));
+      if (res.ok) {
+        setResendMsg({ email: user.email, url: data.inviteUrl, expiresInDays: data.expiresInDays });
+      } else {
+        setResendMsg(data.error ?? "Could not send invitation.");
+        setTimeout(() => setResendMsg(null), 6000);
+      }
     } catch {
       setResendMsg("Could not send invitation.");
+      setTimeout(() => setResendMsg(null), 6000);
     } finally {
       setResending(null);
-      setTimeout(() => setResendMsg(null), 6000);
     }
   }
 
@@ -204,9 +209,25 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
       )}
 
       {resendMsg && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
-          {resendMsg}
-        </div>
+        typeof resendMsg === "string" ? (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
+            {resendMsg}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <p className="font-medium">Invitation re-sent to {resendMsg.email}.</p>
+            <p className="mt-0.5 text-xs text-green-700">
+              They have {resendMsg.expiresInDays ?? 7} days to set a password. If email isn&apos;t configured on this
+              server, copy the link below and send it yourself.
+            </p>
+            {resendMsg.url && (
+              <code className="mt-2 block break-all rounded bg-white/70 px-2 py-1 text-[11px] text-green-900">
+                {resendMsg.url}
+              </code>
+            )}
+            <button onClick={() => setResendMsg(null)} className="mt-2 text-xs underline">Dismiss</button>
+          </div>
+        )
       )}
 
       <div className="flex items-center gap-4">

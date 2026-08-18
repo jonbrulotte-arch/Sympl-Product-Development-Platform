@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CORE_FIELD_KEYS } from "@/lib/core-fields";
+import { isQcDimsColumn } from "@/lib/qc-dims";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -20,9 +21,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const {
     label, description, attributeType, requirement, maxValues, sortOrder,
     categoryId, sectionId, isActive,
-    salsifyEnabled, salsifyPropertyId, salsifyLocale,
+    salsifyEnabled, salsifyPropertyId, salsifyLocale, qcDimsColumn,
     defaultValue, unit, validationRules,
   } = body;
+
+  // There is no zod schema for attributes, so guard the mapping here: an
+  // arbitrary string would sit in the column and silently never export.
+  if (qcDimsColumn !== undefined && qcDimsColumn && !isQcDimsColumn(qcDimsColumn)) {
+    return NextResponse.json({ error: "Unknown QC Dims column" }, { status: 400 });
+  }
 
   // Renaming, recategorizing, or reactivating must not collide with another
   // active attribute's label in the same scope (global, or same category) —
@@ -56,6 +63,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
   }
 
+  // A QC column can only be fed by one attribute. The DB enforces this, but
+  // checking first lets the message name the attribute already holding it.
+  if (qcDimsColumn) {
+    const holder = await prisma.attributeDefinition.findFirst({
+      where: { qcDimsColumn, id: { not: id } },
+      select: { label: true, key: true },
+    });
+    if (holder) {
+      return NextResponse.json(
+        { error: `"${qcDimsColumn}" is already mapped to "${holder.label}" (key: ${holder.key}). Clear that mapping first — a QC Dims column can only be fed by one attribute.` },
+        { status: 409 }
+      );
+    }
+  }
+
   const updated = await prisma.attributeDefinition.update({
     where: { id },
     data: {
@@ -69,6 +91,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       ...(salsifyEnabled !== undefined && { salsifyEnabled }),
       ...(salsifyPropertyId !== undefined && { salsifyPropertyId: salsifyPropertyId || null }),
       ...(salsifyLocale !== undefined && { salsifyLocale: salsifyLocale || null }),
+      ...(qcDimsColumn !== undefined && { qcDimsColumn: qcDimsColumn || null }),
       ...(defaultValue !== undefined && { defaultValue: defaultValue || null }),
       ...(unit !== undefined && { unit: unit || null }),
       ...(validationRules !== undefined && { validationRules }),

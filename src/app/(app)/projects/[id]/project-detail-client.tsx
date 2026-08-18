@@ -62,6 +62,7 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
   const [showPullModal, setShowPullModal] = useState(false);
   const [pullSelectedIds, setPullSelectedIds] = useState<string[] | undefined>(undefined);
   const canPullSalsify = usePermissions().can("products:pull_salsify");
+  const canExportQcDims = usePermissions().can("products:export_qc_dims");
   const [gridReloadKey, setGridReloadKey] = useState(0);
   const router = useRouter();
 
@@ -125,6 +126,29 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
     const a = document.createElement("a");
     a.href = url;
     a.download = `${project.name.replace(/[^a-z0-9]/gi, "_")}_export.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // POST rather than GET: a large selection would overflow a query string.
+  const handleExportQcDims = async (productIds: string[]) => {
+    if (productIds.length === 0) return;
+    const res = await fetch(`/api/projects/${project.id}/export-qc-dims`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productIds }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error ?? "QC Dims export failed");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const date = new Date().toISOString().slice(0, 10);
+    a.download = `${project.name.replace(/[^a-z0-9]/gi, "_")}_QC_Dims_${date}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -291,6 +315,8 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
             // retail's current values in is useful at any stage. It does need
             // its own grant on top of edit access, since it overwrites data.
             onSalsifyPull={canEdit && canPullSalsify ? openPullModal : undefined}
+            // Read-only export, so view access is enough — no canEdit required.
+            onExportQcDims={canExportQcDims ? handleExportQcDims : undefined}
             reloadKey={gridReloadKey}
           />
         </div>

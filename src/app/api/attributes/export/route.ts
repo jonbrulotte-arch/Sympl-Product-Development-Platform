@@ -32,6 +32,8 @@ export async function GET(_req: NextRequest) {
     category: a.category?.name ?? "",
     salsifyEnabled: a.salsifyEnabled ? "true" : "false",
     salsifyPropertyId: a.salsifyPropertyId ?? "",
+    salsifyLocale: a.salsifyLocale ?? "",
+    qcDimsColumn: a.qcDimsColumn ?? "",
     // LOV items: value::label between the pair, ;; between entries. The `|`
     // and `:` used by earlier versions collided with category paths and value
     // strings that legitimately contain those characters.

@@ -254,6 +254,9 @@ model AttributeDefinition {
   salsifyEnabled    Boolean          @default(false)
   salsifyPropertyId String?
   salsifyLocale     String?
+  // Which column of the QC Dims export sheet this attribute feeds. Unique
+  // because a column can only be sourced from one attribute — see lib/qc-dims.ts.
+  qcDimsColumn      String?          @unique
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
