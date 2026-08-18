@@ -62,10 +62,14 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const MAX_EXPORT_IDS = 5000;
   const body = await req.json().catch(() => ({}));
   const productIds: string[] = Array.isArray(body?.productIds) ? body.productIds : [];
   if (productIds.length === 0) {
     return NextResponse.json({ error: "No products selected" }, { status: 400 });
+  }
+  if (productIds.length > MAX_EXPORT_IDS) {
+    return NextResponse.json({ error: `Too many products (${productIds.length}). Maximum is ${MAX_EXPORT_IDS}.` }, { status: 400 });
   }
 
   const project = await prisma.project.findUnique({ where: { id: projectId } });

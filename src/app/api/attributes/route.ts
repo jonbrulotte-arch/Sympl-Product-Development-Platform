@@ -120,9 +120,28 @@ export async function POST(req: NextRequest) {
 
   try {
     // A definition whose key matches a core product field IS that field's
-    // definition — flag it so it can't be deleted out from under the column
+    // definition — flag it so it can't be deleted out from under the column.
+    // Explicit allowlist — never spread the raw body into create().
     const attribute = await prisma.attributeDefinition.create({
-      data: { ...body, key, isCore: CORE_FIELD_KEYS.includes(key) },
+      data: {
+        key,
+        label: body.label ?? key,
+        description: body.description || null,
+        attributeType: body.attributeType ?? "TEXT",
+        requirement: body.requirement ?? "OPTIONAL",
+        maxValues: body.maxValues !== undefined ? Number(body.maxValues) : 1,
+        sortOrder: body.sortOrder !== undefined ? Number(body.sortOrder) : 0,
+        categoryId: body.categoryId || null,
+        sectionId: body.sectionId || null,
+        defaultValue: body.defaultValue || null,
+        unit: body.unit || null,
+        validationRules: body.validationRules ?? undefined,
+        salsifyEnabled: body.salsifyEnabled ?? false,
+        salsifyPropertyId: body.salsifyPropertyId || null,
+        salsifyLocale: body.salsifyLocale || null,
+        qcDimsColumn: body.qcDimsColumn || null,
+        isCore: CORE_FIELD_KEYS.includes(key),
+      },
     });
     // Attribute definitions shape project grids and product edit forms —
     // invalidate cached pages so in-app navigation picks up the new column.
