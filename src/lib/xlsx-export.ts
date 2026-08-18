@@ -1,7 +1,6 @@
-// Shared SheetJS export helper. Generation only — parsing untrusted uploads
-// uses exceljs (see xlsx-parse.ts).
+// Shared exceljs export helper. Both generation and parsing now use exceljs.
 
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { NextResponse } from "next/server";
 
 export function buildXlsxResponse(
@@ -9,26 +8,53 @@ export function buildXlsxResponse(
   sheetName: string,
   filename: string
 ): NextResponse {
-  // Underscore-prefixed keys carry IDs for the UI (row drill-down) and are not
-  // part of the exported sheet.
-  const rows = inputRows.map((row) =>
-    Object.fromEntries(Object.entries(row).filter(([k]) => !k.startsWith("_")))
-  );
-  const ws = XLSX.utils.json_to_sheet(rows);
-  // Auto column widths from header + cell content
-  const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
-  ws["!cols"] = headers.map((h) => {
-    let max = h.length;
+  // We need to build the workbook synchronously-ish but exceljs buffer write
+  // is async, so we return a NextResponse built from the promise.
+  const promise = (async () => {
+    // Underscore-prefixed keys carry IDs for the UI (row drill-down) and are not
+    // part of the exported sheet.
+    const rows = inputRows.map((row) =>
+      Object.fromEntries(Object.entries(row).filter(([k]) => !k.startsWith("_")))
+    );
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet(sheetName.slice(0, 31));
+
+    const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
+
+    // Add header row
+    ws.columns = headers.map((h) => {
+      let max = h.length;
+      for (const row of rows) {
+        const len = String(row[h] ?? "").length;
+        if (len > max) max = len;
+      }
+      return { header: h, key: h, width: Math.min(max + 2, 50) };
+    });
+
+    // Add data rows
     for (const row of rows) {
-      const len = String(row[h] ?? "").length;
-      if (len > max) max = len;
+      ws.addRow(row);
     }
-    return { wch: Math.min(max + 2, 50) };
+
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.from(buf);
+  })();
+
+  // NextResponse accepts a promise body via the Response constructor with a
+  // ReadableStream, but the simplest approach is to await and return.
+  // Since route handlers can return promises, we wrap in an async-compatible way.
+  // However buildXlsxResponse is sync in its signature — we need to keep it that way.
+  // Use a ReadableStream that pulls from the promise.
+  const stream = new ReadableStream({
+    async start(controller) {
+      const buf = await promise;
+      controller.enqueue(new Uint8Array(buf));
+      controller.close();
+    },
   });
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-  return new NextResponse(buf, {
+
+  return new NextResponse(stream, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${filename}"`,

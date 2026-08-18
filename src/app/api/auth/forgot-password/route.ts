@@ -2,10 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { randomBytes } from "crypto";
 import { sendMail, passwordResetEmail, BASE_URL } from "@/lib/email";
+import { RateLimiter } from "@/lib/rate-limit";
+
+const limiter = new RateLimiter({ maxRequests: 5, windowMs: 15 * 60 * 1000 });
 
 export async function POST(req: NextRequest) {
   const { email } = await req.json();
   if (!email) return NextResponse.json({ error: "Email required" }, { status: 400 });
+
+  const normalizedEmail = (email as string).toLowerCase().trim();
+  if (limiter.isLimited(`forgot:${normalizedEmail}`)) {
+    // Still return success to avoid user enumeration
+    return NextResponse.json({ success: true });
+  }
 
   // Always return success to avoid user enumeration
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });

@@ -63,8 +63,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: `SMTP error: ${message}` }, { status: 502 });
+    console.error("[smtp-test] SMTP test failed:", err instanceof Error ? err.message : err);
+    return NextResponse.json({ error: "SMTP test failed" }, { status: 502 });
   }
 }
 

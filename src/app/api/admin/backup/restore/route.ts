@@ -110,8 +110,9 @@ export async function DELETE(req: NextRequest) {
     const code = (err as NodeJS.ErrnoException)?.code;
     if (code === "ENOENT")
       return NextResponse.json({ error: "File not found — it may have already been deleted." }, { status: 404 });
+    console.error("[backup] Failed to delete backup file:", err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
+      { error: "Failed to delete backup file" },
       { status: 500 }
     );
   }
@@ -154,7 +155,8 @@ export async function POST(req: NextRequest) {
     } else {
       let keyBuf: Buffer;
       try { keyBuf = getBackupKey(); } catch (e) {
-        return NextResponse.json({ error: String(e) }, { status: 500 });
+        console.error("[backup] Failed to load backup key:", e);
+        return NextResponse.json({ error: "Restore failed" }, { status: 500 });
       }
 
       const payload = readFileSync(target.path);
@@ -238,6 +240,10 @@ export async function POST(req: NextRequest) {
         triggeredBy: target.kind === "uploads" ? "FILES_RESTORE" : "MANUAL_RESTORE",
       },
     }).catch(() => {});
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[backup] Restore failed:", message);
+    const userMessage = schemaDropped
+      ? "Restore failed. The existing schema was already dropped, so the database is now empty. Restore a known-good snapshot before using the application."
+      : "Restore failed";
+    return NextResponse.json({ error: userMessage }, { status: 500 });
   }
 }

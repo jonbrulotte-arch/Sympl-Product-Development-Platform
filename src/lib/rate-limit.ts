@@ -40,3 +40,38 @@ export function recordLoginFailure(key: string): void {
 export function clearLoginFailures(key: string): void {
   buckets.delete(key);
 }
+
+// ---------------------------------------------------------------------------
+// Generic reusable rate limiter
+// ---------------------------------------------------------------------------
+
+export class RateLimiter {
+  private buckets = new Map<string, Bucket>();
+  private maxRequests: number;
+  private windowMs: number;
+
+  constructor(opts: { maxRequests: number; windowMs: number }) {
+    this.maxRequests = opts.maxRequests;
+    this.windowMs = opts.windowMs;
+  }
+
+  private sweep() {
+    const now = Date.now();
+    for (const [key, bucket] of this.buckets) {
+      if (bucket.resetAt <= now) this.buckets.delete(key);
+    }
+  }
+
+  /** Returns true when the request should be rejected. */
+  isLimited(key: string): boolean {
+    const now = Date.now();
+    const bucket = this.buckets.get(key);
+    if (!bucket || bucket.resetAt <= now) {
+      if (this.buckets.size > 10_000) this.sweep();
+      this.buckets.set(key, { count: 1, resetAt: now + this.windowMs });
+      return false;
+    }
+    bucket.count++;
+    return bucket.count > this.maxRequests;
+  }
+}

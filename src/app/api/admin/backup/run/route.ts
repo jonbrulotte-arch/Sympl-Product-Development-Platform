@@ -45,7 +45,8 @@ export async function POST(req: NextRequest) {
 
   let keyBuf: Buffer;
   try { keyBuf = getBackupKey(); } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    console.error("[backup] Failed to load backup key:", e);
+    return NextResponse.json({ error: "Backup failed" }, { status: 500 });
   }
 
   const start = Date.now();
@@ -118,6 +119,7 @@ export async function POST(req: NextRequest) {
         triggeredBy,
       },
     });
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[backup] Backup failed:", message);
+    return NextResponse.json({ error: "Backup failed" }, { status: 500 });
   }
 }

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { decrypt } from "@/lib/crypto";
 
 export type SalsifyCredentials = {
   apiKey: string;
@@ -24,7 +25,7 @@ export async function resolveSalsifyCredentials(userId: string): Promise<Resolve
     return { ok: false, error: "Salsify organization ID is not set. An admin must configure it in Admin → Settings.", status: 400 };
   }
 
-  const apiKey = user?.salsifyApiKey?.trim();
+  const apiKey = user?.salsifyApiKey ? decrypt(user.salsifyApiKey).trim() : undefined;
   if (!apiKey) {
     return {
       ok: false,
