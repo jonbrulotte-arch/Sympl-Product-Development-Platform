@@ -5,12 +5,6 @@ import type { NextAuthConfig } from "next-auth";
 export const authConfig: NextAuthConfig = {
   session: { strategy: "jwt", maxAge: 8 * 60 * 60 },
   trustHost: true,
-  cookies: {
-    sessionToken: {
-      name: "sympl.session-token",
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" },
-    },
-  },
   pages: {
     signIn: "/login",
   },
