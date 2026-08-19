@@ -135,13 +135,14 @@ Every project has a Comments tab for team discussion:
 
 ### 👥 Roles & Access Control
 
-Six roles with permission grants configurable per role from **Admin → Access Control**:
+Seven roles with permission grants configurable per role from **Admin → Access Control**:
 
 | Role | Default Access |
 |------|----------------|
 | **Admin** | Full access — all projects, users, attributes, settings, backup |
-| **Product Manager** | Create/manage projects; attribute & category admin; Salsify sync |
-| **Contributor** | Edit products in assigned projects |
+| **Director** | Org-wide read access to every project, dashboard, and report; Product Manager permissions plus bulk project actions. Editing requires ownership or membership |
+| **Product Manager** | Create/manage projects; attribute & category admin; Salsify sync and pull |
+| **Contributor** | Edit products in assigned projects; create/edit compliance events and inspection reports |
 | **Reviewer** | View and comment; no product edits |
 | **Approver** | Cast approval votes on assigned workflow stages |
 | **Viewer** | Read-only on assigned projects |
@@ -161,6 +162,100 @@ Six roles with permission grants configurable per role from **Admin → Access C
 | Access Control | Per-permission toggles for each role |
 | Settings | Salsify credentials, debug mode, project status configuration |
 | Backup & Restore | Schedule, retention, manual run, API token, restore |
+
+---
+
+### 📊 Reports
+
+Seven operational reports with filters, drill-down detail panels, and one-click Excel export — scoped to each user's projects (Admins and Directors see everything):
+
+| Report | Covers |
+|--------|--------|
+| Inspections | All inspection reports: result, status, inspector, factory, linked products |
+| Compliance | Events by type, severity, status, due date, days overdue |
+| Overdue Stages | Workflow stages past due with pending approvers |
+| Overdue Projects | Active projects past target launch |
+| Roadblocks | Blocked stages, stalled projects, failed inspections, aging approvals |
+| Out-of-Sync Products | Products edited since their last Salsify push, with field-level drift |
+| Pipeline Summary | Project and product counts by status and owner |
+
+Every row is clickable — opens a side panel with related records, owners, blocking dependencies, and links to jump straight to the source.
+
+---
+
+### 🔗 Read-Only Share Links
+
+Expiring tokenized URLs (7/30/90 days) let a buyer or vendor view one product or inspection report without an account. Revocable at any time from the record page. Available to Admins, Directors, and Product Managers.
+
+---
+
+### 🔑 Read-Only API Tokens
+
+Scoped `spt_` tokens (Admin → API Tokens) let ERP/BI tools pull product data via the API without a browser session. Tokens are shown once at creation; the system stores only the SHA-256 hash.
+
+---
+
+### ⬇️ Pull from Salsify
+
+Bidirectional sync — pull current Salsify values back into Sympl:
+
+- **Bulk pull into the grid** — pull all rows or a selection, with a change report preview before anything is written. Warnings for type mismatches.
+- **Single product pull** — pull digital-asset URLs and state from Salsify into the product edit page, with thumbnail previews and a lightbox gallery.
+
+---
+
+### 🔔 Notification Preferences
+
+Users control per-category notification channels (inbox and/or email) from My Profile → Notification Preferences. Seven categories: Assignment, Workflow, Comment, Mention, Compliance, Inspection, General. Mentions and assignments default to email on; others default to inbox only.
+
+---
+
+### 📧 Leadership Digest
+
+A weekly summary email sent to all active Admins, Directors, and Product Managers. Contains pipeline by status, compliance risk summary, and approvals aging. Triggered by external cron (`/api/cron/digest`); admin users can preview via GET without sending.
+
+---
+
+### 📐 QC Dims Export
+
+Select rows in a project's product grid and click **Export QC Dims** to download the QC dimensions sheet in the exact 39-column layout the inspection vendor expects, with styled header, freeze panes, and correct cell types (text for UPC/GTIN to preserve leading zeros, numbers for dimensions). Mapping is configured per attribute in Admin → Attributes. Defaults for 31 standard columns seeded by `npm run db:seed-qc-dims`.
+
+---
+
+### 📦 Bulk Project Actions
+
+Admin → Bulk Project Actions (Admins and Directors by default) works over a filtered set of projects: transfer ownership, change status, or archive. Filter by owner and product category. Permanent delete is admin-only. Previous owners can be kept as editing members.
+
+---
+
+### 🔧 Module Toggles
+
+Admin → Settings → Modules can disable the Inspections module platform-wide (sidebar, pages, product/project tabs, reports, API). All inspection data is retained; re-enabling restores everything.
+
+---
+
+### 👤 User Invitations & Password Reset
+
+- **Invitations** — Adding a user takes name, email, and role. An emailed single-use link (7 days) lets them set their own password. Admins never handle a password.
+- **Password reset** — Scrambles the stored password to a random value and emails a 1-hour reset link. Nobody, including the admin, ever sees the interim password.
+- **Self-service forgot password** — rate-limited to 5 requests per 15 minutes per email.
+
+---
+
+### 🔒 Security Hardening
+
+- **Encryption at rest** — Salsify API keys encrypted with AES-256-GCM via `ENCRYPTION_KEY` env var; database backups encrypted with AES-256-GCM via `BACKUP_ENCRYPTION_KEY`
+- **Security headers** — HSTS (1 year, includeSubDomains), X-Frame-Options DENY, X-Content-Type-Options nosniff, strict Referrer-Policy, Permissions-Policy (disables camera/mic/geo)
+- **Rate limiting** — login (5 failures / 15 min per email+IP), forgot-password, reset-password endpoints
+- **Session invalidation** — deactivated accounts lose their session within 60 seconds via JWT callback
+- **Last-admin lockout protection** — prevents deactivating or demoting the last admin
+- **Upload validation** — magic-byte verification for PNG, JPEG, GIF, WebP, PDF; 20 MB limit and extension allowlist
+- **XLSX safety limits** — max 100,000 rows, 500 columns, 10 sheets per workbook
+- **Email security** — HTML-escaped interpolations, header injection blocked by newline validation
+- **IDOR protection** — compliance events and PSIRs scoped to user's project memberships
+- **Error sanitization** — raw errors to server logs, generic messages to clients
+- **Cron token separation** — dedicated `CRON_API_TOKEN` so a compromise doesn't expose backup credentials
+- **Library migration** — replaced SheetJS (`xlsx`) with ExcelJS for all spreadsheet operations (CVE remediation)
 
 ---
 
