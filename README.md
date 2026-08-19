@@ -21,7 +21,7 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Read-Only API Tokens** — Scoped `spt_` tokens (Admin → API Tokens) let ERP/BI tools pull product data via the API without a browser session.
 - **Manual Status Override** — Admins, Directors, and Product Managers can set a project's status directly from the project Settings tab at any time.
 - **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups plus uploaded-file archives, written to local disk with a retention policy and one-click restore. Snapshots can be downloaded and re-uploaded through the admin UI to migrate an instance between servers, and a scoped API token drives external cron automation (`scripts/backup.sh` backs up database and attachments in one crontab entry).
-- **Security** — Project-level authorization on every route, authenticated file serving with an upload-type allowlist, login rate limiting, immediate session invalidation for deactivated accounts, and last-admin lockout protection.
+- **Security** — Project-level authorization on every route, authenticated file serving with an upload-type allowlist, login rate limiting (5 failures / 15 min per email+IP), rate-limited password reset endpoints, immediate session invalidation for deactivated accounts, last-admin lockout protection, AES-256-GCM encryption of Salsify API keys at rest (`ENCRYPTION_KEY`), and security response headers (HSTS, X-Frame-Options DENY, X-Content-Type-Options nosniff, strict Referrer-Policy, Permissions-Policy disabling camera/mic/geo).
 - **Reports** — Seven operational reports (Inspections, Compliance, Overdue Stages, Overdue Projects, Roadblocks, Out-of-Sync Products, Pipeline Summary) with filters and one-click Excel export, scoped to the projects each user can see. Out-of-Sync rows drill into a field-level drift panel (old → new, who and when) with links to the product, project, and Salsify record, and a per-field push back to Salsify.
 - **Module toggles** — Admin → Settings → Modules can disable the Inspections module platform-wide (sidebar, pages, product/project tabs, reports, API). All inspection data is retained; re-enabling restores everything.
 - **User invitations** — Adding a user takes name, email, and role; an emailed single-use link (7 days) lets them set their own password. Admins never handle a password. Un-activated accounts show as "Invite pending" with a resend action.
@@ -59,6 +59,14 @@ AUTH_URL=http://localhost:4000
 BACKUP_ENCRYPTION_KEY=
 
 # Email notifications (optional — without SMTP_HOST, emails are silently skipped)
+# Salsify API key encryption (optional — without it, keys are stored in cleartext with a warning)
+# Generate with: openssl rand -hex 32
+ENCRYPTION_KEY=
+
+# Dedicated cron endpoint token (optional — falls back to backup API token)
+# Separates cron auth from backup auth so a compromise of one doesn't expose the other
+CRON_API_TOKEN=
+
 # SMTP_HOST=smtp.gmail.com
 # SMTP_PORT=587              # default 587; use 465 with SMTP_SECURE=true
 # SMTP_SECURE=false          # true = implicit TLS (port 465); false = STARTTLS
@@ -100,6 +108,21 @@ npm run dev
 ```
 
 Open [http://localhost:4000](http://localhost:4000).
+
+### npm Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `npm run dev` | Start the dev server on port 4000 (Turbopack) |
+| `npm run build` | Production build |
+| `npm run start` | Start the production server on port 4000 |
+| `npm run lint` | Run ESLint |
+| `npm run db:generate` | Regenerate the Prisma client |
+| `npm run db:push` | Push schema changes to the database |
+| `npm run db:migrate` | Create and apply Prisma migrations |
+| `npm run db:seed` | Seed sections, core attributes, and an admin account |
+| `npm run db:seed-qc-dims` | Seed QC dimensions column mappings (31 defaults) |
+| `npm run db:studio` | Open Prisma Studio (database GUI) |
 
 ### File storage
 
