@@ -196,6 +196,7 @@ export function EventLogClient({ users, projects }: { users: User[]; projects: P
               const subject =
                 log.product?.partNumber ??
                 log.product?.itemName ??
+                (log.entityType === "Project" ? log.project?.name ?? null : null) ??
                 subjectFromMetadata(log.metadata) ??
                 log.entityId.slice(0, 8);
               return (
@@ -205,7 +206,7 @@ export function EventLogClient({ users, projects }: { users: User[]; projects: P
                   onClick={() => setSelected(log)}
                 >
                   <td className="px-3 py-2 whitespace-nowrap text-gray-500">{relativeTime(log.createdAt)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{log.user?.name ?? "System"}</td>
+                  <td className="px-3 py-2 whitespace-nowrap text-gray-900">{log.user?.name ?? "System"}</td>
                   <td className="px-3 py-2">
                     <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${actionTone(log.action)}`}>
                       {actionLabel(log.action)}
@@ -263,6 +264,7 @@ function EventDetailDrawer({ log, onClose }: { log: LogEntry; onClose: () => voi
   const subject =
     log.product?.partNumber ??
     log.product?.itemName ??
+    (log.entityType === "Project" ? log.project?.name ?? null : null) ??
     subjectFromMetadata(log.metadata) ??
     log.entityId;
 
