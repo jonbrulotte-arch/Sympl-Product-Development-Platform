@@ -11,6 +11,7 @@ import { createWriteStream, mkdirSync, readdirSync, statSync, unlinkSync } from 
 import path from "path";
 import { pipeline } from "stream/promises";
 import { Readable } from "stream";
+import { logActivity } from "@/lib/activity";
 
 const execFileAsync = promisify(execFile);
 
@@ -106,6 +107,17 @@ export async function POST(req: NextRequest) {
       where: { id: config.id },
       data: { lastRunAt: new Date() },
     });
+
+    const session = await auth();
+    if (session?.user?.id) {
+      logActivity({
+        userId: session.user.id,
+        action: "EXPORTED" as never,
+        entityType: "backup",
+        entityId: fileName,
+        metadata: { fileSizeBytes: fileSize, durationMs: log.durationMs, triggeredBy },
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ success: true, filePath, fileSizeBytes: fileSize, durationMs: log.durationMs });
   } catch (err) {

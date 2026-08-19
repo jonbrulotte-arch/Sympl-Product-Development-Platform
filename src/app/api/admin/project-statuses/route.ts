@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 import { PROJECT_STATUS_DEFAULTS, getProjectStatuses } from "@/lib/project-statuses";
+import { logActivity } from "@/lib/activity";
 
 const DEFAULTS = PROJECT_STATUS_DEFAULTS;
 const DEFAULT_CODES = new Set(DEFAULTS.map((d) => d.code));
@@ -63,6 +64,15 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  logActivity({
+    userId: session.user.id,
+    action: "SETTINGS_CHANGED" as never,
+    entityType: "setting",
+    entityId: "project-statuses",
+    oldValue: JSON.stringify(null),
+    newValue: JSON.stringify({ code: config.code, label: config.label, color: config.color }),
+  }).catch(() => {});
+
   return NextResponse.json(config, { status: 201 });
 }
 
@@ -93,6 +103,8 @@ export async function PATCH(req: NextRequest) {
 
   const defaultEntry = DEFAULTS.find((d) => d.code === code);
 
+  const oldConfig = await prisma.projectStatusConfig.findFirst({ where: { code } }).catch(() => null);
+
   const config = await prisma.projectStatusConfig.upsert({
     where: { code },
     create: {
@@ -111,6 +123,15 @@ export async function PATCH(req: NextRequest) {
       ...(isActive !== undefined && { isActive }),
     },
   });
+
+  logActivity({
+    userId: session.user.id,
+    action: "SETTINGS_CHANGED" as never,
+    entityType: "setting",
+    entityId: "project-statuses",
+    oldValue: JSON.stringify(oldConfig ? { code: oldConfig.code, label: oldConfig.label, color: oldConfig.color, isActive: oldConfig.isActive } : null),
+    newValue: JSON.stringify({ code: config.code, label: config.label, color: config.color, isActive: config.isActive }),
+  }).catch(() => {});
 
   return NextResponse.json(config);
 }
@@ -131,5 +152,13 @@ export async function DELETE(req: NextRequest) {
 
   // Custom statuses can be fully removed
   await prisma.projectStatusConfig.deleteMany({ where: { code } }).catch(() => {});
+  logActivity({
+    userId: session.user.id,
+    action: "SETTINGS_CHANGED" as never,
+    entityType: "setting",
+    entityId: "project-statuses",
+    oldValue: JSON.stringify({ code }),
+    newValue: JSON.stringify(null),
+  }).catch(() => {});
   return NextResponse.json({ success: true });
 }

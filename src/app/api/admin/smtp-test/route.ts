@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/permissions";
+import { getActiveEmailProvider, sendMail, wrap } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -13,58 +14,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Recipient email is required" }, { status: 400 });
   }
 
-  const host = process.env.SMTP_HOST;
-  if (!host) {
+  const provider = getActiveEmailProvider();
+  if (provider === "none") {
     return NextResponse.json({
-      error: "SMTP is not configured. Set SMTP_HOST, SMTP_PORT, and optionally SMTP_USER / SMTP_PASS in your .env file, then restart the server.",
+      error: "Email is not configured. Set either MSGRAPH_TENANT_ID / MSGRAPH_CLIENT_ID / MSGRAPH_CLIENT_SECRET or SMTP_HOST in your .env file, then restart the server.",
     }, { status: 422 });
   }
 
   try {
-    const nodemailer = await import("nodemailer");
-    const transport = nodemailer.default.createTransport({
-      host,
-      port: Number(process.env.SMTP_PORT ?? 587),
-      secure: process.env.SMTP_SECURE === "true",
-      auth: process.env.SMTP_USER
-        ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-        : undefined,
-    });
+    const providerLabel = provider === "msgraph" ? "MS Graph API" : "SMTP";
+    const configDetail =
+      provider === "msgraph"
+        ? `Provider: MS Graph API<br/>From: ${process.env.MSGRAPH_FROM_ADDRESS ?? "(using default)"}`
+        : `Provider: SMTP<br/>Host: ${process.env.SMTP_HOST}<br/>Port: ${process.env.SMTP_PORT ?? 587}<br/>Secure: ${process.env.SMTP_SECURE === "true" ? "Yes (TLS)" : "No (STARTTLS)"}<br/>Auth: ${process.env.SMTP_USER ? "Yes" : "None"}`;
 
-    await transport.verify();
+    const html = wrap("Email Test Successful", `
+      <p style="color:#374151;font-size:14px;line-height:1.6">This is a test email from your Sympl PM instance. If you're reading this, your ${providerLabel} configuration is working correctly.</p>
+      <div style="margin:16px 0;padding:12px 16px;background:#f0fdf4;border-left:3px solid #22c55e;color:#166534;font-size:13px">
+        <strong>Configuration:</strong><br/>${configDetail}
+      </div>
+      <p style="margin:24px 0 0;font-size:12px;color:#9ca3af">Sent by an administrator from Admin → Settings.</p>
+    `);
 
-    const from = process.env.SMTP_FROM ?? "Sympl <no-reply@sympl.app>";
-    const html = `<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;background:#f3f4f6;margin:0;padding:32px">
-<div style="max-width:520px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
-  <div style="background:#1e40af;padding:24px 32px">
-    <span style="color:#fff;font-size:18px;font-weight:700">Sympl <span style="color:#93c5fd">PM</span></span>
-  </div>
-  <div style="padding:32px">
-    <h2 style="margin:0 0 16px;font-size:20px;color:#111827">SMTP Test Successful</h2>
-    <p style="color:#374151;font-size:14px;line-height:1.6">This is a test email from your Sympl PM instance. If you're reading this, your SMTP configuration is working correctly.</p>
-    <div style="margin:16px 0;padding:12px 16px;background:#f0fdf4;border-left:3px solid #22c55e;color:#166534;font-size:13px">
-      <strong>Configuration:</strong><br/>
-      Host: ${host}<br/>
-      Port: ${process.env.SMTP_PORT ?? 587}<br/>
-      Secure: ${process.env.SMTP_SECURE === "true" ? "Yes (TLS)" : "No (STARTTLS)"}<br/>
-      Auth: ${process.env.SMTP_USER ? "Yes" : "None"}
-    </div>
-    <p style="margin:24px 0 0;font-size:12px;color:#9ca3af">Sent by an administrator from Admin → Settings.</p>
-  </div>
-</div>
-</body></html>`;
-
-    await transport.sendMail({
-      from,
-      to,
-      subject: "Sympl PM — SMTP Test",
-      html,
-    });
-
-    return NextResponse.json({ success: true });
+    await sendMail(to, "Sympl PM — Email Test", html);
+    return NextResponse.json({ success: true, provider });
   } catch (err: unknown) {
-    console.error("[smtp-test] SMTP test failed:", err instanceof Error ? err.message : err);
-    return NextResponse.json({ error: "SMTP test failed" }, { status: 502 });
+    console.error("[email-test] Test failed:", err instanceof Error ? err.message : err);
+    return NextResponse.json({ error: "Email test failed" }, { status: 502 });
   }
 }
 
@@ -74,13 +50,24 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const configured = !!process.env.SMTP_HOST;
-  return NextResponse.json({
-    configured,
-    host: configured ? process.env.SMTP_HOST : null,
-    port: configured ? Number(process.env.SMTP_PORT ?? 587) : null,
-    secure: configured ? process.env.SMTP_SECURE === "true" : null,
-    auth: configured ? !!process.env.SMTP_USER : null,
-    from: configured ? (process.env.SMTP_FROM ?? "Sympl <no-reply@sympl.app>") : null,
-  });
+  const provider = getActiveEmailProvider();
+  if (provider === "msgraph") {
+    return NextResponse.json({
+      configured: true,
+      provider: "msgraph",
+      from: process.env.MSGRAPH_FROM_ADDRESS ?? null,
+    });
+  }
+  if (provider === "smtp") {
+    return NextResponse.json({
+      configured: true,
+      provider: "smtp",
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT ?? 587),
+      secure: process.env.SMTP_SECURE === "true",
+      auth: !!process.env.SMTP_USER,
+      from: process.env.SMTP_FROM ?? "Sympl <no-reply@sympl.app>",
+    });
+  }
+  return NextResponse.json({ configured: false, provider: "none" });
 }

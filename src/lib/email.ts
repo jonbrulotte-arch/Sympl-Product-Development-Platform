@@ -4,10 +4,55 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function getTransport() {
+// Minimal interface shared by nodemailer transport and the MS Graph shim.
+type MailTransport = {
+  sendMail(opts: { from: string; to: string; subject: string; html: string }): Promise<void>;
+};
+
+// ─── MS Graph transport ──────────────────────────────────────────────────────
+
+function getGraphTransport(): MailTransport | null {
+  const tenantId = process.env.MSGRAPH_TENANT_ID;
+  const clientId = process.env.MSGRAPH_CLIENT_ID;
+  const clientSecret = process.env.MSGRAPH_CLIENT_SECRET;
+  if (!tenantId || !clientId || !clientSecret) return null;
+
+  return {
+    async sendMail(opts) {
+      const { ClientSecretCredential } = await import("@azure/identity");
+      const { Client } = await import("@microsoft/microsoft-graph-client");
+      const { TokenCredentialAuthenticationProvider } = await import(
+        "@microsoft/microsoft-graph-client/authProviders/azureTokenCredentials"
+      );
+
+      const credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
+      const authProvider = new TokenCredentialAuthenticationProvider(credential, {
+        scopes: ["https://graph.microsoft.com/.default"],
+      });
+      const client = Client.initWithMiddleware({ authProvider });
+
+      const from = opts.from.includes("<")
+        ? opts.from.match(/<(.+)>/)?.[1] ?? opts.from
+        : opts.from;
+
+      await client.api(`/users/${encodeURIComponent(from)}/sendMail`).post({
+        message: {
+          subject: opts.subject,
+          body: { contentType: "HTML", content: opts.html },
+          toRecipients: [{ emailAddress: { address: opts.to } }],
+        },
+        saveToSentItems: false,
+      });
+    },
+  };
+}
+
+// ─── SMTP transport ──────────────────────────────────────────────────────────
+
+function getSmtpTransport(): MailTransport | null {
   const host = process.env.SMTP_HOST;
   if (!host) return null;
-  return nodemailer.createTransport({
+  const transport = nodemailer.createTransport({
     host,
     port: Number(process.env.SMTP_PORT ?? 587),
     secure: process.env.SMTP_SECURE === "true",
@@ -15,9 +60,29 @@ function getTransport() {
       ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
       : undefined,
   });
+  return {
+    async sendMail(opts) {
+      await transport.sendMail(opts);
+    },
+  };
 }
 
-const FROM = process.env.SMTP_FROM ?? "Sympl <no-reply@sympl.app>";
+// MS Graph takes priority when both are configured.
+function getTransport(): MailTransport | null {
+  return getGraphTransport() ?? getSmtpTransport();
+}
+
+export type EmailProvider = "msgraph" | "smtp" | "none";
+export function getActiveEmailProvider(): EmailProvider {
+  if (process.env.MSGRAPH_TENANT_ID && process.env.MSGRAPH_CLIENT_ID && process.env.MSGRAPH_CLIENT_SECRET) return "msgraph";
+  if (process.env.SMTP_HOST) return "smtp";
+  return "none";
+}
+
+const FROM =
+  process.env.MSGRAPH_FROM_ADDRESS ??
+  process.env.SMTP_FROM ??
+  "Sympl <no-reply@sympl.app>";
 // NextAuth v5 reads AUTH_URL; NEXTAUTH_URL kept as a v4-era fallback.
 const BASE_URL = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:4000";
 
@@ -40,7 +105,7 @@ export function wrap(title: string, body: string) {
 export async function sendMail(to: string, subject: string, html: string) {
   if (/[\r\n]/.test(to) || /[\r\n]/.test(subject)) return;
   const transport = getTransport();
-  if (!transport) return; // SMTP not configured — silently skip
+  if (!transport) return; // email not configured — silently skip
   try {
     await transport.sendMail({ from: FROM, to, subject, html });
   } catch {

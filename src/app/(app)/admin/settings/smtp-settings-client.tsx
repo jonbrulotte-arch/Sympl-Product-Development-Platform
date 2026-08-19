@@ -6,17 +6,18 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mail, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 
-interface SmtpStatus {
+interface EmailStatus {
   configured: boolean;
-  host: string | null;
-  port: number | null;
-  secure: boolean | null;
-  auth: boolean | null;
-  from: string | null;
+  provider: "msgraph" | "smtp" | "none";
+  host?: string | null;
+  port?: number | null;
+  secure?: boolean | null;
+  auth?: boolean | null;
+  from?: string | null;
 }
 
 export function SmtpSettingsClient() {
-  const [status, setStatus] = useState<SmtpStatus | null>(null);
+  const [status, setStatus] = useState<EmailStatus | null>(null);
   const [testEmail, setTestEmail] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -51,12 +52,14 @@ export function SmtpSettingsClient() {
     }
   };
 
+  const providerLabel = status?.provider === "msgraph" ? "MS Graph API" : "SMTP";
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Mail className="h-5 w-5" />
-          Email Notifications (SMTP)
+          Email Notifications
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -64,17 +67,31 @@ export function SmtpSettingsClient() {
           <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
             <div>
-              <p className="font-medium">SMTP is not configured</p>
+              <p className="font-medium">Email is not configured</p>
               <p className="mt-1 text-xs">
-                Email notifications are disabled. Add the SMTP environment variables to your{" "}
+                Email notifications are disabled. Configure either MS Graph API or SMTP
+                environment variables in your{" "}
                 <code className="bg-amber-100 px-1 rounded">.env</code> file and restart the server.
-                See the table below for required variables.
+                See the tables below for required variables.
               </p>
             </div>
           </div>
         )}
 
-        {status?.configured && (
+        {status?.configured && status.provider === "msgraph" && (
+          <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+            <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium">MS Graph API is configured</p>
+              <div className="mt-1 text-xs space-y-0.5">
+                <p>Provider: <code className="bg-green-100 px-1 rounded">Microsoft Graph API</code></p>
+                {status.from && <p>From: <code className="bg-green-100 px-1 rounded">{status.from}</code></p>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {status?.configured && status.provider === "smtp" && (
           <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
             <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" />
             <div>
@@ -118,9 +135,45 @@ export function SmtpSettingsClient() {
         <div className="mt-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-600 space-y-2">
           <p className="font-medium text-gray-700">Environment variables</p>
           <p>
-            SMTP settings are configured in your <code className="bg-gray-200 px-1 rounded">.env</code> file
+            Email settings are configured in your <code className="bg-gray-200 px-1 rounded">.env</code> file
             (not in this UI) because they contain credentials. After changing them, restart the server.
+            When both are configured, MS Graph takes priority.
           </p>
+
+          <p className="font-semibold text-gray-700 pt-2">Option 1: MS Graph API</p>
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="py-1 pr-3 font-semibold text-gray-700">Variable</th>
+                <th className="py-1 pr-3 font-semibold text-gray-700">Required</th>
+                <th className="py-1 font-semibold text-gray-700">Description</th>
+              </tr>
+            </thead>
+            <tbody className="align-top">
+              <tr className="border-b border-gray-100">
+                <td className="py-1 pr-3"><code className="bg-gray-200 px-1 rounded">MSGRAPH_TENANT_ID</code></td>
+                <td className="py-1 pr-3">Yes</td>
+                <td className="py-1">Azure AD tenant ID</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-1 pr-3"><code className="bg-gray-200 px-1 rounded">MSGRAPH_CLIENT_ID</code></td>
+                <td className="py-1 pr-3">Yes</td>
+                <td className="py-1">App registration client ID</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-1 pr-3"><code className="bg-gray-200 px-1 rounded">MSGRAPH_CLIENT_SECRET</code></td>
+                <td className="py-1 pr-3">Yes</td>
+                <td className="py-1">App registration client secret</td>
+              </tr>
+              <tr>
+                <td className="py-1 pr-3"><code className="bg-gray-200 px-1 rounded">MSGRAPH_FROM_ADDRESS</code></td>
+                <td className="py-1 pr-3">Yes</td>
+                <td className="py-1">Sender email (must match a licensed Microsoft 365 mailbox)</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p className="font-semibold text-gray-700 pt-2">Option 2: SMTP</p>
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-gray-200">
@@ -167,9 +220,9 @@ export function SmtpSettingsClient() {
         <div className="p-3 bg-blue-50 rounded-lg text-xs text-blue-800 space-y-1">
           <p className="font-medium">What sends email?</p>
           <ul className="list-disc list-inside space-y-0.5">
+            <li>User invitations and password-reset links (instant)</li>
             <li>Workflow votes, stage completions, and approver assignments (instant)</li>
             <li>Project status changes (instant)</li>
-            <li>Password-reset links (instant)</li>
             <li>Overdue compliance &amp; workflow alerts (cron — <code>/api/cron/overdue-check</code>)</li>
             <li>Leadership digest summary (cron — <code>/api/cron/digest</code>)</li>
           </ul>

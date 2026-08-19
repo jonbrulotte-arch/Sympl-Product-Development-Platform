@@ -2,6 +2,7 @@ import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/activity";
 
 export async function GET() {
   const session = await auth();
@@ -39,6 +40,14 @@ export async function PUT(req: NextRequest) {
         ...(salsifyDebugEnabled !== undefined ? { salsifyDebugEnabled } : {}),
       },
     });
+    logActivity({
+      userId: session.user.id,
+      action: "SETTINGS_CHANGED" as never,
+      entityType: "setting",
+      entityId: "salsify",
+      oldValue: JSON.stringify({ organizationId: existing.organizationId, isEnabled: existing.isEnabled, salsifyDebugEnabled: existing.salsifyDebugEnabled }),
+      newValue: JSON.stringify({ organizationId, isEnabled, salsifyDebugEnabled: updated.salsifyDebugEnabled }),
+    }).catch(() => {});
     return NextResponse.json({ success: true, id: updated.id });
   }
 
@@ -47,5 +56,13 @@ export async function PUT(req: NextRequest) {
     // per-user key migration, so write the empty string explicitly.
     data: { apiKey: "", organizationId: organizationId ?? "", isEnabled: isEnabled ?? false, salsifyDebugEnabled: salsifyDebugEnabled ?? false },
   });
+  logActivity({
+    userId: session.user.id,
+    action: "SETTINGS_CHANGED" as never,
+    entityType: "setting",
+    entityId: "salsify",
+    oldValue: JSON.stringify({ organizationId: null, isEnabled: false, salsifyDebugEnabled: false }),
+    newValue: JSON.stringify({ organizationId: created.organizationId, isEnabled: created.isEnabled, salsifyDebugEnabled: created.salsifyDebugEnabled }),
+  }).catch(() => {});
   return NextResponse.json({ success: true, id: created.id });
 }

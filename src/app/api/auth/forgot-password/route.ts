@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { randomBytes } from "crypto";
 import { sendMail, passwordResetEmail, BASE_URL } from "@/lib/email";
 import { RateLimiter } from "@/lib/rate-limit";
+import { logActivity } from "@/lib/activity";
 
 const limiter = new RateLimiter({ maxRequests: 5, windowMs: 15 * 60 * 1000 });
 
@@ -31,6 +32,13 @@ export async function POST(req: NextRequest) {
 
     const resetUrl = `${BASE_URL}/reset-password?token=${token}`;
     await sendMail(user.email, "Reset your Sympl password", passwordResetEmail(resetUrl));
+    logActivity({
+      userId: user.id,
+      action: "PASSWORD_RESET",
+      entityType: "user",
+      entityId: user.id,
+      metadata: { email: user.email },
+    }).catch(() => {});
   }
 
   return NextResponse.json({ success: true });

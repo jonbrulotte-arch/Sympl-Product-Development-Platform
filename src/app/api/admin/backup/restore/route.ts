@@ -11,6 +11,7 @@ import path from "path";
 import { PRIVATE_UPLOAD_ROOT } from "@/lib/uploads";
 import { classifyBackupFile, resolveBackupFile, type BackupKind } from "@/lib/backup-files";
 import { pgConnectionUrl } from "@/lib/pg-url";
+import { logActivity } from "@/lib/activity";
 
 const execFileAsync = promisify(execFile);
 
@@ -225,6 +226,14 @@ export async function POST(req: NextRequest) {
         fileSizeBytes: BigInt(sizeBytes),
         triggeredBy: target.kind === "uploads" ? "FILES_RESTORE" : "MANUAL_RESTORE",
       },
+    }).catch(() => {});
+
+    logActivity({
+      userId: session.user.id,
+      action: "RESTORED" as never,
+      entityType: "backup",
+      entityId: name,
+      metadata: { kind: target.kind, restored },
     }).catch(() => {});
 
     return NextResponse.json({ success: true, kind: target.kind, restored });

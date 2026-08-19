@@ -7,7 +7,7 @@ type Bucket = { count: number; resetAt: number };
 const buckets = new Map<string, Bucket>();
 
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-const MAX_FAILURES = 5;
+const MAX_FAILURES = 3;
 
 function sweep() {
   const now = Date.now();

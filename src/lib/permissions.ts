@@ -81,6 +81,7 @@ export const PERMISSIONS = {
   "products:export_qc_dims":  { label: "Export QC Dims",           description: "Export selected products as a QC dimensions sheet" },
   "projects:override_status": { label: "Override Project Status",  description: "Manually set project status from the Settings tab" },
   "projects:transfer_ownership": { label: "Bulk Project Actions", description: "Bulk transfer ownership, change status, or archive projects. Permanent delete stays admin-only." },
+  "admin:event_log":            { label: "Event Log",              description: "View the platform-wide audit event log" },
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;

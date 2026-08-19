@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getPermissionMatrix, invalidatePermissionCache, PERMISSIONS, ROLES } from "@/lib/permissions";
+import { logActivity } from "@/lib/activity";
 
 export async function GET() {
   const session = await auth();
@@ -38,7 +39,18 @@ export async function PUT(req: NextRequest) {
     }
   }
 
+  const oldMatrix = await getPermissionMatrix();
   await Promise.all(upserts);
   invalidatePermissionCache();
+
+  logActivity({
+    userId: session.user.id,
+    action: "PERMISSION_CHANGED",
+    entityType: "RolePermission",
+    entityId: "permissions",
+    oldValue: JSON.stringify(oldMatrix),
+    newValue: JSON.stringify(body),
+  }).catch(() => {});
+
   return NextResponse.json({ success: true });
 }

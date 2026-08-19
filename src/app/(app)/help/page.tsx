@@ -919,17 +919,27 @@ const sections: Section[] = [
         <H3>@mentions</H3>
         <P>In project comments, type <Code>@</Code> followed by a teammate&apos;s first name, full name, or email prefix to send them a dedicated <em>&quot;mentioned you&quot;</em> notification.</P>
 
-        <H3>Email notifications (SMTP)</H3>
-        <P>Sympl can send email for workflow votes, stage completions, approver assignments, project status changes, and password resets. Email is <strong>optional</strong> — without SMTP configured, the app works normally with in-app notifications only.</P>
-        <P>To enable email, set the following environment variables in your <Code>.env</Code> file and restart the server:</P>
+        <H3>Email notifications</H3>
+        <P>Sympl can send email for workflow votes, stage completions, approver assignments, project status changes, and password resets. Email is <strong>optional</strong> — without it configured, the app works normally with in-app notifications only.</P>
+        <P>Two email delivery methods are supported. When both are configured, MS Graph takes priority. Set environment variables in your <Code>.env</Code> file and restart the server.</P>
+
+        <P><strong>Option 1: MS Graph API</strong> (Microsoft 365)</P>
         <UL>
-          <LI><Code>SMTP_HOST</Code> — SMTP server hostname (e.g. <Code>smtp.gmail.com</Code>). <strong>Required</strong> to enable email.</LI>
+          <LI><Code>MSGRAPH_TENANT_ID</Code> — Azure AD tenant ID.</LI>
+          <LI><Code>MSGRAPH_CLIENT_ID</Code> — App registration client ID.</LI>
+          <LI><Code>MSGRAPH_CLIENT_SECRET</Code> — App registration client secret.</LI>
+          <LI><Code>MSGRAPH_FROM_ADDRESS</Code> — Sender email (must match a licensed Microsoft 365 mailbox).</LI>
+        </UL>
+
+        <P><strong>Option 2: SMTP</strong></P>
+        <UL>
+          <LI><Code>SMTP_HOST</Code> — SMTP server hostname (e.g. <Code>smtp.gmail.com</Code>). <strong>Required</strong> to enable SMTP email.</LI>
           <LI><Code>SMTP_PORT</Code> — port number (default: <Code>587</Code>).</LI>
           <LI><Code>SMTP_SECURE</Code> — set to <Code>true</Code> for implicit TLS (port 465). Default uses STARTTLS.</LI>
           <LI><Code>SMTP_USER</Code> / <Code>SMTP_PASS</Code> — credentials for SMTP authentication. For Gmail, use an <strong>App Password</strong>, not your account password.</LI>
           <LI><Code>SMTP_FROM</Code> — sender address (default: <Code>Sympl &lt;no-reply@sympl.app&gt;</Code>).</LI>
         </UL>
-        <P>Go to <strong>Admin → Settings → Email Notifications (SMTP)</strong> to verify the connection status and send a test email.</P>
+        <P>Go to <strong>Admin → Settings → Email Notifications</strong> to verify the active provider and send a test email.</P>
         <P>Users control which notification categories they receive via email in <strong>My Profile → Notification Preferences</strong>. Mentions and assignments default to email on; other categories default to inbox only.</P>
 
         <H3>Overdue alerts (cron)</H3>
@@ -943,6 +953,13 @@ const sections: Section[] = [
 
         <H3>API tokens for integrations</H3>
         <P>From <strong>Admin → API Tokens</strong>, create scoped <Code>spt_</Code> tokens that let external tools (ERP, BI) call <Code>GET /api/products</Code> with a <Code>Bearer</Code> header — read-only access to product data with full search, filter, and pagination. Tokens are shown once at creation and can be revoked at any time; last-used time is tracked.</P>
+
+        <H3>Event Log</H3>
+        <P>Admins can view a comprehensive audit trail at <strong>Admin → Event Log</strong>. Every action on the platform is recorded — product edits, project status changes, workflow votes, compliance events, inspection reports, user management, permission changes, settings updates, backups, Salsify syncs, and login events (success, failure, and lockouts).</P>
+        <P>Filter the log by user, action type, entity type, project, part number, or date range. Click any row to open a detail panel showing the full event data including old and new values for any change. Requires the <strong>Event Log</strong> permission (Admin only by default).</P>
+
+        <H3>Login security</H3>
+        <P>Sympl locks out a user&apos;s IP after <strong>3 failed login attempts</strong> for 15 minutes. Additional failed attempts during the lockout period do not extend the timer. All login events — successful, failed, and lockouts — are recorded in the Event Log with the user&apos;s email and IP address.</P>
       </>
     ),
   },
