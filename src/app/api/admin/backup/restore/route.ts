@@ -8,7 +8,6 @@ import { createDecipheriv } from "crypto";
 import { getBackupKey } from "@/lib/backup-key";
 import { readFileSync, writeFileSync, unlinkSync, readdirSync, statSync, mkdirSync } from "fs";
 import path from "path";
-import os from "os";
 import { PRIVATE_UPLOAD_ROOT } from "@/lib/uploads";
 import { classifyBackupFile, resolveBackupFile, type BackupKind } from "@/lib/backup-files";
 import { pgConnectionUrl } from "@/lib/pg-url";
@@ -171,7 +170,9 @@ export async function POST(req: NextRequest) {
       const dbUrl = pgConnectionUrl(process.env.DATABASE_URL ?? "");
 
       // pg_restore custom format requires random access — it can't read stdin.
-      const tmpFile = path.join(os.tmpdir(), `sympl-restore-${Date.now()}.pgdump`);
+      // Use the backup directory instead of os.tmpdir() — systemd PrivateTmp
+      // gives the Node process a private /tmp that pg_restore cannot see.
+      const tmpFile = path.join(config.backupPath, `.sympl-restore-${Date.now()}.pgdump`);
       writeFileSync(tmpFile, decrypted);
       try {
         // Validate the archive BEFORE touching the live database — everything
