@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, name, kind: target.kind, sizeBytes: size });
   } catch (err) {
     try { unlinkSync(partPath); } catch { /* nothing to clean up */ }
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[backup] Upload failed:", err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ error: "Backup upload failed" }, { status: 500 });
   }
 }

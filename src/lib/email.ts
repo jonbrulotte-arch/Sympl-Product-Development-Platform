@@ -1,5 +1,9 @@
 import nodemailer from "nodemailer";
 
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function getTransport() {
   const host = process.env.SMTP_HOST;
   if (!host) return null;
@@ -25,7 +29,7 @@ export function wrap(title: string, body: string) {
     <span style="color:#fff;font-size:18px;font-weight:700">Sympl <span style="color:#93c5fd">PM</span></span>
   </div>
   <div style="padding:32px">
-    <h2 style="margin:0 0 16px;font-size:20px;color:#111827">${title}</h2>
+    <h2 style="margin:0 0 16px;font-size:20px;color:#111827">${esc(title)}</h2>
     ${body}
     <p style="margin:32px 0 0;font-size:12px;color:#9ca3af">You received this because you are a member of a Sympl project. To stop receiving emails, contact your administrator.</p>
   </div>
@@ -34,6 +38,7 @@ export function wrap(title: string, body: string) {
 }
 
 export async function sendMail(to: string, subject: string, html: string) {
+  if (/[\r\n]/.test(to) || /[\r\n]/.test(subject)) return;
   const transport = getTransport();
   if (!transport) return; // SMTP not configured — silently skip
   try {
@@ -61,8 +66,8 @@ export function invitationEmail(opts: {
   expiresInDays: number;
 }) {
   return wrap("You've been invited to Sympl PM", `
-    <p style="color:#374151;font-size:14px;line-height:1.6"><strong>${opts.inviterName}</strong> has created an account for you on Sympl PM, the product development platform.</p>
-    <p style="color:#374151;font-size:14px;line-height:1.6">Your role is <strong>${opts.roleLabel}</strong>. Set a password to activate your account and sign in.</p>
+    <p style="color:#374151;font-size:14px;line-height:1.6"><strong>${esc(opts.inviterName)}</strong> has created an account for you on Sympl PM, the product development platform.</p>
+    <p style="color:#374151;font-size:14px;line-height:1.6">Your role is <strong>${esc(opts.roleLabel)}</strong>. Set a password to activate your account and sign in.</p>
     <a href="${opts.inviteUrl}" style="display:inline-block;margin:16px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600">Set Your Password</a>
     <p style="color:#6b7280;font-size:12px">This invitation expires in ${opts.expiresInDays} days. If it lapses, ask your administrator to send a new one.</p>
     <p style="color:#6b7280;font-size:12px">If you weren't expecting this, you can ignore this email — the account can't be used until a password is set.</p>
@@ -80,9 +85,9 @@ export function workflowVoteEmail(opts: {
 }) {
   const color = opts.vote === "APPROVED" ? "#16a34a" : "#dc2626";
   const label = opts.vote === "APPROVED" ? "Approved" : "Rejected";
-  return wrap(`Workflow stage ${label.toLowerCase()}: ${opts.stageName}`, `
-    <p style="color:#374151;font-size:14px;line-height:1.6"><strong>${opts.voterName}</strong> has <span style="color:${color};font-weight:600">${label}</span> the stage <strong>${opts.stageName}</strong> in project <strong>${opts.projectName}</strong>.</p>
-    ${opts.comment ? `<div style="margin:12px 0;padding:12px 16px;background:#f9fafb;border-left:3px solid #d1d5db;color:#374151;font-size:13px;font-style:italic">${opts.comment}</div>` : ""}
+  return wrap(`Workflow stage ${label.toLowerCase()}: ${esc(opts.stageName)}`, `
+    <p style="color:#374151;font-size:14px;line-height:1.6"><strong>${esc(opts.voterName)}</strong> has <span style="color:${color};font-weight:600">${label}</span> the stage <strong>${esc(opts.stageName)}</strong> in project <strong>${esc(opts.projectName)}</strong>.</p>
+    ${opts.comment ? `<div style="margin:12px 0;padding:12px 16px;background:#f9fafb;border-left:3px solid #d1d5db;color:#374151;font-size:13px;font-style:italic">${esc(opts.comment)}</div>` : ""}
     <a href="${BASE_URL}/projects/${opts.projectId}" style="display:inline-block;margin:16px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">View Project</a>
   `);
 }
@@ -94,8 +99,8 @@ export function stageCompletedEmail(opts: {
   projectId: string;
 }) {
   const color = opts.result === "APPROVED" ? "#16a34a" : "#dc2626";
-  return wrap(`Stage ${opts.result === "APPROVED" ? "approved" : "rejected"}: ${opts.stageName}`, `
-    <p style="color:#374151;font-size:14px;line-height:1.6">The workflow stage <strong>${opts.stageName}</strong> in <strong>${opts.projectName}</strong> has been <span style="color:${color};font-weight:600">${opts.result === "APPROVED" ? "approved" : "rejected"}</span> by all approvers.</p>
+  return wrap(`Stage ${opts.result === "APPROVED" ? "approved" : "rejected"}: ${esc(opts.stageName)}`, `
+    <p style="color:#374151;font-size:14px;line-height:1.6">The workflow stage <strong>${esc(opts.stageName)}</strong> in <strong>${esc(opts.projectName)}</strong> has been <span style="color:${color};font-weight:600">${opts.result === "APPROVED" ? "approved" : "rejected"}</span> by all approvers.</p>
     <a href="${BASE_URL}/projects/${opts.projectId}" style="display:inline-block;margin:16px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">View Project</a>
   `);
 }
@@ -110,12 +115,12 @@ export function projectStatusEmail(opts: {
   function fmtStatus(s: string) {
     return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
-  return wrap(`Project status updated: ${opts.projectName}`, `
-    <p style="color:#374151;font-size:14px;line-height:1.6"><strong>${opts.changedBy}</strong> updated the status of <strong>${opts.projectName}</strong>.</p>
+  return wrap(`Project status updated: ${esc(opts.projectName)}`, `
+    <p style="color:#374151;font-size:14px;line-height:1.6"><strong>${esc(opts.changedBy)}</strong> updated the status of <strong>${esc(opts.projectName)}</strong>.</p>
     <div style="margin:16px 0;display:flex;align-items:center;gap:12px;font-size:13px">
-      <span style="background:#f3f4f6;padding:4px 10px;border-radius:9999px;color:#6b7280">${fmtStatus(opts.oldStatus)}</span>
+      <span style="background:#f3f4f6;padding:4px 10px;border-radius:9999px;color:#6b7280">${esc(fmtStatus(opts.oldStatus))}</span>
       <span style="color:#9ca3af">→</span>
-      <span style="background:#dbeafe;padding:4px 10px;border-radius:9999px;color:#1d4ed8;font-weight:600">${fmtStatus(opts.newStatus)}</span>
+      <span style="background:#dbeafe;padding:4px 10px;border-radius:9999px;color:#1d4ed8;font-weight:600">${esc(fmtStatus(opts.newStatus))}</span>
     </div>
     <a href="${BASE_URL}/projects/${opts.projectId}" style="display:inline-block;margin:8px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">View Project</a>
   `);
@@ -128,7 +133,7 @@ export function stageAssignedEmail(opts: {
   projectId: string;
 }) {
   return wrap(`You've been assigned as an approver`, `
-    <p style="color:#374151;font-size:14px;line-height:1.6">You have been assigned as an approver for the stage <strong>${opts.stageName}</strong> in project <strong>${opts.projectName}</strong>.</p>
+    <p style="color:#374151;font-size:14px;line-height:1.6">You have been assigned as an approver for the stage <strong>${esc(opts.stageName)}</strong> in project <strong>${esc(opts.projectName)}</strong>.</p>
     <p style="color:#374151;font-size:14px;line-height:1.6">When the stage is ready for review, you will be able to cast your vote directly from the project page.</p>
     <a href="${BASE_URL}/projects/${opts.projectId}" style="display:inline-block;margin:16px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">View Project</a>
   `);
@@ -146,7 +151,7 @@ export function notificationEmail(opts: {
   linkLabel?: string;
 }) {
   return wrap(opts.title, `
-    <p style="color:#374151;font-size:14px;line-height:1.6">${opts.message}</p>
+    <p style="color:#374151;font-size:14px;line-height:1.6">${esc(opts.message)}</p>
     ${opts.link ? `<a href="${BASE_URL}${opts.link}" style="display:inline-block;margin:16px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">${opts.linkLabel ?? "Open in Sympl"}</a>` : ""}
   `);
 }

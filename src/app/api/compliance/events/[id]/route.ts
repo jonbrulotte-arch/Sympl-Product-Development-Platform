@@ -4,7 +4,24 @@ import { NextResponse } from "next/server";
 import { EVENT_INCLUDE } from "../route";
 
 import { createNotificationForMany, getOwnerIdsForProducts } from "@/lib/notifications";
-import { can } from "@/lib/permissions";
+import { can, seesAllProjects } from "@/lib/permissions";
+import { checkProjectAccess } from "@/lib/project-access";
+
+/** Check whether the session user can access the projects linked to an event. */
+async function verifyEventAccess(
+  event: { products: { product: { project: { id: string } | null } }[] },
+  session: { user: { id: string; role?: string | null } },
+  level: "view" | "edit",
+): Promise<{ ok: true } | { ok: false; response: Response }> {
+  if (seesAllProjects(session.user.role)) return { ok: true };
+  const projectIds = [...new Set(event.products.map((p) => p.product.project?.id).filter(Boolean))] as string[];
+  if (projectIds.length === 0) return { ok: true };
+  for (const projectId of projectIds) {
+    const access = await checkProjectAccess(projectId, session as Parameters<typeof checkProjectAccess>[1], level);
+    if (access.ok) return { ok: true };
+  }
+  return { ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+}
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -12,6 +29,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const event = await prisma.complianceEvent.findUnique({ where: { id }, include: EVENT_INCLUDE });
   if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const access = await verifyEventAccess(event, session, "view");
+  if (!access.ok) return access.response;
   return NextResponse.json(event);
 }
 
@@ -22,6 +41,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;
+
+  // Verify project access before allowing mutation
+  const existing = await prisma.complianceEvent.findUnique({ where: { id }, include: { products: { include: { product: { select: { project: { select: { id: true } } } } } } } });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const access = await verifyEventAccess(existing, session, "edit");
+  if (!access.ok) return access.response;
+
   const body = await req.json();
   const { title, description, notes, severity, status, dueDate, resolvedAt, addProductIds, removeProductIds, typeId } = body;
 
@@ -83,6 +109,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;
+
+  // Verify project access before allowing deletion
+  const existing = await prisma.complianceEvent.findUnique({ where: { id }, include: { products: { include: { product: { select: { project: { select: { id: true } } } } } } } });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const access = await verifyEventAccess(existing, session, "edit");
+  if (!access.ok) return access.response;
 
   const docs = await prisma.complianceDocument.findMany({ where: { eventId: id } });
   const { deleteUploadFile } = await import("@/lib/uploads");

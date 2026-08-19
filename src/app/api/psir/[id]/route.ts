@@ -5,7 +5,24 @@ import { PSIR_INCLUDE } from "../route";
 
 import { createNotificationForMany, getOwnerIdsForProducts } from "@/lib/notifications";
 import { requireInspectionsEnabled } from "@/lib/app-config";
-import { can } from "@/lib/permissions";
+import { can, seesAllProjects } from "@/lib/permissions";
+import { checkProjectAccess } from "@/lib/project-access";
+
+/** Check whether the session user can access the projects linked to a PSIR. */
+async function verifyPsirAccess(
+  psir: { products: { product: { project: { id: string } | null } }[] },
+  session: { user: { id: string; role?: string | null } },
+  level: "view" | "edit",
+): Promise<{ ok: true } | { ok: false; response: Response }> {
+  if (seesAllProjects(session.user.role)) return { ok: true };
+  const projectIds = [...new Set(psir.products.map((p) => p.product.project?.id).filter(Boolean))] as string[];
+  if (projectIds.length === 0) return { ok: true };
+  for (const projectId of projectIds) {
+    const access = await checkProjectAccess(projectId, session as Parameters<typeof checkProjectAccess>[1], level);
+    if (access.ok) return { ok: true };
+  }
+  return { ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+}
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const disabled = await requireInspectionsEnabled();
@@ -15,6 +32,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const psir = await prisma.psir.findUnique({ where: { id }, include: PSIR_INCLUDE });
   if (!psir) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const access = await verifyPsirAccess(psir, session, "view");
+  if (!access.ok) return access.response;
   return NextResponse.json(psir);
 }
 
@@ -27,6 +46,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;
+
+  // Verify project access before allowing mutation
+  const existing = await prisma.psir.findUnique({ where: { id }, include: { products: { include: { product: { select: { project: { select: { id: true } } } } } } } });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const access = await verifyPsirAccess(existing, session, "edit");
+  if (!access.ok) return access.response;
+
   const body = await req.json();
 
   const {
@@ -115,6 +141,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;
+
+  // Verify project access before allowing deletion
+  const existing = await prisma.psir.findUnique({ where: { id }, include: { products: { include: { product: { select: { project: { select: { id: true } } } } } } } });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const access = await verifyPsirAccess(existing, session, "edit");
+  if (!access.ok) return access.response;
 
   // Remove uploaded files from disk
   const docs = await prisma.psirDocument.findMany({ where: { psirId: id } });

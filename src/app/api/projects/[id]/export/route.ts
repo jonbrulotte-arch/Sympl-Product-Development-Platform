@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import type { ProductRecord } from "@prisma/client";
 import { CORE_FIELDS, CORE_FIELD_KEYS, REMOVED_CORE_KEYS } from "@/lib/core-fields";
 import { checkProjectAccess } from "@/lib/project-access";
@@ -114,10 +114,18 @@ export async function GET(
     return row;
   });
 
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Products");
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Products");
+
+  if (rows.length > 0) {
+    const headers = Object.keys(rows[0]);
+    ws.columns = headers.map((h) => ({ header: h, key: h }));
+    for (const row of rows) {
+      ws.addRow(row);
+    }
+  }
+
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
 
   return new NextResponse(buf, {
     headers: {

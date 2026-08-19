@@ -77,6 +77,7 @@ export async function POST() {
         triggeredBy: "FILES_ARCHIVE",
       },
     }).catch(() => {});
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[backup] File archive failed:", message);
+    return NextResponse.json({ error: "File archive failed" }, { status: 500 });
   }
 }

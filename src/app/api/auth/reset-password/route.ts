@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { RateLimiter } from "@/lib/rate-limit";
+
+const limiter = new RateLimiter({ maxRequests: 10, windowMs: 15 * 60 * 1000 });
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (limiter.isLimited(`reset:${ip}`)) {
+    return NextResponse.json({ error: "Too many requests, please try again later" }, { status: 429 });
+  }
+
   const { token, password } = await req.json();
   if (!token || !password) return NextResponse.json({ error: "Token and password required" }, { status: 400 });
   if (password.length < 8) return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });

@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { createNotificationForMany, getOwnerIdsForProducts } from "@/lib/notifications";
 import { requireInspectionsEnabled } from "@/lib/app-config";
-import { can } from "@/lib/permissions";
+import { can, seesAllProjects } from "@/lib/permissions";
 
 export const PSIR_INCLUDE = {
   createdBy: { select: { id: true, name: true, email: true } },
@@ -44,7 +44,13 @@ export async function GET(req: Request) {
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const pageSize = 20;
 
+  // Scope to projects the user can access (unless ADMIN/DIRECTOR)
+  const projectFilter = seesAllProjects(session.user.role)
+    ? {}
+    : { products: { some: { product: { project: { OR: [{ ownerId: session.user.id }, { members: { some: { userId: session.user.id } } }] } } } } };
+
   const where = {
+    ...projectFilter,
     ...(productId && { products: { some: { productId } } }),
     ...(projectId && { products: { some: { product: { projectId } } } }),
     ...(status && { status }),

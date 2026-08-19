@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { maskApiKey } from "@/lib/salsify-auth";
+import { decrypt, encrypt } from "@/lib/crypto";
 
 // GET — whether the caller has a key, masked for display. The key itself is
 // never sent back to the browser once stored.
@@ -14,9 +15,10 @@ export async function GET() {
     select: { salsifyApiKey: true },
   });
 
+  const raw = user?.salsifyApiKey ? decrypt(user.salsifyApiKey) : null;
   return NextResponse.json({
-    hasKey: !!user?.salsifyApiKey,
-    masked: maskApiKey(user?.salsifyApiKey),
+    hasKey: !!raw,
+    masked: maskApiKey(raw),
   });
 }
 
@@ -38,7 +40,7 @@ export async function PUT(req: NextRequest) {
 
   await prisma.user.update({
     where: { id: session.user.id },
-    data: { salsifyApiKey: trimmed },
+    data: { salsifyApiKey: encrypt(trimmed) },
   });
 
   return NextResponse.json({ success: true, hasKey: true, masked: maskApiKey(trimmed) });

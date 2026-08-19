@@ -2,7 +2,7 @@ import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 export async function GET(_req: NextRequest) {
   const session = await auth();
@@ -40,16 +40,21 @@ export async function GET(_req: NextRequest) {
     lovValues: a.lovItems.map((l) => `${l.value}::${l.label}`).join(";;"),
   }));
 
-  const ws = XLSX.utils.json_to_sheet(rows);
-  // Auto-size columns
-  const colWidths = Object.keys(rows[0] ?? {}).map((k) => ({
-    wch: Math.max(k.length, ...rows.map((r) => String(r[k as keyof typeof r] ?? "").length)),
-  }));
-  ws["!cols"] = colWidths;
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Attributes");
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Attributes");
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  const keys = Object.keys(rows[0] ?? {}) as (keyof (typeof rows)[0])[];
+  ws.columns = keys.map((k) => ({
+    header: k,
+    key: k,
+    width: Math.max(k.length, ...rows.map((r) => String(r[k] ?? "").length)),
+  }));
+
+  for (const row of rows) {
+    ws.addRow(row);
+  }
+
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
 
   return new NextResponse(buf, {
     headers: {

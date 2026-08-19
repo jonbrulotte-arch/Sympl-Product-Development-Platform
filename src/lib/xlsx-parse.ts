@@ -30,6 +30,19 @@ export async function parseUploadedWorkbook(buf: ArrayBuffer): Promise<ParsedWor
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buf);
 
+  if (wb.worksheets.length > 10) {
+    throw new Error("Workbook exceeds safety limits (max 10 sheets)");
+  }
+
+  for (const ws of wb.worksheets) {
+    if (ws.rowCount > 100_000) {
+      throw new Error("Workbook exceeds safety limits (max 100,000 rows)");
+    }
+    if (ws.columnCount > 500) {
+      throw new Error("Workbook exceeds safety limits (max 500 columns)");
+    }
+  }
+
   const sheetNames = wb.worksheets.map((ws) => ws.name);
 
   const getRows = (sheetName: string): string[][] => {

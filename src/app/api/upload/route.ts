@@ -18,6 +18,21 @@ export async function POST(req: NextRequest) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
 
+  // Validate magic bytes for file types served inline to prevent content-type spoofing.
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const magicChecks: Record<string, (b: Buffer) => boolean> = {
+    png:  (b) => b.length >= 4 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47,
+    jpg:  (b) => b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+    jpeg: (b) => b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+    gif:  (b) => b.length >= 4 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38,
+    webp: (b) => b.length >= 12 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50,
+    pdf:  (b) => b.length >= 4 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46,
+  };
+  const check = magicChecks[ext];
+  if (check && !check(buffer)) {
+    return NextResponse.json({ error: "File content does not match its extension" }, { status: 400 });
+  }
+
   // Date-based folder: uploads/YYYY-MM
   const now = new Date();
   const folder = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
