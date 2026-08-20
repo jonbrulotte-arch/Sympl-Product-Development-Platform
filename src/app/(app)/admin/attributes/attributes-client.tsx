@@ -998,7 +998,7 @@ function AttributeDialog({ attr, categories, sections, allAttributes, onClose, o
     >
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-base font-semibold">{isNew ? "New Attribute" : `Edit: ${attr.label}`}</h3>
+          <h3 className="text-base font-semibold text-gray-900">{isNew ? "New Attribute" : `Edit: ${attr.label}`}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
         </div>
 
@@ -1167,7 +1167,7 @@ function AttributeDialog({ attr, categories, sections, allAttributes, onClose, o
           {/* LOV items */}
           {showLov && (
             <div className="space-y-2">
-              <label className="block text-xs font-medium text-gray-600">List of Values (Options)</label>
+              <label className="block text-xs font-medium text-gray-700">List of Values (Options)</label>
               {isNew ? (
                 <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-md">
                   Save this attribute first, then re-open it to add options.
@@ -1203,7 +1203,7 @@ function AttributeDialog({ attr, categories, sections, allAttributes, onClose, o
                             <GripVertical className="h-4 w-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
                           </span>
                           <span className="text-xs text-gray-500 w-5">{i + 1}.</span>
-                          <span className="flex-1 text-sm">{item.label}</span>
+                          <span className="flex-1 text-sm text-gray-900">{item.label}</span>
                           <code className="text-xs text-gray-500 bg-gray-100 px-1.5 rounded">{item.value}</code>
                           <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button

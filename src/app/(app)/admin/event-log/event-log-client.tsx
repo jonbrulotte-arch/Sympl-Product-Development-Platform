@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, ExternalLink, Download } from "lucide-react";
 import Link from "next/link";
 import {
   entityLabel,
@@ -110,7 +110,7 @@ export function EventLogClient({ users, projects }: { users: User[]; projects: P
       {/* Filters */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <select
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
           value={filterUser}
           onChange={(e) => { setFilterUser(e.target.value); setPage(1); }}
         >
@@ -119,7 +119,7 @@ export function EventLogClient({ users, projects }: { users: User[]; projects: P
         </select>
 
         <select
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
           value={filterAction}
           onChange={(e) => { setFilterAction(e.target.value); setPage(1); }}
         >
@@ -128,7 +128,7 @@ export function EventLogClient({ users, projects }: { users: User[]; projects: P
         </select>
 
         <select
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
           value={filterEntity}
           onChange={(e) => { setFilterEntity(e.target.value); setPage(1); }}
         >
@@ -137,7 +137,7 @@ export function EventLogClient({ users, projects }: { users: User[]; projects: P
         </select>
 
         <select
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
           value={filterProject}
           onChange={(e) => { setFilterProject(e.target.value); setPage(1); }}
         >
@@ -173,10 +173,30 @@ export function EventLogClient({ users, projects }: { users: User[]; projects: P
         </Button>
       )}
 
-      {/* Results count */}
-      <p className="text-xs text-gray-500">
-        {loading ? "Loading..." : `${total.toLocaleString()} event${total !== 1 ? "s" : ""}`}
-      </p>
+      {/* Results count + export */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-500">
+          {loading ? "Loading..." : `${total.toLocaleString()} event${total !== 1 ? "s" : ""}`}
+        </p>
+        <a
+          href={`/api/admin/event-log/export?${(() => {
+            const p = new URLSearchParams();
+            if (filterUser) p.set("userId", filterUser);
+            if (filterAction) p.set("action", filterAction);
+            if (filterEntity) p.set("entityType", filterEntity);
+            if (filterProject) p.set("projectId", filterProject);
+            if (filterPartNumber) p.set("partNumber", filterPartNumber);
+            if (filterFrom) p.set("from", filterFrom);
+            if (filterTo) p.set("to", filterTo);
+            return p.toString();
+          })()}`}
+          download
+          className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Export to Excel
+        </a>
+      </div>
 
       {/* Table */}
       <div className="overflow-x-auto border border-gray-200 rounded-lg">
