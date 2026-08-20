@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { isInspectionsEnabled, setInspectionsEnabled } from "@/lib/app-config";
+import { logActivity } from "@/lib/activity";
 
 export async function GET() {
   const session = await auth();
@@ -20,6 +21,15 @@ export async function PUT(req: NextRequest) {
   if (typeof body.inspectionsEnabled !== "boolean") {
     return NextResponse.json({ error: "inspectionsEnabled must be a boolean" }, { status: 400 });
   }
+  const oldInspectionsEnabled = await isInspectionsEnabled();
   await setInspectionsEnabled(body.inspectionsEnabled);
+  logActivity({
+    userId: session.user.id,
+    action: "SETTINGS_CHANGED" as never,
+    entityType: "setting",
+    entityId: "modules",
+    oldValue: JSON.stringify({ inspectionsEnabled: oldInspectionsEnabled }),
+    newValue: JSON.stringify({ inspectionsEnabled: body.inspectionsEnabled }),
+  }).catch(() => {});
   return NextResponse.json({ success: true, inspectionsEnabled: body.inspectionsEnabled });
 }

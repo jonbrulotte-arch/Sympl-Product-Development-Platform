@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { sendInvitation, INVITE_EXPIRY_DAYS } from "@/lib/invitations";
+import { logActivity } from "@/lib/activity";
 
 export async function GET() {
   const session = await auth();
@@ -76,6 +77,14 @@ export async function POST(req: NextRequest) {
       inviterName: session.user.name ?? session.user.email ?? "An administrator",
     }));
   }
+
+  logActivity({
+    userId: session.user.id,
+    action: "USER_CREATED",
+    entityType: "user",
+    entityId: user.id,
+    metadata: { email: user.email, role: user.role, name: user.name },
+  }).catch(() => {});
 
   return NextResponse.json(
     { ...user, invited: !password, inviteUrl, expiresInDays: password ? undefined : INVITE_EXPIRY_DAYS },

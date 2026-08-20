@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import type { UserRole } from "@prisma/client";
 import { authConfig } from "@/lib/auth.config";
 import { isLoginBlocked, recordLoginFailure, clearLoginFailures } from "@/lib/rate-limit";
+import { logActivity } from "@/lib/activity";
 
 // Short-lived cache for the per-request user lookup in the jwt callback —
 // keeps role changes and deactivations near-instant (≤60 s) without paying
@@ -55,8 +56,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           request?.headers?.get?.("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
         const limiterKey = `${email}:${ip}`;
 
-        // Throttle brute-force attempts: 5 failures / 15 min per email+IP
-        if (isLoginBlocked(limiterKey)) return null;
+        if (isLoginBlocked(limiterKey)) {
+          const blockedUser = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+          logActivity({
+            userId: blockedUser?.id ?? "unknown",
+            action: "LOGIN_LOCKED",
+            entityType: "user",
+            entityId: blockedUser?.id ?? email,
+            metadata: { email, ip },
+          }).catch(() => {});
+          return null;
+        }
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
@@ -64,6 +74,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!user || !user.passwordHash || !user.isActive) {
           recordLoginFailure(limiterKey);
+          logActivity({
+            userId: user?.id ?? "unknown",
+            action: "LOGIN_FAILED",
+            entityType: "user",
+            entityId: user?.id ?? email,
+            metadata: { email, ip, reason: !user ? "not_found" : !user.passwordHash ? "no_password" : "inactive" },
+          }).catch(() => {});
           return null;
         }
 
@@ -73,10 +90,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         );
         if (!valid) {
           recordLoginFailure(limiterKey);
+          logActivity({
+            userId: user.id,
+            action: "LOGIN_FAILED",
+            entityType: "user",
+            entityId: user.id,
+            metadata: { email, ip, reason: "wrong_password" },
+          }).catch(() => {});
           return null;
         }
 
         clearLoginFailures(limiterKey);
+        logActivity({
+          userId: user.id,
+          action: "LOGIN_SUCCESS",
+          entityType: "user",
+          entityId: user.id,
+          metadata: { email, ip },
+        }).catch(() => {});
         prisma.user.update({
           where: { id: user.id },
           data: { lastAccessedAt: new Date() },

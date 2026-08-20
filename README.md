@@ -21,8 +21,9 @@ A product lifecycle management platform for retail brands — centralizes produc
 - **Read-Only API Tokens** — Scoped `spt_` tokens (Admin → API Tokens) let ERP/BI tools pull product data via the API without a browser session.
 - **Manual Status Override** — Admins, Directors, and Product Managers can set a project's status directly from the project Settings tab at any time.
 - **Backup & Restore** — AES-256-GCM encrypted PostgreSQL backups plus uploaded-file archives, written to local disk with a retention policy and one-click restore. Snapshots can be downloaded and re-uploaded through the admin UI to migrate an instance between servers, and a scoped API token drives external cron automation (`scripts/backup.sh` backs up database and attachments in one crontab entry).
-- **Security** — Project-level authorization on every route, authenticated file serving with an upload-type allowlist, login rate limiting (5 failures / 15 min per email+IP), rate-limited password reset endpoints, immediate session invalidation for deactivated accounts, last-admin lockout protection, AES-256-GCM encryption of Salsify API keys at rest (`ENCRYPTION_KEY`), and security response headers (HSTS, X-Frame-Options DENY, X-Content-Type-Options nosniff, strict Referrer-Policy, Permissions-Policy disabling camera/mic/geo).
+- **Security** — Project-level authorization on every route, authenticated file serving with an upload-type allowlist, login rate limiting (3 failures / 15 min per email+IP), rate-limited password reset endpoints, immediate session invalidation for deactivated accounts, last-admin lockout protection, AES-256-GCM encryption of Salsify API keys at rest (`ENCRYPTION_KEY`), and security response headers (HSTS, X-Frame-Options DENY, X-Content-Type-Options nosniff, strict Referrer-Policy, Permissions-Policy disabling camera/mic/geo).
 - **Reports** — Seven operational reports (Inspections, Compliance, Overdue Stages, Overdue Projects, Roadblocks, Out-of-Sync Products, Pipeline Summary) with filters and one-click Excel export, scoped to the projects each user can see. Out-of-Sync rows drill into a field-level drift panel (old → new, who and when) with links to the product, project, and Salsify record, and a per-field push back to Salsify.
+- **Event Log** — Comprehensive platform-wide audit trail (Admin → Event Log) recording every action: product edits, workflow votes, login events, user management, settings changes, backups, and more. Filterable by user, action, entity, project, part number, and date range with a detail drawer for each entry.
 - **Module toggles** — Admin → Settings → Modules can disable the Inspections module platform-wide (sidebar, pages, product/project tabs, reports, API). All inspection data is retained; re-enabling restores everything.
 - **User invitations** — Adding a user takes name, email, and role; an emailed single-use link (7 days) lets them set their own password. Admins never handle a password. Un-activated accounts show as "Invite pending" with a resend action.
 - **Admin password reset** — Resetting a user scrambles their stored password to a random value and emails them a 1-hour reset link. Nobody, including the admin, ever knows the interim password.
@@ -58,7 +59,21 @@ AUTH_URL=http://localhost:4000
 # Generate with: openssl rand -hex 32
 BACKUP_ENCRYPTION_KEY=
 
-# Email notifications (optional — without SMTP_HOST, emails are silently skipped)
+# Email notifications (optional — without either provider, emails are silently skipped)
+# Option 1: MS Graph API (Microsoft 365) — takes priority when both are set
+# MSGRAPH_TENANT_ID=
+# MSGRAPH_CLIENT_ID=
+# MSGRAPH_CLIENT_SECRET=
+# MSGRAPH_FROM_ADDRESS=no-reply@yourdomain.com
+
+# Option 2: SMTP
+# SMTP_HOST=smtp.gmail.com
+# SMTP_PORT=587              # default 587; use 465 with SMTP_SECURE=true
+# SMTP_SECURE=false          # true = implicit TLS (port 465); false = STARTTLS
+# SMTP_USER=you@gmail.com
+# SMTP_PASS=app-specific-password
+# SMTP_FROM=Sympl <no-reply@yourdomain.com>
+
 # Salsify API key encryption (optional — without it, keys are stored in cleartext with a warning)
 # Generate with: openssl rand -hex 32
 ENCRYPTION_KEY=
@@ -66,13 +81,6 @@ ENCRYPTION_KEY=
 # Dedicated cron endpoint token (optional — falls back to backup API token)
 # Separates cron auth from backup auth so a compromise of one doesn't expose the other
 CRON_API_TOKEN=
-
-# SMTP_HOST=smtp.gmail.com
-# SMTP_PORT=587              # default 587; use 465 with SMTP_SECURE=true
-# SMTP_SECURE=false          # true = implicit TLS (port 465); false = STARTTLS
-# SMTP_USER=you@gmail.com
-# SMTP_PASS=app-specific-password
-# SMTP_FROM=Sympl <no-reply@yourdomain.com>
 
 # Seeding (optional)
 # SEED_DEMO_USERS=true      # create demo accounts + sample project (never use in production)
@@ -269,13 +277,26 @@ Uploaded snapshots must keep their original file names (`sympl-backup-<timestamp
 
 ---
 
-## Email Notifications (SMTP)
+## Email Notifications
 
-Sympl sends email notifications for workflow events, status changes, overdue alerts, and password resets. Email is optional — if `SMTP_HOST` is not set, all emails are silently skipped and the app works normally with in-app notifications only.
+Sympl sends email notifications for workflow events, status changes, overdue alerts, and password resets. Email is optional — if neither provider is configured, all emails are silently skipped and the app works normally with in-app notifications only.
 
-### Setup
+Two delivery methods are supported. When both are configured, **MS Graph takes priority**.
 
-Add the SMTP variables to your `.env` file (see Environment Variables above) and restart the server. Common providers:
+### Option 1: MS Graph API (Microsoft 365)
+
+Set these environment variables in `.env` and restart:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `MSGRAPH_TENANT_ID` | Yes | Azure AD tenant ID |
+| `MSGRAPH_CLIENT_ID` | Yes | App registration client ID |
+| `MSGRAPH_CLIENT_SECRET` | Yes | App registration client secret |
+| `MSGRAPH_FROM_ADDRESS` | Yes | Sender email (must match a licensed M365 mailbox) |
+
+The app registration needs the `Mail.Send` application permission in Azure AD.
+
+### Option 2: SMTP
 
 | Provider | Host | Port | Secure | Notes |
 |----------|------|------|--------|-------|
@@ -301,7 +322,7 @@ Users control which categories they receive email for in **My Profile → Notifi
 
 ### Testing
 
-Go to **Admin → Settings → Email Notifications (SMTP)** to see the current SMTP status and send a test email. The test verifies the full round-trip: connection, authentication, and delivery.
+Go to **Admin → Settings → Email Notifications** to see the active provider and send a test email. The test verifies the full round-trip: connection, authentication, and delivery.
 
 ---
 

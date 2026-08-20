@@ -11,6 +11,10 @@ echo "--- Pulling latest code ---"
 git pull origin $BRANCH
 
 echo ""
+echo "--- Installing dependencies ---"
+npm install
+
+echo ""
 echo "--- Syncing database schema ---"
 npx prisma db push
 

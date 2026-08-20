@@ -24,6 +24,19 @@ const ENTITY_LABELS: Record<string, string> = {
   User: "user account",
   Category: "category",
   AttributeDefinition: "attribute",
+  ComplianceType: "compliance type",
+  WorkflowTemplate: "workflow template",
+  PsirAttribute: "inspection attribute",
+  RolePermission: "permission",
+  Setting: "setting",
+  user: "user account",
+  setting: "setting",
+  category: "category",
+  attribute: "attribute",
+  complianceType: "compliance type",
+  workflowTemplate: "workflow template",
+  psirAttribute: "inspection attribute",
+  backup: "backup",
 };
 
 export function entityLabel(entityType: string): string {
@@ -71,6 +84,24 @@ export function actionTone(action: string): string {
     case "ARCHIVED":
     case "RESTORED":
       return "bg-gray-100 text-gray-700";
+    case "LOGIN_SUCCESS":
+      return "bg-green-50 text-green-700";
+    case "LOGIN_FAILED":
+    case "LOGIN_LOCKED":
+      return "bg-red-50 text-red-700";
+    case "PASSWORD_CHANGED":
+    case "PASSWORD_RESET":
+    case "USER_CREATED":
+    case "USER_UPDATED":
+      return "bg-blue-50 text-blue-700";
+    case "USER_DEACTIVATED":
+      return "bg-red-50 text-red-700";
+    case "SETTINGS_CHANGED":
+    case "PERMISSION_CHANGED":
+      return "bg-amber-50 text-amber-700";
+    case "SYNCED":
+    case "PULLED":
+      return "bg-purple-50 text-purple-700";
     default:
       return "bg-blue-50 text-blue-700";
   }

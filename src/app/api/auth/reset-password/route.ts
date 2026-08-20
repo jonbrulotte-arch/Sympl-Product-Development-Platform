@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { RateLimiter } from "@/lib/rate-limit";
+import { logActivity } from "@/lib/activity";
 
 const limiter = new RateLimiter({ maxRequests: 10, windowMs: 15 * 60 * 1000 });
 
@@ -26,6 +27,14 @@ export async function POST(req: NextRequest) {
   const passwordHash = await bcrypt.hash(password, 12);
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
   await prisma.passwordResetToken.delete({ where: { token } });
+
+  logActivity({
+    userId: user.id,
+    action: "PASSWORD_CHANGED",
+    entityType: "user",
+    entityId: user.id,
+    metadata: { method: "reset_link" },
+  }).catch(() => {});
 
   return NextResponse.json({ success: true });
 }

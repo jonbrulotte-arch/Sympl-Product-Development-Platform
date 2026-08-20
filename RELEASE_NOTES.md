@@ -159,6 +159,7 @@ Seven roles with permission grants configurable per role from **Admin → Access
 | Workflow Templates | Reusable stage sets for quick workflow setup |
 | Compliance Types | Event types with name, color, and description |
 | PSIR Attributes | Custom fields that appear on every inspection report |
+| Event Log | Platform-wide audit trail with filters, search, and detail drawer |
 | Access Control | Per-permission toggles for each role |
 | Settings | Salsify credentials, debug mode, project status configuration |
 | Backup & Restore | Schedule, retention, manual run, API token, restore |
@@ -242,11 +243,38 @@ Admin → Settings → Modules can disable the Inspections module platform-wide 
 
 ---
 
+### 📧 MS Graph API Email
+
+Email notifications can now be delivered via the **Microsoft Graph API** as an alternative to SMTP. When both are configured, MS Graph takes priority. Set `MSGRAPH_TENANT_ID`, `MSGRAPH_CLIENT_ID`, `MSGRAPH_CLIENT_SECRET`, and `MSGRAPH_FROM_ADDRESS` in your `.env` file. The app registration needs the `Mail.Send` application permission. The Admin → Settings → Email Notifications panel shows which provider is active and supports test emails for both.
+
+---
+
+### 📋 Event Log
+
+A comprehensive platform-wide audit trail available at **Admin → Event Log**. Every action is recorded with full context:
+
+- **Product & project events** — create, update, delete, status changes, imports, exports, duplications
+- **Workflow events** — votes, stage completions, approver assignments
+- **Login events** — successful logins, failed attempts, and lockouts (with email and IP)
+- **User management** — account creation, role changes, deactivation, password resets
+- **Admin config** — settings changes, permission matrix updates, category/attribute/template edits, backup/restore operations
+- **Salsify** — sync and pull operations
+
+Filter by user, action type, entity type, project, part number, or date range. Click any row to open a detail panel showing old and new values for changes, metadata, and links to the affected entity. Gated by the `admin:event_log` permission (Admin only by default).
+
+---
+
+### 🔐 Login Security
+
+Reduced lockout threshold from 5 to **3 failed login attempts** before a 15-minute lockout. The lockout timer is fixed — additional failed attempts during the lockout period do not extend it. All login events are now recorded in the Event Log.
+
+---
+
 ### 🔒 Security Hardening
 
 - **Encryption at rest** — Salsify API keys encrypted with AES-256-GCM via `ENCRYPTION_KEY` env var; database backups encrypted with AES-256-GCM via `BACKUP_ENCRYPTION_KEY`
 - **Security headers** — HSTS (1 year, includeSubDomains), X-Frame-Options DENY, X-Content-Type-Options nosniff, strict Referrer-Policy, Permissions-Policy (disables camera/mic/geo)
-- **Rate limiting** — login (5 failures / 15 min per email+IP), forgot-password, reset-password endpoints
+- **Rate limiting** — login (3 failures / 15 min per email+IP, fixed window — additional attempts do not extend lockout), forgot-password, reset-password endpoints
 - **Session invalidation** — deactivated accounts lose their session within 60 seconds via JWT callback
 - **Last-admin lockout protection** — prevents deactivating or demoting the last admin
 - **Upload validation** — magic-byte verification for PNG, JPEG, GIF, WebP, PDF; 20 MB limit and extension allowlist

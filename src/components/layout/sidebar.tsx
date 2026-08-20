@@ -55,6 +55,7 @@ const adminNavItems: { href: string; label: string; icon: React.ElementType; per
   { href: "/admin/backup",             label: "Backup & Restore",   icon: HardDrive,      permission: "admin:backup" },
   { href: "/admin/settings",           label: "Settings",           icon: Settings,       permission: "admin:settings" },
   { href: "/admin/api-tokens",         label: "API Tokens",         icon: KeyRound,       permission: "admin:settings" },
+  { href: "/admin/event-log",           label: "Event Log",          icon: ScrollText,     permission: "admin:event_log" },
   { href: "/admin/access-control",     label: "Access Control",     icon: ShieldCheck,    permission: null }, // ADMIN only, always
 ];
 

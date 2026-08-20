@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/utils";
+import { logActivity } from "@/lib/activity";
 
 async function requireAdmin() {
   const session = await auth();
@@ -37,6 +38,13 @@ export async function POST(req: NextRequest) {
     },
     include: { _count: { select: { products: true, projects: true } } },
   });
+  logActivity({
+    userId: session.user.id,
+    action: "CREATED" as never,
+    entityType: "Category",
+    entityId: category.id,
+    metadata: { name: category.name },
+  }).catch(() => {});
   return NextResponse.json(category, { status: 201 });
 }
 
@@ -59,6 +67,13 @@ export async function PATCH(req: NextRequest) {
     data,
     include: { _count: { select: { products: true, projects: true } } },
   });
+  logActivity({
+    userId: session.user.id,
+    action: "UPDATED" as never,
+    entityType: "Category",
+    entityId: category.id,
+    metadata: { name: category.name },
+  }).catch(() => {});
   return NextResponse.json(category);
 }
 
@@ -88,5 +103,12 @@ export async function DELETE(req: NextRequest) {
   }
 
   await prisma.category.delete({ where: { id } });
+  logActivity({
+    userId: session.user.id,
+    action: "DELETED" as never,
+    entityType: "Category",
+    entityId: id,
+    metadata: { name: category.name },
+  }).catch(() => {});
   return NextResponse.json({ success: true });
 }
