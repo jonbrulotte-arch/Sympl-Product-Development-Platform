@@ -1525,7 +1525,7 @@ function CommentsView({ projectId, currentUserId, userRole, team = [] }: { proje
                 <div className="h-7 w-7 rounded-full bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-bold">
                   {comment.author.name?.[0] ?? "?"}
                 </div>
-                <span className="text-sm font-medium">{comment.author.name ?? comment.author.email}</span>
+                <span className="text-sm font-medium text-gray-900">{comment.author.name ?? comment.author.email}</span>
                 <span className="text-xs text-gray-500">{formatDate(comment.createdAt)}</span>
                 {canDelete(comment.author.id) && (
                   <button
