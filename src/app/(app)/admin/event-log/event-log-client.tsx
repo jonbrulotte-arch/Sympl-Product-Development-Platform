@@ -55,6 +55,17 @@ function actionLabel(action: string): string {
   return action.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function tryParseJson(val: string | null | undefined, key: string): string | null {
+  if (!val) return null;
+  try {
+    const parsed = JSON.parse(val);
+    const v = parsed?.[key];
+    return typeof v === "string" && v.trim() ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 export function EventLogClient({ users, projects }: { users: User[]; projects: Project[] }) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [total, setTotal] = useState(0);
@@ -213,10 +224,19 @@ export function EventLogClient({ users, projects }: { users: User[]; projects: P
           </thead>
           <tbody>
             {logs.map((log) => {
+              const isUserEntity = log.entityType === "User" || log.entityType === "user";
+              const userSubject = isUserEntity
+                ? (subjectFromMetadata(log.metadata) ??
+                   tryParseJson(log.newValue ?? log.oldValue, "name") ??
+                   tryParseJson(log.newValue ?? log.oldValue, "email") ??
+                   (log.metadata as Record<string, unknown> | null)?.["email"] as string | null ??
+                   log.user?.email ?? null)
+                : null;
               const subject =
                 log.product?.partNumber ??
                 log.product?.itemName ??
                 (log.entityType === "Project" ? log.project?.name ?? null : null) ??
+                userSubject ??
                 subjectFromMetadata(log.metadata) ??
                 log.entityId.slice(0, 8);
               return (
@@ -281,10 +301,19 @@ function EventDetailDrawer({ log, onClose }: { log: LogEntry; onClose: () => voi
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const isUserEntity = log.entityType === "User" || log.entityType === "user";
+  const userSubject = isUserEntity
+    ? (subjectFromMetadata(log.metadata) ??
+       tryParseJson(log.newValue ?? log.oldValue, "name") ??
+       tryParseJson(log.newValue ?? log.oldValue, "email") ??
+       (log.metadata as Record<string, unknown> | null)?.["email"] as string | null ??
+       log.user?.email ?? null)
+    : null;
   const subject =
     log.product?.partNumber ??
     log.product?.itemName ??
     (log.entityType === "Project" ? log.project?.name ?? null : null) ??
+    userSubject ??
     subjectFromMetadata(log.metadata) ??
     log.entityId;
 

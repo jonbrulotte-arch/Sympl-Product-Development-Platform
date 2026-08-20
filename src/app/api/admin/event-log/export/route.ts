@@ -5,6 +5,21 @@ import { can } from "@/lib/permissions";
 import { buildXlsxResponse } from "@/lib/xlsx-export";
 import type { Prisma } from "@prisma/client";
 
+function tryName(metadata: unknown, ...jsonVals: (string | null)[]): string | null {
+  const m = metadata && typeof metadata === "object" ? metadata as Record<string, unknown> : null;
+  if (typeof m?.name === "string" && m.name) return m.name;
+  if (typeof m?.email === "string" && m.email) return m.email;
+  for (const v of jsonVals) {
+    if (!v) continue;
+    try {
+      const p = JSON.parse(v);
+      if (typeof p?.name === "string" && p.name) return p.name;
+      if (typeof p?.email === "string" && p.email) return p.email;
+    } catch { /* ignore */ }
+  }
+  return null;
+}
+
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id || !(await can(session.user.role, "admin:event_log"))) {
@@ -59,7 +74,10 @@ export async function GET(req: NextRequest) {
     Action: log.action,
     "Entity Type": log.entityType,
     "Entity ID": log.entityId,
-    Subject: log.product?.partNumber ?? log.product?.itemName ?? log.project?.name ?? log.entityId,
+    Subject: log.product?.partNumber ?? log.product?.itemName ??
+      (log.entityType === "Project" ? log.project?.name ?? null : null) ??
+      ((log.entityType === "User" || log.entityType === "user") ? tryName(log.metadata, log.newValue, log.oldValue) : null) ??
+      log.project?.name ?? log.entityId,
     Project: log.project?.name ?? "",
     "Part Number": log.product?.partNumber ?? "",
     "Field": log.fieldKey ?? "",
