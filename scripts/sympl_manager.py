@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Sympl process manager — runs inside the production Python venv.
+SymplPM process manager — runs inside the production Python venv.
 Usage: python sympl_manager.py {start|stop|restart|status}
 """
 
@@ -12,8 +12,8 @@ import time
 from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent.parent
-PID_FILE = Path("/var/run/sympl.pid")
-LOG_FILE = Path("/var/log/sympl/app.log")
+PID_FILE = Path("/var/run/SymplPM.pid")
+LOG_FILE = Path("/var/log/SymplPM/app.log")
 PORT = os.environ.get("PORT", "8010")
 NODE_ENV = os.environ.get("NODE_ENV", "production")
 
@@ -30,7 +30,7 @@ def _pid() -> int | None:
 
 def start() -> None:
     if _pid():
-        print("sympl is already running.")
+        print("SymplPM is already running.")
         sys.exit(1)
 
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -46,13 +46,13 @@ def start() -> None:
         start_new_session=True,
     )
     PID_FILE.write_text(str(proc.pid))
-    print(f"sympl started (pid {proc.pid}) on port {PORT} — log: {LOG_FILE}")
+    print(f"SymplPM started (pid {proc.pid}) on port {PORT} — log: {LOG_FILE}")
 
 
 def stop() -> None:
     pid = _pid()
     if not pid:
-        print("sympl is not running.")
+        print("SymplPM is not running.")
         return
     os.kill(pid, signal.SIGTERM)
     for _ in range(30):
@@ -62,7 +62,7 @@ def stop() -> None:
     else:
         os.kill(pid, signal.SIGKILL)
     PID_FILE.unlink(missing_ok=True)
-    print(f"sympl stopped (pid {pid}).")
+    print(f"SymplPM stopped (pid {pid}).")
 
 
 def restart() -> None:
@@ -74,9 +74,9 @@ def restart() -> None:
 def status() -> None:
     pid = _pid()
     if pid:
-        print(f"sympl is running (pid {pid}) on port {PORT}.")
+        print(f"SymplPM is running (pid {pid}) on port {PORT}.")
     else:
-        print("sympl is not running.")
+        print("SymplPM is not running.")
         sys.exit(1)
 
 

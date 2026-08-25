@@ -4,10 +4,10 @@ set -e
 
 BRANCH=claude/tender-gauss-iovx5c
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-VENV_PYTHON=/opt/sympl-venv/bin/python
+VENV_PYTHON=/opt/SymplPM-venv/bin/python
 MANAGER="$APP_DIR/scripts/sympl_manager.py"
 
-echo "=== SYMPL PROD DEPLOY ==="
+echo "=== SYMPLPM PROD DEPLOY ==="
 date
 echo "Server : 10.0.10.106"
 echo "Port   : 8010"
@@ -34,7 +34,7 @@ echo "--- Building ---"
 npm run build
 
 echo ""
-echo "--- Restarting app ---"
+echo "--- Restarting SymplPM ---"
 if "$VENV_PYTHON" "$MANAGER" status &>/dev/null; then
   "$VENV_PYTHON" "$MANAGER" restart
 else

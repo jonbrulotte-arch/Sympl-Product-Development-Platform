@@ -1,12 +1,12 @@
 #!/bin/bash
-# One-time setup: creates the Python venv and installs the sympl manager.
+# One-time setup: creates the Python venv and installs the SymplPM manager.
 # Run once on the production server as a user with write access to /opt.
 set -e
 
-VENV_DIR=/opt/sympl-venv
+VENV_DIR=/opt/SymplPM-venv
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo "=== Sympl venv setup ==="
+echo "=== SymplPM venv setup ==="
 
 # ── Python venv ────────────────────────────────────────────────────────────────
 if [ ! -d "$VENV_DIR" ]; then
@@ -17,11 +17,11 @@ else
 fi
 
 # ── Log directory ──────────────────────────────────────────────────────────────
-sudo mkdir -p /var/log/sympl
-sudo chown "$(whoami)" /var/log/sympl
+sudo mkdir -p /var/log/SymplPM
+sudo chown "$(whoami)" /var/log/SymplPM
 
 # ── Symlink manager into venv bin ──────────────────────────────────────────────
-MANAGER_LINK="$VENV_DIR/bin/sympl"
+MANAGER_LINK="$VENV_DIR/bin/SymplPM"
 if [ ! -L "$MANAGER_LINK" ]; then
   ln -s "$APP_DIR/scripts/sympl_manager.py" "$MANAGER_LINK"
   chmod +x "$APP_DIR/scripts/sympl_manager.py"
@@ -29,16 +29,16 @@ if [ ! -L "$MANAGER_LINK" ]; then
 fi
 
 # ── systemd service (optional — skipped if not running as root) ────────────────
-SERVICE=/etc/systemd/system/sympl.service
+SERVICE=/etc/systemd/system/SymplPM.service
 if [ "$(id -u)" -eq 0 ] && [ ! -f "$SERVICE" ]; then
   cat > "$SERVICE" <<EOF
 [Unit]
-Description=Sympl Product Development Platform
+Description=SymplPM Product Development Platform
 After=network.target
 
 [Service]
 Type=forking
-PIDFile=/var/run/sympl.pid
+PIDFile=/var/run/SymplPM.pid
 WorkingDirectory=$APP_DIR
 Environment=NODE_ENV=production
 Environment=PORT=8010
@@ -52,7 +52,7 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
   systemctl daemon-reload
-  systemctl enable sympl
+  systemctl enable SymplPM
   echo "systemd service installed and enabled."
 else
   echo "Skipping systemd setup (not root or service already exists)."
@@ -61,5 +61,5 @@ fi
 echo ""
 echo "=== Setup complete ==="
 echo "Activate the venv:  source $VENV_DIR/bin/activate"
-echo "Start the app:      sympl start   (or: python scripts/sympl_manager.py start)"
-echo "Check status:       sympl status"
+echo "Start the app:      SymplPM start   (or: python scripts/sympl_manager.py start)"
+echo "Check status:       SymplPM status"
