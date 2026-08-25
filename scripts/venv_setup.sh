@@ -3,10 +3,12 @@
 # Run once on the production server as a user with write access to /opt.
 set -e
 
-VENV_DIR=/opt/SymplPM-venv
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+VENV_DIR="${VENV_DIR:-$APP_DIR/venv}"
 
 echo "=== SymplPM venv setup ==="
+echo "App dir : $APP_DIR"
+echo "Venv dir: $VENV_DIR"
 
 # ── Python venv ────────────────────────────────────────────────────────────────
 if [ ! -d "$VENV_DIR" ]; then
@@ -16,12 +18,13 @@ else
   echo "Venv already exists at $VENV_DIR — skipping creation."
 fi
 
-# ── Log directory ──────────────────────────────────────────────────────────────
-sudo mkdir -p /var/log/SymplPM
-sudo chown "$(whoami)" /var/log/SymplPM
+# ── Log directory (local, no root needed) ─────────────────────────────────────
+mkdir -p "$APP_DIR/logs"
 
 # ── Symlink manager into venv bin ──────────────────────────────────────────────
 MANAGER_LINK="$VENV_DIR/bin/SymplPM"
+# Ensure pip/setuptools are current in the venv (silent)
+"$VENV_DIR/bin/pip" install --quiet --upgrade pip setuptools 2>/dev/null || true
 if [ ! -L "$MANAGER_LINK" ]; then
   ln -s "$APP_DIR/scripts/sympl_manager.py" "$MANAGER_LINK"
   chmod +x "$APP_DIR/scripts/sympl_manager.py"
@@ -61,5 +64,6 @@ fi
 echo ""
 echo "=== Setup complete ==="
 echo "Activate the venv:  source $VENV_DIR/bin/activate"
-echo "Start the app:      SymplPM start   (or: python scripts/sympl_manager.py start)"
-echo "Check status:       SymplPM status"
+echo "Start the app:      $VENV_DIR/bin/SymplPM start"
+echo "Check status:       $VENV_DIR/bin/SymplPM status"
+echo "Logs:               $APP_DIR/logs/app.log"

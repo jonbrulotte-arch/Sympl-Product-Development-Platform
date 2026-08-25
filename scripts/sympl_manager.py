@@ -12,8 +12,9 @@ import time
 from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent.parent
-PID_FILE = Path("/var/run/SymplPM.pid")
-LOG_FILE = Path("/var/log/SymplPM/app.log")
+_BASE = Path(os.environ.get("SYMPLPM_BASE", str(APP_DIR)))
+PID_FILE = Path(os.environ.get("SYMPLPM_PID", str(_BASE / "SymplPM.pid")))
+LOG_FILE = Path(os.environ.get("SYMPLPM_LOG", str(_BASE / "logs" / "app.log")))
 PORT = os.environ.get("PORT", "8010")
 NODE_ENV = os.environ.get("NODE_ENV", "production")
 

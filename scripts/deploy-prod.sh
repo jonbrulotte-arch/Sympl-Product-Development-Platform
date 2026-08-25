@@ -4,7 +4,7 @@ set -e
 
 BRANCH=claude/tender-gauss-iovx5c
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-VENV_PYTHON=/opt/SymplPM-venv/bin/python
+VENV_PYTHON="${SYMPLPM_VENV_PYTHON:-$APP_DIR/venv/bin/python}"
 MANAGER="$APP_DIR/scripts/sympl_manager.py"
 
 echo "=== SYMPLPM PROD DEPLOY ==="
