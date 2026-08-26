@@ -16,6 +16,7 @@ echo ""
 
 echo "--- Pulling latest code ---"
 git pull origin "$BRANCH"
+chmod +x "$APP_DIR/scripts/sympl_manager.py"
 
 echo ""
 echo "--- Installing dependencies ---"
