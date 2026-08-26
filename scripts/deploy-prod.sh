@@ -2,7 +2,7 @@
 # Production deploy to 10.0.10.106:8010
 set -e
 
-BRANCH=claude/tender-gauss-iovx5c
+BRANCH=venv-prod
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENV_PYTHON="${SYMPLPM_VENV_PYTHON:-$APP_DIR/venv/bin/python}"
 MANAGER="$APP_DIR/scripts/sympl_manager.py"
