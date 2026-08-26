@@ -12,6 +12,20 @@ import time
 from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent.parent
+
+# Load .env file into the environment before anything else
+_env_file = APP_DIR / ".env"
+if _env_file.exists():
+    for _line in _env_file.read_text().splitlines():
+        _line = _line.strip()
+        if not _line or _line.startswith("#") or "=" not in _line:
+            continue
+        _key, _, _val = _line.partition("=")
+        _key = _key.strip()
+        _val = _val.strip().strip('"').strip("'")
+        if _key and _key not in os.environ:
+            os.environ[_key] = _val
+
 _BASE = Path(os.environ.get("SYMPLPM_BASE", str(APP_DIR)))
 PID_FILE = Path(os.environ.get("SYMPLPM_PID", str(_BASE / "SymplPM.pid")))
 LOG_FILE = Path(os.environ.get("SYMPLPM_LOG", str(_BASE / "logs" / "app.log")))
