@@ -45,3 +45,6 @@ next-env.d.ts
 # uploaded attachments (private storage) + legacy public uploads
 /data/
 /public/uploads/
+
+# server backups
+/backups/
