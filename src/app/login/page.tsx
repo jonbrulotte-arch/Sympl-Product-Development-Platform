@@ -86,9 +86,6 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-xs text-gray-500 mt-6">
-          Contact your administrator to get access.
-        </p>
       </div>
     </div>
   );

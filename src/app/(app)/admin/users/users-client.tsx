@@ -62,6 +62,7 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
   const [pwLoading, setPwLoading] = useState(false);
   const [pwMsg, setPwMsg] = useState<string | null>(null);
   const [pwDone, setPwDone] = useState(false);
+  const [pwResetUrl, setPwResetUrl] = useState<string | null>(null);
   const [activityUser, setActivityUser] = useState<UserRow | null>(null);
   type ActivityEntry = {
     id: string; action: string; entityType: string; entityId: string;
@@ -141,12 +142,14 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
     if (!pwUser) return;
     setPwLoading(true);
     setPwMsg(null);
+    setPwResetUrl(null);
     try {
       const res = await fetch(`/api/users/${pwUser.id}/reset-password`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setPwDone(true);
         setPwMsg(`Reset email sent to ${data.email}.${data.warning ? ` ${data.warning}` : ""}`);
+        if (data.resetUrl) setPwResetUrl(data.resetUrl);
       } else {
         setPwMsg(data.error ?? "Could not reset the password.");
       }
@@ -390,12 +393,23 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!pwUser} onOpenChange={(open) => { if (!open) setPwUser(null); }}>
+      <Dialog open={!!pwUser} onOpenChange={(open) => { if (!open) { setPwUser(null); setPwResetUrl(null); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Reset Password — {pwUser?.name ?? pwUser?.email}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             {pwDone ? (
-              <p className="text-sm text-green-700">{pwMsg}</p>
+              <>
+                <p className="text-sm text-green-700">{pwMsg}</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  The link expires in 1 hour. If email isn&apos;t configured on this server, copy the link
+                  below and send it yourself.
+                </p>
+                {pwResetUrl && (
+                  <code className="mt-2 block break-all rounded bg-gray-50 border border-gray-200 px-2 py-1 text-[11px] text-gray-800">
+                    {pwResetUrl}
+                  </code>
+                )}
+              </>
             ) : (
               <>
                 <p className="text-sm text-gray-600">
@@ -412,7 +426,7 @@ export function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPwUser(null)}>
+            <Button variant="outline" onClick={() => { setPwUser(null); setPwResetUrl(null); }}>
               {pwDone ? "Close" : "Cancel"}
             </Button>
             {!pwDone && (
