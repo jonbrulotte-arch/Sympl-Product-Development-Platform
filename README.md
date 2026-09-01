@@ -360,9 +360,9 @@ Sympl has no built-in scheduler. Three endpoints are designed to be triggered by
 # Calls the backup API for an encrypted database dump, then tars
 # data/uploads/. Old archives are pruned to the retention count
 # configured in Admin → Backup & Restore.
-0 2 * * * /srv/SymplPM/scripts/backup.sh \
-  http://localhost:8010 sbk_<your-token> /srv/SymplPM/backups \
-  >> /srv/SymplPM/logs/sympl-backup.log 2>&1
+0 2 * * * /home/jsadmin/jsproducts/SymplPM/scripts/backup.sh \
+  http://localhost:8010 sbk_<your-token> /home/jsadmin/jsproducts/SymplPM/backups \
+  >> /home/jsadmin/jsproducts/SymplPM/logs/sympl-backup.log 2>&1
 ```
 
 > **Production port:** The production server runs on port **8010**. Replace `8010` with `4000` for dev/staging instances using `deploy.sh` + PM2.
@@ -524,11 +524,11 @@ The production server runs at **10.0.10.106:8010** and uses a Python-venv proces
 
 ```bash
 # Clone the repo (production branch)
-git clone -b venv-prod https://github.com/jonbrulotte-arch/sympl-product-development-platform /srv/SymplPM
-cd /srv/SymplPM
+git clone -b main https://github.com/ecommercejsp/sympl-pm /home/jsadmin/jsproducts/SymplPM
+cd /home/jsadmin/jsproducts/SymplPM
 
 # Create Python venv and install the process manager
-bash scripts/venv_setup.sh         # defaults to /srv/SymplPM/venv
+bash scripts/venv_setup.sh         # defaults to /home/jsadmin/jsproducts/SymplPM/venv
 # Run as root to also install the systemd unit for boot persistence:
 # sudo bash scripts/venv_setup.sh
 
@@ -550,40 +550,37 @@ The seed prints the bootstrap admin credentials once. Change the password after 
 ### Starting, stopping, restarting
 
 ```bash
-python3 /srv/SymplPM/scripts/sympl_manager.py start
-python3 /srv/SymplPM/scripts/sympl_manager.py stop
-python3 /srv/SymplPM/scripts/sympl_manager.py restart
-python3 /srv/SymplPM/scripts/sympl_manager.py status
+python3 /home/jsadmin/jsproducts/SymplPM/scripts/sympl_manager.py start
+python3 /home/jsadmin/jsproducts/SymplPM/scripts/sympl_manager.py stop
+python3 /home/jsadmin/jsproducts/SymplPM/scripts/sympl_manager.py restart
+python3 /home/jsadmin/jsproducts/SymplPM/scripts/sympl_manager.py status
 ```
 
-The manager auto-loads `.env` before spawning the Node.js process, so all variables (including `DATABASE_URL`) are always available without manual exports. Logs are written to `/srv/SymplPM/logs/app.log`.
+The manager auto-loads `.env` before spawning the Node.js process, so all variables (including `DATABASE_URL`) are always available without manual exports. Logs are written to `/home/jsadmin/jsproducts/SymplPM/logs/app.log`.
 
 ### Deploying updates
 
 ```bash
-cd /srv/SymplPM
+cd /home/jsadmin/jsproducts/SymplPM
 # If there are local conflicts from previous pulls:
 git checkout scripts/deploy-prod.sh scripts/sympl_manager.py
 bash scripts/deploy-prod.sh
 ```
 
-`deploy-prod.sh` runs: `git pull origin venv-prod` → `chmod +x manager` → `npm install` → `prisma db push` → `prisma generate` → `npm run build` → `python3 sympl_manager.py restart`.
+`deploy-prod.sh` runs: `git pull origin main` → `chmod +x manager` → `npm install` → `prisma db push` → `prisma generate` → `npm run build` → `python3 sympl_manager.py restart`.
 
 ### Boot persistence (systemd)
 
-If `venv_setup.sh` was run as root, a `SymplPM.service` unit was installed:
+A `SymplPM.service` systemd unit manages boot persistence:
 
 ```bash
-sudo systemctl enable SymplPM
 sudo systemctl start SymplPM
+sudo systemctl stop SymplPM
+sudo systemctl restart SymplPM
 sudo systemctl status SymplPM
 ```
 
-Without root access, add a `@reboot` cron entry instead:
-
-```
-@reboot cd /srv/SymplPM && python3 scripts/sympl_manager.py start
-```
+The unit runs as `jsadmin` with the nvm Node.js path in its `Environment` directive. View startup logs with `journalctl -u SymplPM`.
 
 ### DATABASE_URL note
 
@@ -605,7 +602,7 @@ Utility scripts are in the `scripts/` directory.
 |--------|---------|
 | `scripts/sympl_manager.py` | Python process manager — start/stop/restart/status for the SymplPM Next.js process. Auto-loads `.env`. |
 | `scripts/venv_setup.sh` | One-time setup: creates the Python venv, log directory, and optionally installs the systemd unit (when run as root). |
-| `scripts/deploy-prod.sh` | Production deploy: pull `venv-prod`, rebuild, and restart SymplPM. |
+| `scripts/deploy-prod.sh` | Production deploy: pull `main`, rebuild, and restart SymplPM. |
 | `scripts/deploy.sh` | Dev/staging deploy using PM2 on the `claude/tender-gauss-iovx5c` branch. |
 | `scripts/report.sh` | Print a server resource report: process status, Node memory, database size and top tables, disk usage, and overall RAM/disk. |
 | `scripts/backup.sh` | Encrypted database dump + uploaded-file archive. Designed for cron — see [Cron Jobs](#cron-jobs). |
@@ -613,10 +610,10 @@ Utility scripts are in the `scripts/` directory.
 ### deploy-prod.sh (production)
 
 ```bash
-bash /srv/SymplPM/scripts/deploy-prod.sh
+bash /home/jsadmin/jsproducts/SymplPM/scripts/deploy-prod.sh
 ```
 
-Requires the Python venv at `$APP_DIR/venv` (created by `venv_setup.sh`). Pulls from the `venv-prod` branch. The PORT is read from `.env` or defaults to `8010`.
+Requires the Python venv at `$APP_DIR/venv` (created by `venv_setup.sh`). Pulls from the `main` branch. The PORT is read from `.env` or defaults to `8010`.
 
 ### deploy.sh (dev/staging)
 
