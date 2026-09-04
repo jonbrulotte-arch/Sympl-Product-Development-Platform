@@ -123,7 +123,7 @@ Open [http://localhost:4000](http://localhost:4000).
 |--------|---------|
 | `npm run dev` | Start the dev server on port 4000 (Turbopack) |
 | `npm run build` | Production build |
-| `npm run start` | Start the production server on port 4000 |
+| `npm run start` | Start the production server on `$PORT` (default: none — always set PORT in env) |
 | `npm run lint` | Run ESLint |
 | `npm run db:generate` | Regenerate the Prisma client |
 | `npm run db:push` | Push schema changes to the database |
@@ -346,24 +346,26 @@ Sympl has no built-in scheduler. Three endpoints are designed to be triggered by
 # Checks for overdue compliance events, overdue workflow stages,
 # and items due within 3 days. Each item alerts once; changing its
 # due date re-arms the alert. Also sends email when SMTP is configured.
-*/15 * * * * curl -s -X POST http://localhost:4000/api/cron/overdue-check \
+*/15 * * * * curl -s -X POST http://localhost:8010/api/cron/overdue-check \
   -H "Authorization: Bearer sbk_<your-token>"
 
 # ── Leadership digest ─────────────────────────────────────────────
 # Pipeline/compliance/approvals-aging summary emailed to all active
 # Admins, Directors, and Product Managers. Preview the HTML at /api/cron/digest
 # in the browser (with an admin session) without sending.
-0 7 * * 1 curl -s -X POST http://localhost:4000/api/cron/digest \
+0 7 * * 1 curl -s -X POST http://localhost:8010/api/cron/digest \
   -H "Authorization: Bearer sbk_<your-token>"
 
 # ── Full backup (database + uploaded files) ───────────────────────
 # Calls the backup API for an encrypted database dump, then tars
 # data/uploads/. Old archives are pruned to the retention count
 # configured in Admin → Backup & Restore.
-0 2 * * * /path/to/Sympl-Product-Development-Platform/scripts/backup.sh \
-  http://localhost:4000 sbk_<your-token> /var/backups/sympl \
-  >> /var/log/sympl-backup.log 2>&1
+0 2 * * * /home/jsadmin/jsproducts/SymplPM/scripts/backup.sh \
+  http://localhost:8010 sbk_<your-token> /home/jsadmin/jsproducts/SymplPM/backups \
+  >> /home/jsadmin/jsproducts/SymplPM/logs/sympl-backup.log 2>&1
 ```
+
+> **Production port:** The production server runs on port **8010**. Replace `8010` with `4000` for dev/staging instances using `deploy.sh` + PM2.
 
 > **Timezone:** Cron uses the server's system timezone. If you want `0 2 * * *` to mean 2:00 AM Pacific, make sure the server timezone is set to `America/Los_Angeles` (check with `timedatectl`). Otherwise convert to UTC manually — but note the UTC offset changes with daylight saving time.
 
@@ -514,23 +516,112 @@ Enable **Salsify Debug** in Admin → Settings to show **Salsify Log** and **Sal
 
 ---
 
+## Production Deployment (SymplPM — Python venv)
+
+The production server runs at **10.0.10.106:8010** and uses a Python-venv process manager instead of Docker or PM2. All services and files are named **SymplPM**.
+
+### One-time setup
+
+```bash
+# Clone the repo (production branch)
+git clone -b main https://github.com/ecommercejsp/sympl-pm /home/jsadmin/jsproducts/SymplPM
+cd /home/jsadmin/jsproducts/SymplPM
+
+# Create Python venv and install the process manager
+bash scripts/venv_setup.sh         # defaults to /home/jsadmin/jsproducts/SymplPM/venv
+# Run as root to also install the systemd unit for boot persistence:
+# sudo bash scripts/venv_setup.sh
+
+# Install Node.js (without root — uses nvm)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+source ~/.bashrc
+nvm install --lts
+
+# Create .env (see Environment Variables section above)
+# Then seed the database:
+npm install
+npx prisma db push
+npx prisma generate
+npm run db:seed
+```
+
+The seed prints the bootstrap admin credentials once. Change the password after first login.
+
+### Starting, stopping, restarting
+
+```bash
+python3 /home/jsadmin/jsproducts/SymplPM/scripts/sympl_manager.py start
+python3 /home/jsadmin/jsproducts/SymplPM/scripts/sympl_manager.py stop
+python3 /home/jsadmin/jsproducts/SymplPM/scripts/sympl_manager.py restart
+python3 /home/jsadmin/jsproducts/SymplPM/scripts/sympl_manager.py status
+```
+
+The manager auto-loads `.env` before spawning the Node.js process, so all variables (including `DATABASE_URL`) are always available without manual exports. Logs are written to `/home/jsadmin/jsproducts/SymplPM/logs/app.log`.
+
+### Deploying updates
+
+```bash
+cd /home/jsadmin/jsproducts/SymplPM
+# If there are local conflicts from previous pulls:
+git checkout scripts/deploy-prod.sh scripts/sympl_manager.py
+bash scripts/deploy-prod.sh
+```
+
+`deploy-prod.sh` runs: `git pull origin main` → `chmod +x manager` → `npm install` → `prisma db push` → `prisma generate` → `npm run build` → `python3 sympl_manager.py restart`.
+
+### Boot persistence (systemd)
+
+A `SymplPM.service` systemd unit manages boot persistence:
+
+```bash
+sudo systemctl start SymplPM
+sudo systemctl stop SymplPM
+sudo systemctl restart SymplPM
+sudo systemctl status SymplPM
+```
+
+The unit runs as `jsadmin` with the nvm Node.js path in its `Environment` directive. View startup logs with `journalctl -u SymplPM`.
+
+### DATABASE_URL note
+
+PostgreSQL passwords containing special characters (e.g. `/`) must be percent-encoded in `DATABASE_URL`:
+
+```
+DATABASE_URL=postgresql://user:P0bGtqep2QrG6QZq%2FO@localhost:5432/sympl_db
+```
+
+`/` → `%2F`, `@` → `%40`, `#` → `%23`, `?` → `%3F`. The simplest fix is to change the PostgreSQL password to one using only alphanumeric characters and hyphens.
+
+---
+
 ## Scripts
 
-Utility scripts are in the `scripts/` directory. Make them executable once after cloning (`chmod +x scripts/*.sh`).
+Utility scripts are in the `scripts/` directory.
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/deploy.sh` | Pull latest code, sync schema, regenerate Prisma client, build, and restart via pm2. Run this for every deployment. |
-| `scripts/report.sh` | Print a server resource report: pm2 process status, Node memory, database size and top tables, disk usage, and overall RAM/disk. |
+| `scripts/sympl_manager.py` | Python process manager — start/stop/restart/status for the SymplPM Next.js process. Auto-loads `.env`. |
+| `scripts/venv_setup.sh` | One-time setup: creates the Python venv, log directory, and optionally installs the systemd unit (when run as root). |
+| `scripts/deploy-prod.sh` | Production deploy: pull `main`, rebuild, and restart SymplPM. |
+| `scripts/deploy.sh` | Dev/staging deploy using PM2 on the `claude/tender-gauss-iovx5c` branch. |
+| `scripts/report.sh` | Print a server resource report: process status, Node memory, database size and top tables, disk usage, and overall RAM/disk. |
 | `scripts/backup.sh` | Encrypted database dump + uploaded-file archive. Designed for cron — see [Cron Jobs](#cron-jobs). |
 
-### deploy.sh
+### deploy-prod.sh (production)
+
+```bash
+bash /home/jsadmin/jsproducts/SymplPM/scripts/deploy-prod.sh
+```
+
+Requires the Python venv at `$APP_DIR/venv` (created by `venv_setup.sh`). Pulls from the `main` branch. The PORT is read from `.env` or defaults to `8010`.
+
+### deploy.sh (dev/staging)
 
 ```bash
 ./scripts/deploy.sh
 ```
 
-Runs: `git pull` → `prisma db push` → `prisma generate` → `npm run build` → `pm2 restart sympl`. Requires pm2 to be installed and the `sympl` process to be registered (`pm2 start "npm run start" --name sympl`).
+Runs: `git pull` → `prisma db push` → `prisma generate` → `npm run build` → `pm2 restart sympl`. Requires pm2 (`npm install -g pm2`).
 
 ### report.sh
 
@@ -538,7 +629,7 @@ Runs: `git pull` → `prisma db push` → `prisma generate` → `npm run build` 
 ./scripts/report.sh
 ```
 
-Outputs a snapshot of resource consumption: pm2 uptime/restarts, Node.js RSS and CPU, PostgreSQL database and table sizes, app directory breakdown, server RAM, and disk usage. The database credentials in the script (`DB_USER`, `PGPASSWORD`, `DB_NAME`) must match your `.env`.
+Outputs a snapshot of resource consumption: process uptime, Node.js RSS and CPU, PostgreSQL database and table sizes, app directory breakdown, server RAM, and disk usage. The database credentials (`DB_USER`, `PGPASSWORD`, `DB_NAME`) must match your `.env`.
 
 ---
 
