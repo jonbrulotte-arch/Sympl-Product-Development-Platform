@@ -298,7 +298,7 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden relative">
+      <div className="flex-1 overflow-y-auto relative">
         {/* ProductGrid stays mounted so in-progress edits survive tab switches */}
         <div className={activeTab === "grid" ? "absolute inset-0 flex flex-col" : "hidden"}>
           <ProductGrid
