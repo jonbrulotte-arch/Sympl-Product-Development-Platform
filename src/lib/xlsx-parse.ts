@@ -38,8 +38,8 @@ export async function parseUploadedWorkbook(buf: ArrayBuffer): Promise<ParsedWor
     if (ws.rowCount > 100_000) {
       throw new Error("Workbook exceeds safety limits (max 100,000 rows)");
     }
-    if (ws.columnCount > 500) {
-      throw new Error("Workbook exceeds safety limits (max 500 columns)");
+    if (ws.columnCount > 2000) {
+      throw new Error("Workbook exceeds safety limits (max 2000 columns)");
     }
   }
 
