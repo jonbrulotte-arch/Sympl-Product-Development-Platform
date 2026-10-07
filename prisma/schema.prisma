@@ -121,6 +121,8 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   accounts          Account[]
+  psirSavedCreated  PsirSavedProduct[] @relation("PsirSavedCreator")
+  psirSavedUpdated  PsirSavedProduct[] @relation("PsirSavedUpdater")
   sessions          Session[]
   ownedProjects     Project[]          @relation("ProjectOwner")
   projectMembers    ProjectMember[]
@@ -235,6 +237,9 @@ model Category {
   attributes AttributeDefinition[]
   projects   Project[]
   products   ProductRecord[]
+  psirTemplateLines     PsirTemplateLine[]
+  psirTemplateOverrides PsirTemplateLineOverride[]
+  psirSavedProducts     PsirSavedProduct[]
 }
 
 model AttributeSection {
@@ -895,6 +900,91 @@ model PsirAttributeValue {
 
   @@unique([psirId, attrDefId])
   @@index([psirId])
+}
+
+// ─── PSIR Generator ──────────────────────────────────────────────────────────
+// Template library for generated PSIR workbooks. Separate from the Inspections
+// (Psir*) records above. A line with categoryId = null is Global; a line with a
+// categoryId was added by that category and applies to it and its children.
+
+enum PsirSheet {
+  PSIR_DATA
+  PRODUCT_MEASUREMENTS
+  FUNCTIONAL_INSPECTIONS
+}
+
+model PsirTemplateSection {
+  id        String   @id @default(cuid())
+  name      String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines PsirTemplateLine[]
+}
+
+model PsirTemplateLine {
+  id             String    @id @default(cuid())
+  sheet          PsirSheet
+  sectionId      String?
+  categoryId     String?
+  name           String
+  requirement    String?   @db.Text
+  actualFindings String?   @db.Text
+  samplingLevel  String?
+  aql            String?
+  sortOrder      Int       @default(0)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  section   PsirTemplateSection?       @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  category  Category?                  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  overrides PsirTemplateLineOverride[]
+
+  @@index([sheet, categoryId])
+}
+
+// Null fields inherit from the next level up (parent category, then the line).
+model PsirTemplateLineOverride {
+  id             String   @id @default(cuid())
+  lineId         String
+  categoryId     String
+  hidden         Boolean?
+  requirement    String?  @db.Text
+  actualFindings String?  @db.Text
+  samplingLevel  String?
+  aql            String?
+  updatedAt      DateTime @updatedAt
+
+  line     PsirTemplateLine @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  category Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([lineId, categoryId])
+  @@index([categoryId])
+}
+
+model PsirSamplingLevel {
+  id        String @id @default(cuid())
+  label     String @unique
+  sortOrder Int    @default(0)
+}
+
+model PsirSavedProduct {
+  id           String   @id @default(cuid())
+  partNumber   String   @unique
+  description  String?
+  categoryId   String
+  tokenValues  Json     @default("{}")
+  createdById  String
+  updatedById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  category  Category @relation(fields: [categoryId], references: [id])
+  createdBy User     @relation("PsirSavedCreator", fields: [createdById], references: [id])
+  updatedBy User?    @relation("PsirSavedUpdater", fields: [updatedById], references: [id])
 }
 
 // ─── Backup ───────────────────────────────────────────────────────────────────

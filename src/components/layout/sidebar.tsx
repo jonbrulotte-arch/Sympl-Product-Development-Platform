@@ -26,6 +26,8 @@ import {
   KeyRound,
   BarChart3,
   ArrowRightLeft,
+  FileSpreadsheet,
+  ListChecks,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -37,6 +39,7 @@ const navItems = [
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/products", label: "Products", icon: Package },
   { href: "/psir", label: "Inspections", icon: ClipboardCheck },
+  { href: "/psir-generator", label: "PSIR Generator", icon: FileSpreadsheet },
   { href: "/compliance", label: "Compliance", icon: ShieldCheck },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/import", label: "Import", icon: Upload },
@@ -52,6 +55,7 @@ const adminNavItems: { href: string; label: string; icon: React.ElementType; per
   { href: "/admin/workflow-templates", label: "Workflows",          icon: GitBranch,      permission: "admin:workflow_templates" },
   { href: "/admin/compliance-types",   label: "Compliance Types",   icon: ShieldCheck,    permission: "admin:compliance_types" },
   { href: "/admin/psir-attributes",    label: "Inspection Attributes",    icon: ClipboardCheck, permission: "admin:psir_attributes" },
+  { href: "/admin/psir-templates",     label: "PSIR Templates",     icon: ListChecks,     permission: "admin:psir_templates" },
   { href: "/admin/backup",             label: "Backup & Restore",   icon: HardDrive,      permission: "admin:backup" },
   { href: "/admin/settings",           label: "Settings",           icon: Settings,       permission: "admin:settings" },
   { href: "/admin/api-tokens",         label: "API Tokens",         icon: KeyRound,       permission: "admin:settings" },
@@ -114,13 +118,15 @@ export function Sidebar({ user, grantedPermissions }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4 space-y-1 px-2">
-        {navItems.filter(({ href }) => inspectionsEnabled || href !== "/psir").map(({ href, label, icon: Icon }) => (
+        {navItems.filter(({ href }) =>
+          href === "/psir-generator" ? grantedPermissions.has("psir_generator:use") : inspectionsEnabled || href !== "/psir",
+        ).map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}
             className={cn(
               "flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
-              pathname.startsWith(href)
+              (pathname === href || pathname.startsWith(`${href}/`))
                 ? "bg-blue-600 text-white"
                 : "text-gray-300 hover:bg-gray-800 hover:text-white"
             )}

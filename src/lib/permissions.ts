@@ -71,6 +71,7 @@ export const PERMISSIONS = {
   "admin:workflow_templates": { label: "Manage Workflow Templates", description: "Create and edit reusable workflow templates" },
   "admin:compliance_types":   { label: "Manage Compliance Types",  description: "Create and edit compliance event types" },
   "admin:psir_attributes":    { label: "Manage Inspection Attributes",   description: "Create and edit inspection report attributes" },
+  "admin:psir_templates":     { label: "Manage PSIR Templates",    description: "Edit global and category-specific PSIR Generator lines" },
   "admin:backup":             { label: "Backup & Restore",         description: "Run backups and restore from snapshots" },
   "admin:settings":           { label: "Global Settings",          description: "Manage Salsify and other integration settings" },
   "projects:create":          { label: "Create Projects",          description: "Create new product development projects" },
@@ -82,6 +83,7 @@ export const PERMISSIONS = {
   "projects:override_status": { label: "Override Project Status",  description: "Manually set project status from the Settings tab" },
   "projects:transfer_ownership": { label: "Bulk Project Actions", description: "Bulk transfer ownership, change status, or archive projects. Permanent delete stays admin-only." },
   "admin:event_log":            { label: "Event Log",              description: "View the platform-wide audit event log" },
+  "psir_generator:use":         { label: "Use PSIR Generator",     description: "Generate PSIR workbooks and save PSIR products" },
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -92,6 +94,7 @@ const PM_PERMISSIONS: Permission[] = [
   "admin:categories", "admin:attributes", "projects:create",
   "products:sync_salsify", "products:pull_salsify", "products:export_qc_dims",
   "projects:override_status", "compliance:manage", "inspections:manage",
+  "psir_generator:use", "admin:psir_templates",
 ];
 
 const PERMISSION_DEFAULTS: Record<string, Permission[]> = {
