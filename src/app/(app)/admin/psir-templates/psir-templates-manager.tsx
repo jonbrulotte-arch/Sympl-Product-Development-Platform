@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { PSIR_SHEETS, type PsirSheetKey, type ResolvedPsirLine } from "@/lib/psir-template";
-import { categoryPaths, type CategoryOption } from "@/lib/psir-categories";
+import { categoryPaths, type CategoryOption } from "@/lib/category-paths";
 import { Tokenized } from "@/components/psir/tokenized";
 
 type Section = { id: string; name: string; sortOrder: number; isActive: boolean };

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
+import { categoryPaths, descendantIds, levelLabel } from "@/lib/category-paths";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -104,8 +105,10 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [reorderError, setReorderError] = useState<string | null>(null);
 
-  const rootCategories = categories.filter((c) => !c.parentId);
-  const childrenOf = (id: string) => categories.filter((c) => c.parentId === id);
+  const tree = useMemo(() => {
+    const byId = new Map(categories.map((c) => [c.id, c]));
+    return categoryPaths(categories).map((p) => ({ cat: byId.get(p.id)!, depth: p.depth }));
+  }, [categories]);
 
   const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
     setDraggingId(id);
@@ -179,32 +182,27 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
         return;
       }
 
-      // A sub-category dropped on a top-level row moves under that parent.
-      if (dragging.parentId && !target.parentId) {
-        const newSiblings = [...categories.filter((c) => c.parentId === target.id), dragging];
-        const oldSiblings = categories.filter(
-          (c) => c.parentId === dragging.parentId && c.id !== dragging.id
-        );
-        const updates = [
-          ...newSiblings.map((c, i) => ({
-            id: c.id,
-            sortOrder: i,
-            ...(c.id === dragging.id ? { parentId: target.id } : {}),
-          })),
-          ...oldSiblings.map((c, i) => ({ id: c.id, sortOrder: i })),
-        ];
-        setCategories((prev) =>
-          prev.map((c) => (c.id === dragging.id ? { ...c, parentId: target.id } : c))
-        );
-        persistOrder(updates, rollback);
+      // Dropped on a row under a different parent: nest it under that row.
+      if (descendantIds(categories, dragging.id).has(target.id)) {
+        setReorderError("A category can't be moved under itself or one of its own sub-categories.");
         return;
       }
-
-      // Anything else (promoting a parent, nesting deeper) isn't supported —
-      // use Edit to change a category's parent.
-      setReorderError(
-        "Drag reorders within a level, or moves a sub-category to another parent. Use Edit to change a top-level category's parent."
+      const newSiblings = [...categories.filter((c) => c.parentId === target.id), dragging];
+      const oldSiblings = categories.filter(
+        (c) => c.parentId === dragging.parentId && c.id !== dragging.id
       );
+      const updates = [
+        ...newSiblings.map((c, i) => ({
+          id: c.id,
+          sortOrder: i,
+          ...(c.id === dragging.id ? { parentId: target.id } : {}),
+        })),
+        ...oldSiblings.map((c, i) => ({ id: c.id, sortOrder: i })),
+      ];
+      setCategories((prev) =>
+        prev.map((c) => (c.id === dragging.id ? { ...c, parentId: target.id } : c))
+      );
+      persistOrder(updates, rollback);
     },
     [categories, draggingId, handleDragEnd, persistOrder]
   );
@@ -223,8 +221,8 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
         </CardHeader>
         <CardContent className="p-0">
           <p className="px-4 pb-2 text-xs text-gray-500">
-            Drag the <GripVertical className="inline h-3 w-3" /> handle to reorder within a level, or
-            drop a sub-category onto a top-level row to move it there.
+            Drag the <GripVertical className="inline h-3 w-3" /> handle onto a sibling to reorder, or onto
+            any other row to nest it there (Category &gt; Sub-Category &gt; Product Type &gt; …). Use Edit to move a category back to the top level.
           </p>
           {reorderError && (
             <div className="mx-4 mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -250,42 +248,23 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {rootCategories.map((cat) => (
-                  <React.Fragment key={cat.id}>
-                    <CategoryRow
-                      cat={cat}
-                      indent={0}
-                      allCategories={categories}
-                      onEdit={openEdit}
-                      onToggle={toggleActive}
-                      onDelete={deleteCategory}
-                      isDragging={draggingId === cat.id}
-                      isOver={dragOverId === cat.id}
-                      onDragStart={handleDragStart}
-                      onDragEnd={handleDragEnd}
-                      onDragOver={handleDragOver}
-                      onDragLeave={() => setDragOverId(null)}
-                      onDrop={handleDrop}
-                    />
-                    {childrenOf(cat.id).map((child) => (
-                      <CategoryRow
-                        key={child.id}
-                        cat={child}
-                        indent={1}
-                        allCategories={categories}
-                        onEdit={openEdit}
-                        onToggle={toggleActive}
-                        onDelete={deleteCategory}
-                        isDragging={draggingId === child.id}
-                        isOver={dragOverId === child.id}
-                        onDragStart={handleDragStart}
-                        onDragEnd={handleDragEnd}
-                        onDragOver={handleDragOver}
-                        onDragLeave={() => setDragOverId(null)}
-                        onDrop={handleDrop}
-                      />
-                    ))}
-                  </React.Fragment>
+                {tree.map(({ cat, depth }) => (
+                  <CategoryRow
+                    key={cat.id}
+                    cat={cat}
+                    indent={depth}
+                    allCategories={categories}
+                    onEdit={openEdit}
+                    onToggle={toggleActive}
+                    onDelete={deleteCategory}
+                    isDragging={draggingId === cat.id}
+                    isOver={dragOverId === cat.id}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={handleDragOver}
+                    onDragLeave={() => setDragOverId(null)}
+                    onDrop={handleDrop}
+                  />
                 ))}
               </tbody>
             </table>
@@ -324,12 +303,14 @@ export function CategoriesClient({ initialCategories }: { initialCategories: Cat
                 onChange={(e) => setForm((f) => ({ ...f, parentId: e.target.value }))}
               >
                 <option value="">— None (top-level) —</option>
-                {categories
-                  .filter((c) => !editing || c.id !== editing.id)
-                  .filter((c) => !c.parentId)
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+                {(() => {
+                  const blocked = editing ? descendantIds(categories, editing.id) : new Set<string>();
+                  return tree
+                    .filter(({ cat }) => !blocked.has(cat.id))
+                    .map(({ cat, depth }) => (
+                      <option key={cat.id} value={cat.id}>{"\u00A0\u00A0\u00A0".repeat(depth)}{depth ? "↳ " : ""}{cat.name}</option>
+                    ));
+                })()}
               </select>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
@@ -391,8 +372,11 @@ function CategoryRow({
           </span>
           {indent > 0 && <span className="text-gray-300">↳</span>}
           <span className="font-medium text-gray-900">{cat.name}</span>
+          {indent > 0 && (
+            <span className="ml-1 whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">{levelLabel(indent)}</span>
+          )}
         </span>
-        <span className="text-xs text-gray-400 pl-6">{cat.slug}</span>
+        <span className="text-xs text-gray-400" style={{ paddingLeft: indent * 16 + 24 }}>{cat.slug}</span>
       </td>
       <td className="px-4 py-2.5 text-gray-500 max-w-xs truncate">{cat.description ?? "—"}</td>
       <td className="px-4 py-2.5 text-gray-500">{parent?.name ?? "—"}</td>

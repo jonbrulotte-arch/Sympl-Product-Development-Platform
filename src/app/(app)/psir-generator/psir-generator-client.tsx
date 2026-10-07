@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tokenized } from "@/components/psir/tokenized";
-import { categoryPaths, type CategoryOption } from "@/lib/psir-categories";
+import { categoryPaths, type CategoryOption } from "@/lib/category-paths";
 import { extractTokens, numberPsirDataLines, PSIR_SHEETS, type ResolvedPsirLine } from "@/lib/psir-template";
 import { formatDateTime } from "@/lib/utils";
 
@@ -183,7 +183,7 @@ export function PsirGeneratorClient({ categories }: { categories: CategoryOption
             </Select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Sub-Category</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Sub-Category / Product Type</label>
             <Select value={subId} onValueChange={setSubId} disabled={!topId || subOptions.length === 0}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>

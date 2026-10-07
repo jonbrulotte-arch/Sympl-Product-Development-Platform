@@ -14,7 +14,7 @@ import {
 import { projectSchema, type ProjectInput } from "@/lib/validation";
 import { usePermissions } from "@/hooks/use-permissions";
 
-interface CategoryOption { id: string; name: string; }
+import { categoryPaths, type CategoryOption } from "@/lib/category-paths";
 
 export function CreateProjectDialog() {
   const { can } = usePermissions();
@@ -119,8 +119,8 @@ export function CreateProjectDialog() {
                   className="w-full border border-gray-300 rounded-lg p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="">— No category —</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                  {categoryPaths(categories).map((c) => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
                   ))}
                 </select>
               </div>

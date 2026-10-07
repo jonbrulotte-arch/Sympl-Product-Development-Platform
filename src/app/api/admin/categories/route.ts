@@ -60,7 +60,21 @@ export async function PATCH(req: NextRequest) {
   if (description !== undefined) data.description = description?.trim() || null;
   if (isActive !== undefined) data.isActive = isActive;
   if (sortOrder !== undefined) data.sortOrder = sortOrder;
-  if (parentId !== undefined) data.parentId = parentId || null;
+  if (parentId !== undefined) {
+    if (parentId) {
+      // Walk up from the new parent; reaching this category means it would nest inside itself.
+      const all = await prisma.category.findMany({ select: { id: true, parentId: true } });
+      const parentOf = new Map(all.map((c) => [c.id, c.parentId]));
+      const seen = new Set<string>();
+      for (let cur: string | null | undefined = parentId; cur && !seen.has(cur); cur = parentOf.get(cur)) {
+        if (cur === id) {
+          return NextResponse.json({ error: "A category cannot be moved under itself or one of its own sub-categories" }, { status: 400 });
+        }
+        seen.add(cur);
+      }
+    }
+    data.parentId = parentId || null;
+  }
 
   const category = await prisma.category.update({
     where: { id },

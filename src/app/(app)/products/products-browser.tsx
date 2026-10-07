@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { categoryPaths } from "@/lib/category-paths";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,7 @@ import {
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type Project = { id: string; name: string; brand: string | null };
-type Category = { id: string; name: string };
+type Category = { id: string; name: string; parentId: string | null };
 
 type ProductRow = {
   id: string;
@@ -329,8 +330,8 @@ export function ProductsBrowser({
               className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">All categories</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+              {categoryPaths(categories).map((c) => (
+                <option key={c.id} value={c.id}>{c.label}</option>
               ))}
             </select>
           )}

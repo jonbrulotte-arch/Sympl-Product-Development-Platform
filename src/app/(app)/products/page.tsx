@@ -25,8 +25,8 @@ export default async function ProductsPage() {
       orderBy: { name: "asc" },
     }),
     prisma.category.findMany({
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
+      select: { id: true, name: true, parentId: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     getInventoryStatuses(),
   ]);

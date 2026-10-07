@@ -25,7 +25,7 @@ export async function PUT(req: NextRequest) {
   }
 
   // Reparenting has to be checked, not trusted: a category may not become its
-  // own descendant, and the UI only supports two levels.
+  // own descendant. Depth is otherwise unlimited.
   const reparenting = updates.filter((u) => u.parentId !== undefined);
   if (reparenting.length > 0) {
     const all = await prisma.category.findMany({ select: { id: true, parentId: true } });
@@ -36,13 +36,6 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: "A category cannot be its own parent" }, { status: 400 });
       }
       if (u.parentId) {
-        // Target parent must be a root, keeping the tree two levels deep.
-        if (parentOf.get(u.parentId)) {
-          return NextResponse.json(
-            { error: "Sub-categories cannot be nested more than one level deep" },
-            { status: 400 }
-          );
-        }
         // Walk up from the new parent; hitting the moved node means a cycle.
         let cursor: string | null | undefined = u.parentId;
         const seen = new Set<string>();

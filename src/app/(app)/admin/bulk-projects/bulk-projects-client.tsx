@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { categoryPaths } from "@/lib/category-paths";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -179,11 +180,7 @@ export function BulkProjectsClient({ isAdmin }: { isAdmin: boolean }) {
 
   const newOwner = eligible.find((e) => e.id === newOwnerId);
 
-  const parentCategories = categories.filter((c) => !c.parentId);
-  const subCategoriesByParent = categories.reduce<Record<string, Category[]>>((acc, c) => {
-    if (c.parentId) (acc[c.parentId] ??= []).push(c);
-    return acc;
-  }, {});
+  const categoryTree = categoryPaths(categories);
 
   const ActionTab = ({ id, label: text, icon: Icon }: { id: Action; label: string; icon: React.ComponentType<{ className?: string }> }) => (
     <button
@@ -252,13 +249,8 @@ export function BulkProjectsClient({ isAdmin }: { isAdmin: boolean }) {
               className="border border-gray-300 rounded-md px-3 py-1.5 text-sm text-gray-900 bg-white min-w-56"
             >
               <option value="">All categories</option>
-              {parentCategories.map((parent) => (
-                <optgroup key={parent.id} label={parent.name}>
-                  <option value={parent.id}>{parent.name} (top level)</option>
-                  {(subCategoriesByParent[parent.id] ?? []).map((sub) => (
-                    <option key={sub.id} value={sub.id}>&nbsp;&nbsp;{sub.name}</option>
-                  ))}
-                </optgroup>
+              {categoryTree.map((c) => (
+                <option key={c.id} value={c.id}>{"\u00A0\u00A0\u00A0".repeat(c.depth)}{c.depth ? "↳ " : ""}{c.label.split(" > ").pop()}</option>
               ))}
             </select>
           </div>

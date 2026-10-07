@@ -22,3 +22,20 @@ export function categoryPaths(categories: CategoryOption[]): { id: string; label
   walk(null, "", 0, new Set());
   return out;
 }
+
+/** The category itself plus everything nested under it. */
+export function descendantIds(categories: CategoryOption[], id: string): Set<string> {
+  const out = new Set<string>([id]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const c of categories) {
+      if (c.parentId && out.has(c.parentId) && !out.has(c.id)) { out.add(c.id); grew = true; }
+    }
+  }
+  return out;
+}
+
+export function levelLabel(depth: number): string {
+  return depth === 0 ? "Category" : depth === 1 ? "Sub-Category" : "Product Type";
+}
