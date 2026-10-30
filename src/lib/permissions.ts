@@ -78,7 +78,7 @@ export const PERMISSIONS = {
   "compliance:manage":        { label: "Manage Compliance Events", description: "Create, edit, and delete compliance events and their documents" },
   "inspections:manage":       { label: "Manage Inspection Reports", description: "Create, edit, and delete inspection reports and their documents" },
   "products:sync_salsify":    { label: "Sync to Salsify",          description: "Push product data to Salsify" },
-  "products:pull_salsify":    { label: "Pull from Salsify",        description: "Overwrite Sympl product data with the current values from Salsify" },
+  "products:pull_salsify":    { label: "Pull from Salsify",        description: "Overwrite product data here with the current values from Salsify" },
   "products:export_qc_dims":  { label: "Export QC Dims",           description: "Export selected products as a QC dimensions sheet" },
   "projects:override_status": { label: "Override Project Status",  description: "Manually set project status from the Settings tab" },
   "projects:transfer_ownership": { label: "Bulk Project Actions", description: "Bulk transfer ownership, change status, or archive projects. Permanent delete stays admin-only." },

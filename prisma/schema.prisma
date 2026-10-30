@@ -294,6 +294,13 @@ model AppConfig {
   /// When false, the Inspections (PSIR) module is hidden platform-wide.
   /// Data is retained; re-enabling restores everything.
   inspectionsEnabled  Boolean  @default(true)
+  /// Custom branding (Admin → Settings). Off or empty = default Sympl PM branding.
+  brandingEnabled     Boolean   @default(false)
+  brandName           String?
+  brandTagline        String?
+  /// Data URL (≤ 1 MB). Stored in the DB so it travels with backups.
+  brandLogo           String?   @db.Text
+  brandUpdatedAt      DateTime?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }

@@ -6,6 +6,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle } from "lucide-react";
+import { BrandMark } from "@/components/branding/brand-mark";
+import { useBranding } from "@/components/branding/branding-context";
 
 function ResetPasswordForm() {
   const params = useSearchParams();
@@ -88,8 +90,8 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Sympl</h1>
-          <p className="text-gray-500 mt-1 text-sm">Product Development Platform</p>
+          <h1><BrandMark size="lg" tone="light" className="justify-center" /></h1>
+          <p className="text-gray-500 mt-2 text-sm"><Tagline /></p>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
           <Suspense fallback={<p className="text-sm text-gray-400">Loading…</p>}>
@@ -99,4 +101,8 @@ export default function ResetPasswordPage() {
       </div>
     </div>
   );
+}
+
+function Tagline() {
+  return <>{useBranding().tagline}</>;
 }

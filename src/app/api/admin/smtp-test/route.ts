@@ -29,14 +29,14 @@ export async function POST(req: NextRequest) {
         : `Provider: SMTP<br/>Host: ${process.env.SMTP_HOST}<br/>Port: ${process.env.SMTP_PORT ?? 587}<br/>Secure: ${process.env.SMTP_SECURE === "true" ? "Yes (TLS)" : "No (STARTTLS)"}<br/>Auth: ${process.env.SMTP_USER ? "Yes" : "None"}`;
 
     const html = wrap("Email Test Successful", `
-      <p style="color:#374151;font-size:14px;line-height:1.6">This is a test email from your Sympl PM instance. If you're reading this, your ${providerLabel} configuration is working correctly.</p>
+      <p style="color:#374151;font-size:14px;line-height:1.6">This is a test email from your {{BRAND_NAME}} instance. If you're reading this, your ${providerLabel} configuration is working correctly.</p>
       <div style="margin:16px 0;padding:12px 16px;background:#f0fdf4;border-left:3px solid #22c55e;color:#166534;font-size:13px">
         <strong>Configuration:</strong><br/>${configDetail}
       </div>
       <p style="margin:24px 0 0;font-size:12px;color:#9ca3af">Sent by an administrator from Admin → Settings.</p>
     `);
 
-    await sendMail(to, "Sympl PM — Email Test", html);
+    await sendMail(to, "{{BRAND_NAME}} — Email Test", html);
     return NextResponse.json({ success: true, provider });
   } catch (err: unknown) {
     console.error("[email-test] Test failed:", err instanceof Error ? err.message : err);

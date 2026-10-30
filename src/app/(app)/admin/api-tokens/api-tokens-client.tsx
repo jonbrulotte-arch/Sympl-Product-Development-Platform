@@ -172,7 +172,7 @@ export function ApiTokensClient() {
             <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
               <p className="text-sm text-gray-700">
                 <Check className="inline h-3.5 w-3.5 text-green-600 mr-1" />
-                An automation token is active. Sympl only stores its hash, so it can&apos;t be shown
+                An automation token is active. Only its hash is stored, so it can&apos;t be shown
                 again — regenerate below if you no longer have it.
               </p>
               <div className="flex items-center gap-2 shrink-0 ml-4">

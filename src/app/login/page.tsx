@@ -6,8 +6,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BrandMark } from "@/components/branding/brand-mark";
+import { useBranding } from "@/components/branding/branding-context";
 
 export default function LoginPage() {
+  const branding = useBranding();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -37,10 +40,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white tracking-tight">
-            Sympl <span className="text-blue-400">PM</span>
-          </h1>
-          <p className="text-gray-400 mt-1 text-sm">Product Development Platform</p>
+          <h1><BrandMark size="lg" tone="dark" className="justify-center" /></h1>
+          <p className="text-gray-400 mt-2 text-sm">{branding.tagline}</p>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">

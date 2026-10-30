@@ -8,6 +8,7 @@ import {
   BarChart3, Download, Loader2, X, ExternalLink, ArrowRight, Check,
 } from "lucide-react";
 import Link from "next/link";
+import { BrandShortName } from "@/components/branding/brand-mark";
 
 type ReportType =
   | "inspections" | "compliance" | "overdue-stages" | "overdue-projects"
@@ -373,7 +374,7 @@ function DriftDetailDrawer({
                 <p className="font-medium text-gray-900">{fmtWhen(detail.product.salsifyLastSyncedAt)}</p>
               </div>
               <div>
-                <p className="text-gray-500">Last edited in Sympl</p>
+                <p className="text-gray-500">Last edited in <BrandShortName /></p>
                 <p className="font-medium text-gray-900">{fmtWhen(detail.product.updatedAt)}</p>
               </div>
             </div>

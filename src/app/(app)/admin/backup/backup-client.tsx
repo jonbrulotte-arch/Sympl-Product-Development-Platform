@@ -238,7 +238,7 @@ export function BackupClient() {
         // nginx's client_max_body_size defaults to 1 MB.
         setUploadMsg({
           ok: false,
-          text: "Upload rejected: file too large (413). If Sympl runs behind a reverse proxy (nginx/Apache), raise its body-size limit — e.g. nginx client_max_body_size — to at least the snapshot size.",
+          text: "Upload rejected: file too large (413). If the app runs behind a reverse proxy (nginx/Apache), raise its body-size limit — e.g. nginx client_max_body_size — to at least the snapshot size.",
         });
       } else if (xhr.status === 504 || xhr.status === 502) {
         setUploadMsg({
@@ -495,7 +495,7 @@ export function BackupClient() {
             <p className="text-xs text-gray-500">
               Upload a <code className="font-mono bg-gray-100 px-1 rounded">.pgenc</code> database backup or
               a <code className="font-mono bg-gray-100 px-1 rounded">.tar.gz</code> files archive downloaded from
-              another Sympl server. It is added to the list below, where you can restore it.
+              another server running this platform. It is added to the list below, where you can restore it.
             </p>
 
             {uploadMsg && (

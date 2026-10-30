@@ -8,6 +8,7 @@ import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, ArrowRight, ArrowLef
 import { cn } from "@/lib/utils";
 import { Suspense } from "react";
 import { CORE_FIELDS, CORE_FIELD_KEYS } from "@/lib/core-fields";
+import { BrandShortName } from "@/components/branding/brand-mark";
 
 // Hardcoded core field labels as fallback for unseeded installs
 const SYMPL_FIELDS_FALLBACK = CORE_FIELDS.map((f) => ({ key: f.key, label: f.label }));
@@ -416,7 +417,7 @@ function ImportWizardContent() {
           <Card>
             <CardHeader>
               <div>
-                <CardTitle>Map Columns to Sympl Fields</CardTitle>
+                <CardTitle>Map Columns to <BrandShortName /> Fields</CardTitle>
                 <p className="text-sm text-gray-500 mt-1">
                   We&apos;ve auto-detected {Object.values(mapping).filter(Boolean).length} of {preview.headers.length} column mappings.
                   Review and adjust as needed.

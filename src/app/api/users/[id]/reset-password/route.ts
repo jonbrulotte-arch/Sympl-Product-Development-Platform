@@ -48,7 +48,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   });
 
   const resetUrl = `${BASE_URL}/reset-password?token=${token}`;
-  await sendMail(user.email, "Reset your Sympl password", passwordResetEmail(resetUrl));
+  await sendMail(user.email, "Reset your {{BRAND_NAME}} password", passwordResetEmail(resetUrl));
 
   await logActivity({
     userId: session.user.id,

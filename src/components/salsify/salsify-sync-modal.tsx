@@ -6,6 +6,7 @@ import {
   Loader2, ArrowRight, Eraser, PlusCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BrandShortName } from "@/components/branding/brand-mark";
 
 // Push counterpart to the pull change report: before overwriting Salsify, show
 // exactly which properties change, what they change from, and which go blank.
@@ -187,7 +188,7 @@ export function SalsifySyncModal({ mode, projectId, productIds, onConfirm, onClo
                   <Eraser className="h-4 w-4 mt-0.5 shrink-0" />
                   <span>
                     <strong>{summary.totalClearing} value{summary.totalClearing !== 1 ? "s" : ""} in Salsify
-                    will be emptied</strong> because the matching field is blank in Sympl. Those are
+                    will be emptied</strong> because the matching field is blank in <BrandShortName />. Those are
                     marked <em>clears</em> below — untick the attribute to leave Salsify&apos;s value alone.
                   </span>
                 </div>
@@ -225,7 +226,7 @@ export function SalsifySyncModal({ mode, projectId, productIds, onConfirm, onClo
 
               {attrs.length === 0 ? (
                 <div className="text-center py-12 text-sm text-gray-500">
-                  Nothing to push — Salsify already matches Sympl for every mapped attribute.
+                  Nothing to push — Salsify already matches <BrandShortName /> for every mapped attribute.
                 </div>
               ) : (
                 <>

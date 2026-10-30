@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     });
 
     const resetUrl = `${BASE_URL}/reset-password?token=${token}`;
-    await sendMail(user.email, "Reset your Sympl password", passwordResetEmail(resetUrl));
+    await sendMail(user.email, "Reset your {{BRAND_NAME}} password", passwordResetEmail(resetUrl));
     logActivity({
       userId: user.id,
       action: "PASSWORD_RESET",

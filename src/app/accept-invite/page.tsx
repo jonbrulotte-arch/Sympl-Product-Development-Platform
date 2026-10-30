@@ -6,6 +6,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle } from "lucide-react";
+import { BrandMark } from "@/components/branding/brand-mark";
+import { useBranding } from "@/components/branding/branding-context";
 
 // Where an invited user lands. Consumes the same single-use token as a
 // password reset — only the wording differs, because the account has never
@@ -68,7 +70,7 @@ function AcceptInviteForm() {
 
   return (
     <>
-      <h2 className="text-lg font-semibold text-gray-900 mb-2">Welcome to Sympl PM</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-2">Welcome to <BrandName /></h2>
       <p className="text-sm text-gray-500 mb-6">
         Choose a password to activate your account. It must be at least 8 characters.
       </p>
@@ -117,8 +119,8 @@ export default function AcceptInvitePage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Sympl</h1>
-          <p className="text-gray-500 mt-1 text-sm">Product Development Platform</p>
+          <h1><BrandMark size="lg" tone="light" className="justify-center" /></h1>
+          <p className="text-gray-500 mt-2 text-sm"><Tagline /></p>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
           <Suspense fallback={<p className="text-sm text-gray-400">Loading…</p>}>
@@ -128,4 +130,12 @@ export default function AcceptInvitePage() {
       </div>
     </div>
   );
+}
+
+function Tagline() {
+  return <>{useBranding().tagline}</>;
+}
+
+function BrandName() {
+  return <>{useBranding().name}</>;
 }

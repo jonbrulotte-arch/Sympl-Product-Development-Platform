@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { CORE_FIELDS } from "@/lib/core-fields";
+import { getBranding } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
 
@@ -177,7 +178,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="max-w-4xl mx-auto">
-          <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-1">Sympl PM — Shared View</p>
+          <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-1">{(await getBranding()).name} — Shared View</p>
           <h1 className="text-xl font-bold text-gray-900">{title}</h1>
           {subtitle && <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>}
         </div>

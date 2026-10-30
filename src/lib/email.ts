@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { getBranding } from "@/lib/branding";
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -79,10 +80,9 @@ export function getActiveEmailProvider(): EmailProvider {
   return "none";
 }
 
-const FROM =
-  process.env.MSGRAPH_FROM_ADDRESS ??
-  process.env.SMTP_FROM ??
-  "Sympl <no-reply@sympl.app>";
+// An explicitly configured sender always wins; otherwise the display name follows the brand.
+const EXPLICIT_FROM = process.env.MSGRAPH_FROM_ADDRESS ?? process.env.SMTP_FROM ?? null;
+const DEFAULT_FROM_ADDRESS = "no-reply@sympl.app";
 // NextAuth v5 reads AUTH_URL; NEXTAUTH_URL kept as a v4-era fallback.
 const BASE_URL = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:4000";
 
@@ -91,15 +91,37 @@ export function wrap(title: string, body: string) {
   return `<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;background:#f3f4f6;margin:0;padding:32px">
 <div style="max-width:520px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
   <div style="background:#1e40af;padding:24px 32px">
-    <span style="color:#fff;font-size:18px;font-weight:700">Sympl <span style="color:#93c5fd">PM</span></span>
+    {{BRAND_HEADER}}
   </div>
   <div style="padding:32px">
     <h2 style="margin:0 0 16px;font-size:20px;color:#111827">${esc(title)}</h2>
     ${body}
-    <p style="margin:32px 0 0;font-size:12px;color:#9ca3af">You received this because you are a member of a Sympl project. To stop receiving emails, contact your administrator.</p>
+    <p style="margin:32px 0 0;font-size:12px;color:#9ca3af">You received this because you have an account on {{BRAND_NAME}}. To stop receiving emails, contact your administrator.</p>
   </div>
 </div>
 </body></html>`;
+}
+
+// Brand placeholders written by wrap()/templates and resolved at send time, so
+// every email follows the current Admin → Settings branding.
+export async function applyEmailBranding(text: string, mode: "html" | "subject" = "html"): Promise<string> {
+  if (!text.includes("{{BRAND_")) return text;
+  const b = await getBranding();
+  const name = mode === "html" ? esc(b.name) : b.name;
+  const header = b.custom
+    ? `${b.logoUrl ? `<img src="${BASE_URL}${b.logoUrl}" alt="" height="32" style="height:32px;max-width:120px;vertical-align:middle;border-radius:4px;margin-right:10px;background:#fff">` : ""}<span style="color:#fff;font-size:18px;font-weight:700;vertical-align:middle">${esc(b.name)}</span>`
+    : `<span style="color:#fff;font-size:18px;font-weight:700">Sympl <span style="color:#93c5fd">PM</span></span>`;
+  return text
+    .replaceAll("{{BRAND_HEADER}}", header)
+    .replaceAll("{{BRAND_NAME}}", name)
+    .replaceAll("{{BRAND_SHORT}}", b.custom ? name : "Sympl");
+}
+
+async function fromAddress(): Promise<string> {
+  if (EXPLICIT_FROM) return EXPLICIT_FROM;
+  const b = await getBranding();
+  const display = (b.custom ? b.name : "Sympl").replace(/["\\<>\r\n]/g, "");
+  return `"${display}" <${DEFAULT_FROM_ADDRESS}>`;
 }
 
 export async function sendMail(to: string, subject: string, html: string) {
@@ -107,7 +129,12 @@ export async function sendMail(to: string, subject: string, html: string) {
   const transport = getTransport();
   if (!transport) return; // email not configured — silently skip
   try {
-    await transport.sendMail({ from: FROM, to, subject, html });
+    const [brandedSubject, brandedHtml, from] = await Promise.all([
+      applyEmailBranding(subject, "subject"),
+      applyEmailBranding(html),
+      fromAddress(),
+    ]);
+    await transport.sendMail({ from, to, subject: brandedSubject, html: brandedHtml });
   } catch {
     // Don't let email failures break the caller
   }
@@ -115,7 +142,7 @@ export async function sendMail(to: string, subject: string, html: string) {
 
 export function passwordResetEmail(resetUrl: string) {
   return wrap("Reset your password", `
-    <p style="color:#374151;font-size:14px;line-height:1.6">We received a request to reset the password for your Sympl account. Click the button below to set a new password. This link expires in <strong>1 hour</strong>.</p>
+    <p style="color:#374151;font-size:14px;line-height:1.6">We received a request to reset the password for your {{BRAND_NAME}} account. Click the button below to set a new password. This link expires in <strong>1 hour</strong>.</p>
     <a href="${resetUrl}" style="display:inline-block;margin:16px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600">Reset Password</a>
     <p style="color:#6b7280;font-size:12px">If you didn't request this, you can safely ignore this email. Your password won't change.</p>
   `);
@@ -130,8 +157,8 @@ export function invitationEmail(opts: {
   roleLabel: string;
   expiresInDays: number;
 }) {
-  return wrap("You've been invited to Sympl PM", `
-    <p style="color:#374151;font-size:14px;line-height:1.6"><strong>${esc(opts.inviterName)}</strong> has created an account for you on Sympl PM, the product development platform.</p>
+  return wrap("You've been invited to {{BRAND_NAME}}", `
+    <p style="color:#374151;font-size:14px;line-height:1.6"><strong>${esc(opts.inviterName)}</strong> has created an account for you on {{BRAND_NAME}}.</p>
     <p style="color:#374151;font-size:14px;line-height:1.6">Your role is <strong>${esc(opts.roleLabel)}</strong>. Set a password to activate your account and sign in.</p>
     <a href="${opts.inviteUrl}" style="display:inline-block;margin:16px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600">Set Your Password</a>
     <p style="color:#6b7280;font-size:12px">This invitation expires in ${opts.expiresInDays} days. If it lapses, ask your administrator to send a new one.</p>
@@ -206,18 +233,18 @@ export function stageAssignedEmail(opts: {
 
 // Generic branded notification email — used as the default body for any
 // notification that doesn't build its own template, so every email shares
-// the same Sympl PM header/card formatting.
+// the same branded header/card formatting.
 export function notificationEmail(opts: {
   title: string;
   message: string;
   /** App-relative link, e.g. "/compliance" or "/projects/abc" */
   link?: string | null;
-  /** Button label; defaults to "Open in Sympl" */
+  /** Button label; defaults to "Open in {brand}" */
   linkLabel?: string;
 }) {
   return wrap(opts.title, `
     <p style="color:#374151;font-size:14px;line-height:1.6">${esc(opts.message)}</p>
-    ${opts.link ? `<a href="${BASE_URL}${opts.link}" style="display:inline-block;margin:16px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">${opts.linkLabel ?? "Open in Sympl"}</a>` : ""}
+    ${opts.link ? `<a href="${BASE_URL}${opts.link}" style="display:inline-block;margin:16px 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">${opts.linkLabel ?? "Open in {{BRAND_SHORT}}"}</a>` : ""}
   `);
 }
 

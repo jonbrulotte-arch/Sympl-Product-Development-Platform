@@ -45,7 +45,7 @@ export async function sendInvitation(opts: {
   const inviteUrl = `${BASE_URL}/accept-invite?token=${token}`;
   await sendMail(
     opts.email,
-    "You've been invited to Sympl PM",
+    "You've been invited to {{BRAND_NAME}}",
     invitationEmail({
       inviteUrl,
       inviterName: opts.inviterName,

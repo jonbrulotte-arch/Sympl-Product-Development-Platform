@@ -34,6 +34,7 @@ import { cn, getInitials } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import type { SafeUser } from "@/types";
 import type { Permission } from "@/lib/permissions";
+import { BrandMark } from "@/components/branding/brand-mark";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -120,12 +121,8 @@ export function Sidebar({ user, grantedPermissions }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex items-center h-14 px-4 border-b border-gray-700">
-        {!collapsed && (
-          <span className="text-lg font-bold text-white tracking-tight">Sympl <span className="text-blue-400">PM</span></span>
-        )}
-        {collapsed && (
-          <span className="text-lg font-bold text-white mx-auto">S</span>
-        )}
+        {!collapsed && <BrandMark size="sm" tone="dark" />}
+        {collapsed && <BrandMark size="icon" tone="dark" className="mx-auto" />}
       </div>
 
       {/* Nav */}
