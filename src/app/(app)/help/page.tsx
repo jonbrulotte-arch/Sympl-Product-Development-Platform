@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   BookOpen, Package, FolderKanban, Upload, CheckCircle,
   ListFilter, Tag, ChevronDown, ChevronRight, Code2, Zap,
-  Info, Search, ShieldCheck, ClipboardCheck, HardDrive, BarChart3, AlertTriangle,
+  Info, Search, ShieldCheck, Tags, ClipboardCheck, HardDrive, BarChart3, AlertTriangle,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -255,8 +255,8 @@ const sections: Section[] = [
           <LI><strong>Salsify</strong> — <em>Synced</em> (green) when the product is unchanged since its last Salsify sync, <em>Changed</em> (yellow) when it has been edited since, or <em>—</em> if never synced.</LI>
         </UL>
 
-        <H3>Duplicate part number alert</H3>
-        <P>If a product&apos;s Part Number is already used by a product in <em>another</em> project (system-wide), an amber warning triangle appears next to the Part Number cell — hover it to see which project. The same alert appears in the global Products browser and as a banner on the product record page.</P>
+        <H3>Shared products &amp; part numbers</H3>
+        <P>Part numbers are unique across the whole product catalog. If you type a part number that already exists, Sympl offers to add that existing product to this project instead of creating a duplicate. A blue link icon next to the Part Number means the product is also in another project — edits made here change it there too. <strong>Remove</strong> takes a product out of this project only; it stays in the catalog.</P>
 
         <H3>Sync to Salsify from the grid</H3>
         <P>When one or more rows are selected, a green <strong>Sync to Salsify</strong> button appears in the selection toolbar (alongside Bulk Edit, Duplicate, and Delete). Clicking it opens the same change report, scoped to just the selected products. The button is only shown when the project is in <strong>Export Ready</strong> status and Salsify is enabled.</P>
@@ -289,7 +289,7 @@ const sections: Section[] = [
       <>
         <H3>Browsing across projects</H3>
         <P>
-          The <strong>Products</strong> page in the sidebar shows all products across every project you have access to, paginated 50 at a time. Admins see all products; other users see only products from their projects.
+          The <strong>Products</strong> page is the product catalog: every product, whether it is in one project, several, or none, paginated 50 at a time. Everyone can view the catalog; editing a product requires edit access on a project it belongs to, or the <em>Edit Catalog Products</em> permission. Users with that permission can also create products here with <strong>New Product</strong> and add them to projects from the product page.
         </P>
 
         <H3>Filters</H3>
@@ -304,6 +304,21 @@ const sections: Section[] = [
         <H3>Full product edit page</H3>
         <P>Click any row to open the full product edit page at <Code>/products/[id]</Code>. This page shows every core field and every EAV attribute organized by section, plus tabs for <strong>Compliance</strong> events, <strong>Inspections</strong>, and <strong>History</strong> — the full field-level change log showing who changed what, when, and the old → new values.</P>
         <P>The header shows a <strong>% complete</strong> chip (required fields filled in) and, for Admins, Directors, and Product Managers, <strong>Share</strong> and <strong>Sync to Salsify</strong> buttons — plus <strong>Pull from Salsify</strong> for anyone holding that permission.</P>
+      </>
+    ),
+  },
+  {
+    id: "category-requests",
+    icon: Tags,
+    title: "Category Requests",
+    color: "text-teal-600 bg-teal-50",
+    content: (
+      <>
+        <H3>Requesting a category</H3>
+        <P>Product Managers (and anyone with the <em>Request Categories</em> permission) can ask for a new Category, Sub-Category or Product Type from <strong>Category Requests → New Request</strong>. Choose where it goes (or ask for a new parent too), describe what belongs in it, list the <strong>Required Attributes</strong> — name, type, required/optional, allowed values for lists, and notes — and add a note for the reviewers.</P>
+        <H3>Review</H3>
+        <P>Admins and Directors are notified in their inbox and by email, and see pending requests on the dashboard and under the <strong>Pending</strong> tab. A reviewer can <strong>Approve</strong>, ask for more information (<strong>Needs Info</strong>), or <strong>Reject</strong> with a note. Approving does not build anything: create the category and its attributes in Admin → Categories and Attributes, then <strong>Mark Completed</strong> and link the new category. The requester is notified at every step and can edit and resubmit while a request is open.</P>
+        <P>Every step is recorded in the request&apos;s history and in Admin → Event Log. Email for these notifications can be turned off in My Profile → Notification Preferences.</P>
       </>
     ),
   },

@@ -221,4 +221,27 @@ export function notificationEmail(opts: {
   `);
 }
 
+export function categoryRequestEmail(opts: {
+  heading: string;
+  intro: string;
+  name: string;
+  parentPath: string;
+  requester: string;
+  note?: string | null;
+  attributes: { name: string; type: string; required: boolean }[];
+  link: string;
+}) {
+  const rows = opts.attributes.map((a) =>
+    `<tr><td style="padding:4px 8px;border-top:1px solid #e5e7eb">${esc(a.name)}</td><td style="padding:4px 8px;border-top:1px solid #e5e7eb;color:#6b7280">${esc(a.type)}</td><td style="padding:4px 8px;border-top:1px solid #e5e7eb;color:#6b7280">${a.required ? "Required" : "Optional"}</td></tr>`,
+  ).join("");
+  return wrap(opts.heading, `
+    <p style="color:#374151;font-size:14px;line-height:1.6">${esc(opts.intro)}</p>
+    <p style="color:#111827;font-size:14px;margin:12px 0 4px"><strong>${esc(opts.parentPath ? `${opts.parentPath} > ` : "")}${esc(opts.name)}</strong></p>
+    <p style="color:#6b7280;font-size:13px;margin:0 0 12px">Requested by ${esc(opts.requester)}</p>
+    ${opts.note ? `<p style="color:#374151;font-size:13px;line-height:1.6;border-left:3px solid #1e40af;padding-left:10px">${esc(opts.note)}</p>` : ""}
+    ${rows ? `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:12px"><tr><th align="left" style="padding:4px 8px;color:#6b7280">Attribute</th><th align="left" style="padding:4px 8px;color:#6b7280">Type</th><th align="left" style="padding:4px 8px;color:#6b7280"></th></tr>${rows}</table>` : ""}
+    <a href="${BASE_URL}${opts.link}" style="display:inline-block;margin:20px 0 0;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">Open request</a>
+  `);
+}
+
 export { BASE_URL };

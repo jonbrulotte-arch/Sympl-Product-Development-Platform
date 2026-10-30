@@ -84,6 +84,8 @@ export const PERMISSIONS = {
   "projects:transfer_ownership": { label: "Bulk Project Actions", description: "Bulk transfer ownership, change status, or archive projects. Permanent delete stays admin-only." },
   "admin:event_log":            { label: "Event Log",              description: "View the platform-wide audit event log" },
   "products:edit_catalog":      { label: "Edit Catalog Products",  description: "Create and edit products outside projects you belong to" },
+  "categories:request":         { label: "Request Categories",     description: "Submit requests for new categories and their attributes" },
+  "categories:review_requests": { label: "Review Category Requests", description: "Approve, reject or complete category requests" },
   "psir_generator:use":         { label: "Use PSIR Generator",     description: "Generate PSIR workbooks and save PSIR products" },
 } as const;
 
@@ -96,12 +98,13 @@ const PM_PERMISSIONS: Permission[] = [
   "products:sync_salsify", "products:pull_salsify", "products:export_qc_dims",
   "projects:override_status", "compliance:manage", "inspections:manage",
   "psir_generator:use", "admin:psir_templates", "products:edit_catalog",
+  "categories:request",
 ];
 
 const PERMISSION_DEFAULTS: Record<string, Permission[]> = {
   ADMIN:           Object.keys(PERMISSIONS) as Permission[],
   // A Director oversees the whole portfolio, so reassigning it is theirs.
-  DIRECTOR:        [...PM_PERMISSIONS, "projects:transfer_ownership"],
+  DIRECTOR:        [...PM_PERMISSIONS, "projects:transfer_ownership", "categories:review_requests"],
   PRODUCT_MANAGER: PM_PERMISSIONS,
   CONTRIBUTOR:     [],
   REVIEWER:        [],

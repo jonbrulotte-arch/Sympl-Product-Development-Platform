@@ -10,6 +10,7 @@ export const NOTIFICATION_CATEGORIES = [
   "MENTION",      // @mentions directed at you
   "COMPLIANCE",   // compliance events created / changed on your projects
   "INSPECTION",   // PSIRs created / changed covering your projects
+  "CATEGORY_REQUEST", // category requests submitted (reviewers) / decided (requester)
   "GENERAL",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
@@ -21,7 +22,7 @@ export type NotificationPrefs = Partial<Record<NotificationCategory, ChannelPref
 // email OFF for the chattier categories — sensible defaults so users aren't
 // spammed before they've ever opened preferences.
 export function defaultChannelPrefs(category: NotificationCategory): ChannelPrefs {
-  const emailByDefault = category === "MENTION" || category === "ASSIGNMENT";
+  const emailByDefault = category === "MENTION" || category === "ASSIGNMENT" || category === "CATEGORY_REQUEST";
   return { inbox: true, email: emailByDefault };
 }
 

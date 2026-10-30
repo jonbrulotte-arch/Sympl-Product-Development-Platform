@@ -23,6 +23,7 @@ const ENTITY_LABELS: Record<string, string> = {
   Psir: "inspection report",
   User: "user account",
   Category: "category",
+  CategoryRequest: "category request",
   AttributeDefinition: "attribute",
   ComplianceType: "compliance type",
   WorkflowTemplate: "workflow template",

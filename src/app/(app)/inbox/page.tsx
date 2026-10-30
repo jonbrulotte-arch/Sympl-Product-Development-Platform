@@ -25,6 +25,7 @@ const CATEGORY_TABS: { key: string; label: string }[] = [
   { key: "COMMENT", label: "Comments" },
   { key: "COMPLIANCE", label: "Compliance" },
   { key: "INSPECTION", label: "Inspections" },
+  { key: "CATEGORY_REQUEST", label: "Category Requests" },
 ];
 
 const TYPE_META: Record<string, { icon: React.ReactNode; cls: string }> = {
@@ -41,6 +42,7 @@ const CATEGORY_BADGE: Record<string, string> = {
   COMMENT:    "bg-gray-100 text-gray-600",
   COMPLIANCE: "bg-indigo-50 text-indigo-700",
   INSPECTION: "bg-violet-50 text-violet-700",
+  CATEGORY_REQUEST: "bg-teal-50 text-teal-700",
   GENERAL:    "bg-gray-100 text-gray-600",
 };
 

@@ -28,6 +28,7 @@ import {
   ArrowRightLeft,
   FileSpreadsheet,
   ListChecks,
+  Tags,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -40,6 +41,7 @@ const navItems = [
   { href: "/products", label: "Products", icon: Package },
   { href: "/psir", label: "Inspections", icon: ClipboardCheck },
   { href: "/psir-generator", label: "PSIR Generator", icon: FileSpreadsheet },
+  { href: "/category-requests", label: "Category Requests", icon: Tags },
   { href: "/compliance", label: "Compliance", icon: ShieldCheck },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/import", label: "Import", icon: Upload },
@@ -79,6 +81,16 @@ export function Sidebar({ user, grantedPermissions }: SidebarProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [salsifyDebugEnabled, setSalsifyDebugEnabled] = useState(false);
   const [inspectionsEnabled, setInspectionsEnabled] = useState(true);
+  const [pendingCatRequests, setPendingCatRequests] = useState(0);
+  const isCatReviewer = grantedPermissions.has("categories:review_requests");
+
+  useEffect(() => {
+    if (!isCatReviewer) return;
+    fetch("/api/category-requests?status=PENDING")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) => setPendingCatRequests(Array.isArray(rows) ? rows.length : 0))
+      .catch(() => {});
+  }, [isCatReviewer, pathname]);
 
   useEffect(() => {
     fetch("/api/notifications?unread=true")
@@ -119,7 +131,9 @@ export function Sidebar({ user, grantedPermissions }: SidebarProps) {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4 space-y-1 px-2">
         {navItems.filter(({ href }) =>
-          href === "/psir-generator" ? grantedPermissions.has("psir_generator:use") : inspectionsEnabled || href !== "/psir",
+          href === "/psir-generator" ? grantedPermissions.has("psir_generator:use")
+          : href === "/category-requests" ? grantedPermissions.has("categories:request") || grantedPermissions.has("categories:review_requests")
+          : inspectionsEnabled || href !== "/psir",
         ).map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
@@ -132,7 +146,10 @@ export function Sidebar({ user, grantedPermissions }: SidebarProps) {
             )}
           >
             <Icon className="h-5 w-5 shrink-0" />
-            {!collapsed && <span>{label}</span>}
+            {!collapsed && <span className="flex-1">{label}</span>}
+            {!collapsed && href === "/category-requests" && pendingCatRequests > 0 && (
+              <span className="rounded-full bg-yellow-400 px-1.5 text-[10px] font-bold text-gray-900">{pendingCatRequests}</span>
+            )}
           </Link>
         ))}
 

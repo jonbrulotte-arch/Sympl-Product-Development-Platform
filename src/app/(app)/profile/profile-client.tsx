@@ -14,6 +14,7 @@ const PREF_CATEGORIES: { key: string; label: string; description: string }[] = [
   { key: "COMMENT",    label: "Comments",     description: "New comments on your projects" },
   { key: "COMPLIANCE", label: "Compliance",   description: "Compliance events on your projects (created, changed, due)" },
   { key: "INSPECTION", label: "Inspections",  description: "Inspection reports covering your projects" },
+  { key: "CATEGORY_REQUEST", label: "Category Requests", description: "New category requests to review, and decisions on your requests" },
   { key: "GENERAL",    label: "Everything else", description: "System and miscellaneous notifications" },
 ];
 

@@ -122,6 +122,8 @@ model User {
 
   accounts          Account[]
   psirSavedCreated  PsirSavedProduct[] @relation("PsirSavedCreator")
+  categoryRequests         CategoryRequest[]  @relation("CategoryRequester")
+  categoryRequestsReviewed CategoryRequest[]  @relation("CategoryRequestReviewer")
   psirSavedUpdated  PsirSavedProduct[] @relation("PsirSavedUpdater")
   sessions          Session[]
   ownedProjects     Project[]          @relation("ProjectOwner")
@@ -240,6 +242,8 @@ model Category {
   psirTemplateLines     PsirTemplateLine[]
   psirTemplateOverrides PsirTemplateLineOverride[]
   psirSavedProducts     PsirSavedProduct[]
+  categoryRequestsAsParent CategoryRequest[] @relation("CategoryRequestParent")
+  categoryRequestsCreated  CategoryRequest[] @relation("CategoryRequestCreated")
 }
 
 model AttributeSection {
@@ -999,6 +1003,46 @@ model PsirSavedProduct {
   category  Category @relation(fields: [categoryId], references: [id])
   createdBy User     @relation("PsirSavedCreator", fields: [createdById], references: [id])
   updatedBy User?    @relation("PsirSavedUpdater", fields: [updatedById], references: [id])
+}
+
+// ─── Category Requests ───────────────────────────────────────────────────────
+// PMs ask for a new category (and the attributes it needs); Admins/Directors
+// review. Approval does not build anything — the category is created manually
+// and linked when the request is marked COMPLETED.
+
+enum CategoryRequestStatus {
+  PENDING
+  NEEDS_INFO
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model CategoryRequest {
+  id                String                @id @default(cuid())
+  name              String
+  parentCategoryId  String?
+  newParentName     String?
+  description       String?               @db.Text
+  note              String?               @db.Text
+  exampleProducts   String?               @db.Text
+  attributes        Json                  @default("[]")
+  status            CategoryRequestStatus @default(PENDING)
+  requestedById     String
+  reviewedById      String?
+  reviewNote        String?               @db.Text
+  reviewedAt        DateTime?
+  createdCategoryId String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  requestedBy     User      @relation("CategoryRequester", fields: [requestedById], references: [id])
+  reviewedBy      User?     @relation("CategoryRequestReviewer", fields: [reviewedById], references: [id])
+  parentCategory  Category? @relation("CategoryRequestParent", fields: [parentCategoryId], references: [id], onDelete: SetNull)
+  createdCategory Category? @relation("CategoryRequestCreated", fields: [createdCategoryId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([requestedById])
 }
 
 // ─── Backup ───────────────────────────────────────────────────────────────────

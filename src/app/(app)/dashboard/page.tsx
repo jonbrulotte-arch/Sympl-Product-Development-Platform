@@ -9,8 +9,9 @@ import {
   entityLabel, fieldLabel, actionTone, prettyValue,
   subjectFromMetadata, commentFromMetadata, relativeTime,
 } from "@/lib/activity-format";
-import { FolderKanban, Package, Clock, CheckCircle2, AlertCircle, ShieldAlert, ExternalLink } from "lucide-react";
-import { seesAllProjects } from "@/lib/permissions";
+import { FolderKanban, Package, Clock, CheckCircle2, AlertCircle, ShieldAlert, ExternalLink, Tags } from "lucide-react";
+import { can, seesAllProjects } from "@/lib/permissions";
+import { RequestStatusBadge } from "@/components/category-requests/status-badge";
 
 export default async function DashboardPage({
   searchParams,
@@ -23,6 +24,21 @@ export default async function DashboardPage({
   const userId = session.user.id;
   const onlyMine = (await searchParams).activity === "mine";
   const seesAll = seesAllProjects(session.user.role);
+
+  // Category requests: reviewers see the queue, requesters see their open ones.
+  const [isCatReviewer, canRequestCats] = await Promise.all([
+    can(session.user.role, "categories:review_requests"),
+    can(session.user.role, "categories:request"),
+  ]);
+  const [pendingCatRequests, pendingCatCount, myOpenCatRequests] = await Promise.all([
+    isCatReviewer
+      ? prisma.categoryRequest.findMany({ where: { status: "PENDING" }, orderBy: { createdAt: "asc" }, take: 5, include: { requestedBy: { select: { name: true, email: true } } } })
+      : Promise.resolve([]),
+    isCatReviewer ? prisma.categoryRequest.count({ where: { status: "PENDING" } }) : Promise.resolve(0),
+    canRequestCats
+      ? prisma.categoryRequest.findMany({ where: { requestedById: userId, status: { in: ["PENDING", "NEEDS_INFO", "APPROVED"] } }, orderBy: { updatedAt: "desc" }, take: 5 })
+      : Promise.resolve([]),
+  ]);
 
   const [myProjects, needsReview, recentActivity, stats, pendingApprovalsData] = await Promise.all([
     prisma.project.findMany({
@@ -232,6 +248,49 @@ export default async function DashboardPage({
 
         {/* Pending Approval + Needs Attention */}
         <div className="space-y-6">
+          {pendingCatRequests.length > 0 && (
+            <Card className="border-yellow-300">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base text-yellow-800 flex items-center gap-2">
+                  <Tags className="h-4 w-4" /> Pending Category Requests ({pendingCatCount})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-gray-100">
+                  {pendingCatRequests.map((r) => (
+                    <Link key={r.id} href={`/category-requests/${r.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-yellow-50">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{r.name}</p>
+                        <p className="text-xs text-gray-500">{r.requestedBy.name ?? r.requestedBy.email} · {relativeTime(r.createdAt)}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+                {pendingCatCount > pendingCatRequests.length && (
+                  <Link href="/category-requests" className="block px-4 py-2 text-xs text-blue-600 hover:underline">View all {pendingCatCount}</Link>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {myOpenCatRequests.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2"><Tags className="h-4 w-4" /> My Category Requests</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-gray-100">
+                  {myOpenCatRequests.map((r) => (
+                    <Link key={r.id} href={`/category-requests/${r.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50">
+                      <p className="flex-1 min-w-0 text-sm font-medium text-gray-900 truncate">{r.name}</p>
+                      <RequestStatusBadge status={r.status} />
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {overdueCompliance.length > 0 && (
             <Card className="border-red-300">
               <CardHeader className="pb-3">
