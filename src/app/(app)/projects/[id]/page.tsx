@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ProjectDetailClient } from "./project-detail-client";
 import { canEditProject } from "@/lib/permissions";
 import { CORE_FIELD_KEYS, REMOVED_CORE_KEYS } from "@/lib/core-fields";
-import { findDuplicatesForProducts } from "@/lib/duplicate-check";
+import { otherProjectsFor } from "@/lib/product-catalog";
 import { checkProjectAccess } from "@/lib/project-access";
 import { expandWithAncestors } from "@/lib/category-tree";
 import { isInspectionsEnabled } from "@/lib/app-config";
@@ -47,7 +47,7 @@ export default async function ProjectDetailPage({
         },
         orderBy: { sortOrder: "asc" },
       },
-      _count: { select: { products: { where: { isArchived: false } } } },
+      _count: { select: { products: { where: { isArchived: false, product: { isArchived: false } } } } },
     },
   });
 
@@ -60,18 +60,21 @@ export default async function ProjectDetailPage({
     },
   };
 
-  const products = await prisma.productRecord.findMany({
-    where: { projectId: id, isArchived: false },
-    include: {
-      attributeValues: {
-        include: { attributeDefinition: true },
-      },
-      category: true,
-      createdBy: { select: { id: true, name: true, email: true, image: true, role: true } },
-      updatedBy: { select: { id: true, name: true, email: true, image: true, role: true } },
-    },
+  const links = await prisma.projectProduct.findMany({
+    where: { projectId: id, isArchived: false, product: { isArchived: false } },
     orderBy: [{ rowIndex: "asc" }, { createdAt: "asc" }],
+    include: {
+      product: {
+        include: {
+          attributeValues: { include: { attributeDefinition: true } },
+          category: true,
+          createdBy: { select: { id: true, name: true, email: true, image: true, role: true } },
+          updatedBy: { select: { id: true, name: true, email: true, image: true, role: true } },
+        },
+      },
+    },
   });
+  const products = links.map((l) => ({ ...l.product, projectId: id, rowIndex: l.rowIndex }));
 
   // Category attrs must cover the project's category, every product's own
   // category (products can override the project category), and all of their
@@ -112,9 +115,7 @@ export default async function ProjectDetailPage({
     project
   );
 
-  const dupes = await findDuplicatesForProducts(
-    products.map((p) => ({ id: p.id, partNumber: p.partNumber, projectId: p.projectId }))
-  );
+  const dupes = await otherProjectsFor(products.map((p) => p.id), id);
   const productsWithDupes = products.map((p) => ({ ...p, duplicateOf: dupes.get(p.id) ?? null }));
 
   // Serialize through JSON to convert Prisma Decimal/Date objects to plain primitives

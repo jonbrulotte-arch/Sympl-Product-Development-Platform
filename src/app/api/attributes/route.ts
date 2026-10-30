@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { inProject } from "@/lib/product-catalog";
 import { CORE_FIELD_KEYS } from "@/lib/core-fields";
 import { expandWithAncestors } from "@/lib/category-tree";
 import { isQcDimsColumn } from "@/lib/qc-dims";
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
     const [project, products] = await Promise.all([
       prisma.project.findUnique({ where: { id: projectId }, select: { categoryId: true } }),
       prisma.productRecord.findMany({
-        where: { projectId, isArchived: false },
+        where: { ...inProject(projectId), isArchived: false },
         select: { categoryId: true },
         distinct: ["categoryId"],
       }),

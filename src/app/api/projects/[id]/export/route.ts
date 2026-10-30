@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { inProject, sortByProjectRows } from "@/lib/product-catalog";
 import ExcelJS from "exceljs";
 import type { ProductRecord } from "@prisma/client";
 import { CORE_FIELDS, CORE_FIELD_KEYS, REMOVED_CORE_KEYS } from "@/lib/core-fields";
@@ -34,14 +35,13 @@ export async function GET(
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const products = await prisma.productRecord.findMany({
-    where: { projectId, isArchived: false },
+  const products = await sortByProjectRows(projectId, await prisma.productRecord.findMany({
+    where: { ...inProject(projectId), isArchived: false },
     include: {
       attributeValues: { include: { attributeDefinition: true } },
       category: true,
     },
-    orderBy: [{ rowIndex: "asc" }, { createdAt: "asc" }],
-  });
+  }));
 
   // Include ancestor and product-level category attributes so the export
   // covers the same columns as the grid (which uses expandWithAncestors).

@@ -7,7 +7,7 @@ import { X, Search } from "lucide-react";
 
 export type ProductRef = {
   id: string; partNumber: string | null; itemName: string | null; brand: string | null;
-  project: { id: string; name: string };
+  project: { id: string; name: string } | null;
 };
 
 // Search / paste / .xlsx-upload picker shared by the compliance and inspection
@@ -149,7 +149,7 @@ export function ProductPicker({
                     <span className="font-mono text-xs text-gray-500 shrink-0">{p.partNumber ?? "—"}</span>
                     <span className="text-gray-900 truncate">{p.itemName ?? ""}</span>
                   </span>
-                  <span className="text-xs text-gray-500 shrink-0">{p.project.name}</span>
+                  <span className="text-xs text-gray-500 shrink-0">{p.project?.name ?? "No project"}</span>
                 </button>
               ))}
             </div>

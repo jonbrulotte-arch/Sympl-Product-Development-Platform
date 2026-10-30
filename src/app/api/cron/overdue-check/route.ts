@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     include: {
       createdBy: { select: { id: true, email: true, name: true } },
       products: {
-        select: { product: { select: { project: { select: { ownerId: true, name: true } } } } },
+        select: { product: { select: { projects: { where: { isArchived: false }, select: { project: { select: { ownerId: true, name: true } } } } } } },
       },
     },
   });
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     // Notify the event creator plus the owners of every affected project
     const recipients = [...new Set([
       ev.createdById,
-      ...ev.products.map((p) => p.product.project.ownerId),
+      ...ev.products.flatMap((p) => p.product.projects.map((l) => l.project.ownerId)),
     ])];
 
     await createNotificationForMany(recipients, {
@@ -156,12 +156,12 @@ export async function POST(req: NextRequest) {
       dueSoonNotifiedAt: null,
     },
     include: {
-      products: { select: { product: { select: { project: { select: { ownerId: true } } } } } },
+      products: { select: { product: { select: { projects: { where: { isArchived: false }, select: { project: { select: { ownerId: true } } } } } } } },
     },
   });
 
   for (const ev of dueSoonEvents) {
-    const recipients = [...new Set([ev.createdById, ...ev.products.map((p) => p.product.project.ownerId)])];
+    const recipients = [...new Set([ev.createdById, ...ev.products.flatMap((p) => p.product.projects.map((l) => l.project.ownerId))])];
     await createNotificationForMany(recipients, {
       title: "Compliance event due soon",
       message: `"${ev.title}" is due ${ev.dueDate!.toLocaleDateString()} and is still ${ev.status.toLowerCase().replace("_", " ")}.`,

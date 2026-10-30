@@ -9,6 +9,7 @@
 // user-supplied input by the time it comes back.
 
 import { prisma } from "@/lib/prisma";
+import { primaryProject } from "@/lib/product-catalog";
 import { projectScope, type ReportContext, type ReportType } from "@/lib/reports";
 import { ProjectStatus } from "@prisma/client";
 
@@ -98,7 +99,7 @@ async function inspectionDetail(id: string, ctx: ReportContext): Promise<ReportD
   const psir = await prisma.psir.findFirst({
     where: {
       id,
-      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
+      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { projects: { some: { isArchived: false, project: projectScope(ctx) } } } } } }),
     },
     include: {
       createdBy: { select: { name: true, email: true } },
@@ -107,7 +108,7 @@ async function inspectionDetail(id: string, ctx: ReportContext): Promise<ReportD
           product: {
             select: {
               id: true, partNumber: true, itemName: true,
-              project: { select: { id: true, name: true } },
+              projects: primaryProject({ id: true, name: true }),
             },
           },
         },
@@ -144,7 +145,7 @@ async function inspectionDetail(id: string, ctx: ReportContext): Promise<ReportD
         items: psir.products.map((pp) => ({
           title: pp.product.partNumber ?? pp.product.id,
           subtitle: pp.product.itemName,
-          meta: pp.product.project.name,
+          meta: pp.product.projects[0]?.project.name ?? "No project",
           href: `/products/${pp.product.id}`,
         })),
       },
@@ -175,7 +176,7 @@ async function complianceDetail(id: string, ctx: ReportContext): Promise<ReportD
   const event = await prisma.complianceEvent.findFirst({
     where: {
       id,
-      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
+      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { projects: { some: { isArchived: false, project: projectScope(ctx) } } } } } }),
     },
     include: {
       type: { select: { name: true } },
@@ -185,7 +186,7 @@ async function complianceDetail(id: string, ctx: ReportContext): Promise<ReportD
           product: {
             select: {
               id: true, partNumber: true, itemName: true,
-              project: { select: { id: true, name: true, owner: { select: { name: true, email: true } } } },
+              projects: { where: { isArchived: false }, orderBy: { createdAt: "asc" }, select: { project: { select: { id: true, name: true, owner: { select: { name: true, email: true } } } } } },
             },
           },
         },
@@ -206,10 +207,11 @@ async function complianceDetail(id: string, ctx: ReportContext): Promise<ReportD
   // One row per affected project, so a PM can see who needs to act.
   const byProject = new Map<string, { id: string; name: string; owner: string; products: number }>();
   for (const ep of event.products) {
-    const proj = ep.product.project;
-    const entry = byProject.get(proj.id) ?? { id: proj.id, name: proj.name, owner: person(proj.owner), products: 0 };
-    entry.products++;
-    byProject.set(proj.id, entry);
+    for (const { project: proj } of ep.product.projects) {
+      const entry = byProject.get(proj.id) ?? { id: proj.id, name: proj.name, owner: person(proj.owner), products: 0 };
+      entry.products++;
+      byProject.set(proj.id, entry);
+    }
   }
 
   return {
@@ -245,7 +247,7 @@ async function complianceDetail(id: string, ctx: ReportContext): Promise<ReportD
         items: event.products.map((ep) => ({
           title: ep.product.partNumber ?? ep.product.id,
           subtitle: ep.product.itemName,
-          meta: ep.product.project.name,
+          meta: ep.product.projects.map((l) => l.project.name).join(", ") || "No project",
           href: `/products/${ep.product.id}`,
         })),
       },
@@ -384,7 +386,7 @@ async function projectDetail(id: string, ctx: ReportContext): Promise<ReportDeta
         orderBy: { sortOrder: "asc" },
         include: { approvals: { where: { status: "PENDING" }, select: { id: true } } },
       },
-      _count: { select: { products: { where: { isArchived: false } } } },
+      _count: { select: { products: { where: { isArchived: false, product: { isArchived: false } } } } },
     },
   });
   if (!project) return null;

@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ACTIVE_PROJECT_IDS, withPrimaryProject } from "@/lib/product-catalog";
 import { NextResponse } from "next/server";
 import { PSIR_INCLUDE } from "../route";
 
@@ -10,12 +11,12 @@ import { checkProjectAccess } from "@/lib/project-access";
 
 /** Check whether the session user can access the projects linked to a PSIR. */
 async function verifyPsirAccess(
-  psir: { products: { product: { project: { id: string } | null } }[] },
+  psir: { products: { product: { projects: ({ projectId: string } | { project: { id: string } })[] } }[] },
   session: { user: { id: string; role?: string | null } },
   level: "view" | "edit",
 ): Promise<{ ok: true } | { ok: false; response: Response }> {
   if (seesAllProjects(session.user.role)) return { ok: true };
-  const projectIds = [...new Set(psir.products.map((p) => p.product.project?.id).filter(Boolean))] as string[];
+  const projectIds = [...new Set(psir.products.flatMap((p) => p.product.projects.map((l) => ("projectId" in l ? l.projectId : l.project.id))))];
   if (projectIds.length === 0) return { ok: true };
   for (const projectId of projectIds) {
     const access = await checkProjectAccess(projectId, session as Parameters<typeof checkProjectAccess>[1], level);
@@ -34,7 +35,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!psir) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const access = await verifyPsirAccess(psir, session, "view");
   if (!access.ok) return access.response;
-  return NextResponse.json(psir);
+  return NextResponse.json(withPrimaryProject(psir));
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -48,7 +49,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params;
 
   // Verify project access before allowing mutation
-  const existing = await prisma.psir.findUnique({ where: { id }, include: { products: { include: { product: { select: { project: { select: { id: true } } } } } } } });
+  const existing = await prisma.psir.findUnique({ where: { id }, include: { products: { include: { product: { select: { projects: ACTIVE_PROJECT_IDS } } } } } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const access = await verifyPsirAccess(existing, session, "edit");
   if (!access.ok) return access.response;
@@ -129,7 +130,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     })().catch(() => {});
   }
 
-  return NextResponse.json(updated);
+  return NextResponse.json(withPrimaryProject(updated));
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -143,7 +144,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
 
   // Verify project access before allowing deletion
-  const existing = await prisma.psir.findUnique({ where: { id }, include: { products: { include: { product: { select: { project: { select: { id: true } } } } } } } });
+  const existing = await prisma.psir.findUnique({ where: { id }, include: { products: { include: { product: { select: { projects: ACTIVE_PROJECT_IDS } } } } } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const access = await verifyPsirAccess(existing, session, "edit");
   if (!access.ok) return access.response;

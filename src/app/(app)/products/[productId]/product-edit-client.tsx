@@ -31,7 +31,7 @@ interface AttrDef {
 }
 type AV = { attributeDefinitionId: string; valueIndex: number; textValue: string | null };
 interface Product {
-  id: string; projectId: string; categoryId: string | null;
+  id: string; projectId: string | null; categoryId: string | null;
   partNumber: string | null; modelNumber: string | null; itemName: string | null;
   brand: string | null; upc: string | null; inventoryStatus: string | null;
   warrantyInfo: string | null; htsCode: string | null; htsCodeCanada: string | null;
@@ -59,7 +59,8 @@ interface Product {
   palletHeight: number | null; palletWidth: number | null; palletLength: number | null;
   palletWeight: number | null; palletStackable: boolean; layersPerPallet: number | null; palletQty: number | null;
   updatedAt: string; createdAt: string;
-  project: { id: string; name: string; status: string; brand: string | null; categoryId: string | null; category: { id: string; name: string } | null };
+  project: { id: string; name: string; status: string; brand: string | null; categoryId: string | null; category: { id: string; name: string } | null } | null;
+  projects: { projectId: string; project: { id: string; name: string; status: string } }[];
   category: { id: string; name: string } | null;
   createdBy: { name: string | null; email: string };
   updatedBy: { name: string | null; email: string } | null;
@@ -84,6 +85,9 @@ interface Props {
   userRole: string;
   salsifyOrgId: string | null;
   inspectionsEnabled: boolean;
+  canEdit: boolean;
+  /** Projects the viewer can add this product to. */
+  linkableProjects: { id: string; name: string }[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -594,7 +598,7 @@ function PsirPanel({ productId }: { productId: string }) {
 
 type Tab = "details" | "compliance" | "psir" | "history";
 
-export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory, userRole, salsifyOrgId, inspectionsEnabled }: Props) {
+export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory, userRole, salsifyOrgId, inspectionsEnabled, canEdit, linkableProjects }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<Tab>("details");
@@ -612,11 +616,12 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
   const [showSalsifyModal, setShowSalsifyModal] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
-  const canSync = ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER"].includes(userRole);
+  // Salsify actions are project-scoped, so they need the product to be in a project.
+  const canSync = ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER"].includes(userRole) && !!product.projectId;
   // Pulling has its own grant — it overwrites Sympl data with Salsify's, which
   // is a different risk from pushing, so it's configurable separately.
   const { can: hasPermission } = usePermissions();
-  const canPull = hasPermission("products:pull_salsify");
+  const canPull = hasPermission("products:pull_salsify") && !!product.projectId;
   const { ready: salsifyReady, blockedReason: salsifyBlockedReason, hasApiKey: salsifyHasApiKey } = useSalsifyStatus();
 
   // % of REQUIRED attributes with a value — drives the completeness chip
@@ -743,7 +748,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
     }
 
     const res = await fetch(
-      `/api/projects/${product.projectId}/products/${product.id}`,
+      `/api/products/${product.id}`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -757,7 +762,13 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
       startTransition(() => router.refresh());
     } else {
       const err = await res.json().catch(() => ({}));
-      setErrorMsg(err.error ?? "Save failed");
+      setErrorMsg(
+        res.status === 409 && err.existingProduct
+          ? `Part number ${err.existingProduct.partNumber} already belongs to another product${err.existingProduct.itemName ? ` (${err.existingProduct.itemName})` : ""}.`
+          : res.status === 403
+            ? "You don't have permission to edit this product."
+            : err.error ?? "Save failed",
+      );
       setSaveStatus("error");
     }
     setSaving(false);
@@ -776,7 +787,9 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-0.5">
               <Link href="/products" className="hover:text-blue-600">Products</Link>
               <span>/</span>
-              <Link href={`/projects/${product.project.id}`} className="hover:text-blue-600">{product.project.name}</Link>
+              {product.project && (
+                <Link href={`/projects/${product.project.id}`} className="hover:text-blue-600">{product.project.name}</Link>
+              )}
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-xl font-bold text-gray-900 truncate">
@@ -788,7 +801,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
               {(product.category ?? projectCategory) && (
                 <Badge variant="secondary">{(product.category ?? projectCategory)!.name}</Badge>
               )}
-              <ProjectStatusBadge status={product.project.status as never} />
+              {product.project && <ProjectStatusBadge status={product.project.status as never} />}
               {completeness !== null && (
                 <span
                   className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full ${
@@ -848,13 +861,15 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
                 {pullError && <p className="text-xs text-red-600 max-w-xs text-right">{pullError}</p>}
               </div>
             )}
-            <Link
-              href={`/projects/${product.project.id}`}
-              className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-colors"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              Open in Project
-            </Link>
+            {product.project && (
+              <Link
+                href={`/projects/${product.project.id}`}
+                className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Open in Project
+              </Link>
+            )}
           </div>
         </div>
 
@@ -885,15 +900,10 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
       <div className="flex-1 overflow-y-auto">
         {activeTab === "details" && (
           <div className="max-w-6xl mx-auto px-6 py-6 space-y-5">
-            {product.duplicateOf && (
-              <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-lg p-3 text-sm text-amber-800">
-                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>
-                  Duplicate Part Number — <span className="font-mono font-medium">{product.partNumber}</span> is also used in project{" "}
-                  <Link href={`/projects/${product.duplicateOf.projectId}`} className="underline font-medium hover:text-amber-900">
-                    {product.duplicateOf.projectName}
-                  </Link>.
-                </span>
+            <ProjectLinksPanel productId={product.id} links={product.projects} linkableProjects={linkableProjects} />
+            {!canEdit && (
+              <div className="rounded-lg bg-gray-100 border border-gray-200 px-4 py-2 text-sm text-gray-600">
+                View only — you can edit this product from a project you can edit, or with the “Edit Catalog Products” permission.
               </div>
             )}
             {/* Product meta */}
@@ -1060,7 +1070,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
         )}
 
         {activeTab === "history" && (
-          <HistoryPanel projectId={product.projectId} productId={product.id} />
+          <HistoryPanel productId={product.id} />
         )}
       </div>
 
@@ -1091,7 +1101,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
             <Button
               size="sm"
               onClick={save}
-              disabled={saving || !dirty}
+              disabled={saving || !dirty || !canEdit}
               className="min-w-[110px]"
             >
               {saving ? (
@@ -1110,7 +1120,7 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
         </div>
       </div>}
     </div>
-    {showSalsifyModal && (
+    {showSalsifyModal && product.projectId && (
       <SalsifySyncModal
         mode="product"
         projectId={product.projectId}
@@ -1125,9 +1135,9 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
 }
 
 // ─── History Panel ────────────────────────────────────────────────────────────
-// Field-level change log for this product, read from the project ActivityLog.
+// Field-level change log for this product across every project it has been in.
 
-function HistoryPanel({ projectId, productId }: { projectId: string; productId: string }) {
+function HistoryPanel({ productId }: { productId: string }) {
   const [logs, setLogs] = useState<{
     id: string; action: string; fieldKey: string | null;
     oldValue: string | null; newValue: string | null; createdAt: string;
@@ -1139,12 +1149,12 @@ function HistoryPanel({ projectId, productId }: { projectId: string; productId: 
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/projects/${projectId}/activity?productId=${productId}&page=${page}`)
+    fetch(`/api/products/${productId}/activity?page=${page}`)
       .then((r) => r.json())
       .then((d) => { setLogs(d.data ?? []); setTotal(d.total ?? 0); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [projectId, productId, page]);
+  }, [productId, page]);
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-6">
@@ -1195,6 +1205,79 @@ function HistoryPanel({ projectId, productId }: { projectId: string; productId: 
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Project links ────────────────────────────────────────────────────────────
+// A product lives in the catalog; projects reference it. Removing it from a
+// project never deletes the product.
+
+function ProjectLinksPanel({
+  productId, links, linkableProjects,
+}: {
+  productId: string;
+  links: { projectId: string; project: { id: string; name: string; status: string } }[];
+  linkableProjects: { id: string; name: string }[];
+}) {
+  const router = useRouter();
+  const [adding, setAdding] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const linked = new Set(links.map((l) => l.projectId));
+  const options = linkableProjects.filter((p) => !linked.has(p.id));
+
+  async function call(method: "POST" | "DELETE", projectId: string) {
+    setBusy(true);
+    setErr(null);
+    const res = await fetch(
+      method === "POST" ? `/api/products/${productId}/projects` : `/api/products/${productId}/projects?projectId=${projectId}`,
+      method === "POST"
+        ? { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId }) }
+        : { method },
+    );
+    if (!res.ok) setErr((await res.json().catch(() => ({}))).error ?? "Update failed");
+    setAdding("");
+    setBusy(false);
+    router.refresh();
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold text-gray-900 mr-1">Projects</span>
+        {links.length === 0 && <span className="text-sm text-gray-400">Not in any project</span>}
+        {links.map((l) => (
+          <span key={l.projectId} className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+            <Link href={`/projects/${l.project.id}`} className="hover:underline">{l.project.name}</Link>
+            {linkableProjects.some((p) => p.id === l.projectId) && (
+              <button
+                type="button"
+                title="Remove from this project"
+                disabled={busy}
+                onClick={() => confirm(`Remove this product from "${l.project.name}"? The product stays in the catalog.`) && call("DELETE", l.projectId)}
+                className="text-blue-400 hover:text-red-600"
+              >
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+        {options.length > 0 && (
+          <span className="inline-flex items-center gap-2 ml-auto">
+            <select
+              value={adding}
+              onChange={(e) => setAdding(e.target.value)}
+              className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-900"
+            >
+              <option value="">Add to project…</option>
+              {options.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <Button size="sm" variant="outline" disabled={!adding || busy} onClick={() => call("POST", adding)}>Add</Button>
+          </span>
+        )}
+      </div>
+      {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
     </div>
   );
 }

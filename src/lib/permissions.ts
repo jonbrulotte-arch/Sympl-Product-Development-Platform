@@ -83,6 +83,7 @@ export const PERMISSIONS = {
   "projects:override_status": { label: "Override Project Status",  description: "Manually set project status from the Settings tab" },
   "projects:transfer_ownership": { label: "Bulk Project Actions", description: "Bulk transfer ownership, change status, or archive projects. Permanent delete stays admin-only." },
   "admin:event_log":            { label: "Event Log",              description: "View the platform-wide audit event log" },
+  "products:edit_catalog":      { label: "Edit Catalog Products",  description: "Create and edit products outside projects you belong to" },
   "psir_generator:use":         { label: "Use PSIR Generator",     description: "Generate PSIR workbooks and save PSIR products" },
 } as const;
 
@@ -94,7 +95,7 @@ const PM_PERMISSIONS: Permission[] = [
   "admin:categories", "admin:attributes", "projects:create",
   "products:sync_salsify", "products:pull_salsify", "products:export_qc_dims",
   "projects:override_status", "compliance:manage", "inspections:manage",
-  "psir_generator:use", "admin:psir_templates",
+  "psir_generator:use", "admin:psir_templates", "products:edit_catalog",
 ];
 
 const PERMISSION_DEFAULTS: Record<string, Permission[]> = {

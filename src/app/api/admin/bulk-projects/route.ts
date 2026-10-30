@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { detachProductCommentsFromProjects } from "@/lib/product-catalog";
 import { can } from "@/lib/permissions";
 import { logActivity } from "@/lib/activity";
 import { createNotificationForMany } from "@/lib/notifications";
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
         categoryId: true,
         owner: { select: { id: true, name: true, email: true } },
         category: { select: { id: true, name: true } },
-        _count: { select: { products: { where: { isArchived: false } } } },
+        _count: { select: { products: { where: { isArchived: false, product: { isArchived: false } } } } },
       },
       orderBy: [{ owner: { name: "asc" } }, { name: "asc" }],
     }),
@@ -274,13 +275,10 @@ async function bulkDelete(
 
   // Hard delete — collect comment-attachment paths first so the files on disk
   // can be reaped after the rows are gone.
+  // Product comments outlive the project with their product.
+  await detachProductCommentsFromProjects(projectIds);
   const comments = await prisma.comment.findMany({
-    where: {
-      OR: [
-        { projectId: { in: projectIds } },
-        { product: { projectId: { in: projectIds } } },
-      ],
-    },
+    where: { projectId: { in: projectIds } },
     select: { content: true },
   });
   const attachmentPaths = [

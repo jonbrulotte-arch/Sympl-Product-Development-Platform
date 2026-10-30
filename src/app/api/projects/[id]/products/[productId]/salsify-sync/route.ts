@@ -2,6 +2,7 @@ import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isLinked } from "@/lib/product-catalog";
 import { resolveSalsifyCredentials } from "@/lib/salsify-auth";
 import { checkProjectAccess } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       attributeValues: { include: { attributeDefinition: true } },
     },
   });
-  if (!product || product.projectId !== projectId) {
+  if (!product || !(await isLinked(projectId, productId))) {
     return NextResponse.json({ error: "Product not found" }, { status: 404 });
   }
 

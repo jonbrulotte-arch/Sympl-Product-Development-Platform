@@ -2,6 +2,7 @@ import { can } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isLinked } from "@/lib/product-catalog";
 import { resolveSalsifyCredentials } from "@/lib/salsify-auth";
 import { checkProjectAccess } from "@/lib/project-access";
 import { salsifyFetch, describeFetchError } from "@/lib/salsify-http";
@@ -32,9 +33,9 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   const product = await prisma.productRecord.findUnique({
     where: { id: productId },
-    select: { id: true, projectId: true, partNumber: true },
+    select: { id: true, partNumber: true },
   });
-  if (!product || product.projectId !== projectId) {
+  if (!product || !(await isLinked(projectId, productId))) {
     return NextResponse.json({ error: "Product not found" }, { status: 404 });
   }
 

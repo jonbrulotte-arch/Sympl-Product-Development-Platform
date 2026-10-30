@@ -360,7 +360,7 @@ model Project {
   owner          User            @relation("ProjectOwner", fields: [ownerId], references: [id])
   category       Category?       @relation(fields: [categoryId], references: [id])
   members        ProjectMember[]
-  products       ProductRecord[]
+  products       ProjectProduct[]
   workflowStages WorkflowStage[]
   comments       Comment[]
   activityLogs   ActivityLog[]
@@ -391,11 +391,28 @@ model ProjectMember {
 
 // ─── Products ─────────────────────────────────────────────────────────────────
 
+// A project's membership of a master product. Products exist independently of
+// projects; deleting a project removes only these links.
+model ProjectProduct {
+  id         String   @id @default(cuid())
+  projectId  String
+  productId  String
+  rowIndex   Int      @default(0)
+  isArchived Boolean  @default(false)
+  addedById  String?
+  createdAt  DateTime @default(now())
+
+  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  product ProductRecord @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, productId])
+  @@index([productId])
+  @@index([projectId, isArchived, rowIndex])
+}
+
 model ProductRecord {
   id              String   @id @default(cuid())
-  projectId       String
   categoryId      String?
-  rowIndex        Int      @default(0)
   isArchived      Boolean  @default(false)
   isDuplicate     Boolean  @default(false)
   salsifyLastSyncedAt DateTime?
@@ -408,7 +425,7 @@ model ProductRecord {
   updatedAt       DateTime @updatedAt
 
   // Core identity fields
-  partNumber   String?
+  partNumber   String?  @unique
   modelNumber  String?
   itemName     String?
   brand        String?
@@ -487,7 +504,7 @@ model ProductRecord {
   userManual     String?
   cutSheets      String?
 
-  project         Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projects        ProjectProduct[]
   category        Category?               @relation(fields: [categoryId], references: [id])
   createdBy       User                    @relation("ProductCreator", fields: [createdById], references: [id])
   updatedBy       User?                   @relation("ProductUpdater", fields: [updatedById], references: [id])
@@ -499,13 +516,10 @@ model ProductRecord {
   complianceEvents  ComplianceEventProduct[]
   psirProducts      PsirProduct[]
 
-  @@index([projectId])
-  @@index([partNumber])
   @@index([upc])
   // The global product browser filters on isArchived and sorts by updatedAt;
   // without this it full-scans and sorts the whole table for every page.
   @@index([isArchived, updatedAt(sort: Desc)])
-  @@index([projectId, isArchived])
   @@index([categoryId])
   @@index([brand])
   @@index([partNumber, isArchived])

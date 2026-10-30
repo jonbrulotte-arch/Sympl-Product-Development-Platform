@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { linkProduct } from "@/lib/product-catalog";
 import { CORE_FIELDS, coerceCoreValue } from "@/lib/core-fields";
 import { checkProjectAccess } from "@/lib/project-access";
 import { parseUploadedWorkbook } from "@/lib/xlsx-parse";
@@ -125,11 +126,15 @@ export async function POST(req: NextRequest) {
 
   const mappedRows = mapRows(dataRows, headers, mapping);
 
-  // Existing products keyed by Part Number → upsert instead of duplicating
-  const existingProducts = await prisma.productRecord.findMany({
-    where: { projectId, isArchived: false, partNumber: { not: null } },
-    include: { attributeValues: true },
-  });
+  // Part numbers are unique across the catalog, so a row whose Part Number
+  // already exists updates that product (wherever it lives) and links it here.
+  const filePartNumbers = [...new Set(mappedRows.map((mr) => mr.coreValues.partNumber?.trim()).filter((v): v is string => !!v))];
+  const existingProducts = filePartNumbers.length
+    ? await prisma.productRecord.findMany({
+        where: { partNumber: { in: filePartNumbers } },
+        include: { attributeValues: true },
+      })
+    : [];
   const existingByPartNumber = new Map(
     existingProducts.filter((p) => p.partNumber).map((p) => [p.partNumber as string, p])
   );
@@ -241,12 +246,6 @@ export async function POST(req: NextRequest) {
   let attrValuesCleared = 0;
   const unresolvedAttrKeys = allAttrKeys.filter((k) => !defByKey[k]);
 
-  const maxRow = await prisma.productRecord.aggregate({
-    where: { projectId },
-    _max: { rowIndex: true },
-  });
-  let nextRowIndex = (maxRow._max.rowIndex ?? -1) + 1;
-
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: { categoryId: true },
@@ -262,23 +261,24 @@ export async function POST(req: NextRequest) {
       if (existing) {
         const updated = await prisma.productRecord.update({
           where: { id: existing.id },
-          data: { ...mr.coreData, updatedById: session.user.id },
+          data: { ...mr.coreData, isArchived: false, updatedById: session.user.id },
         });
         productId = updated.id;
+        await linkProduct(projectId, productId, session.user.id);
         updatedRows++;
         logActivity({ userId: session.user.id, action: "UPDATED", entityType: "ProductRecord", entityId: productId, projectId, productId, source: "Import" }).catch(() => {});
       } else {
         const created = await prisma.productRecord.create({
           data: {
-            projectId,
             categoryId: projectCategoryId,
             createdById: session.user.id,
             updatedById: session.user.id,
-            rowIndex: nextRowIndex++,
             ...mr.coreData,
+            partNumber: partNumber ?? null,
           },
         });
         productId = created.id;
+        await linkProduct(projectId, productId, session.user.id);
         if (partNumber) existingByPartNumber.set(partNumber, { ...created, attributeValues: [] });
         createdRows++;
         logActivity({ userId: session.user.id, action: "CREATED", entityType: "ProductRecord", entityId: productId, projectId, productId, source: "Import" }).catch(() => {});

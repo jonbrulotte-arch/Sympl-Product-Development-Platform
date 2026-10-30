@@ -11,7 +11,7 @@ import {
 
 export type ComplianceProductRef = {
   id: string; partNumber: string | null; itemName: string | null;
-  project: { id: string; name: string };
+  project: { id: string; name: string } | null;
 };
 
 export type ComplianceDoc = {
@@ -168,9 +168,11 @@ export function EventCard({
                     <span className="font-mono text-gray-500">{product.partNumber ?? "—"}</span>
                     {" "}<span className="text-gray-700">{product.itemName ?? ""}</span>
                   </span>
-                  <a href={`/projects/${product.project.id}`} className="text-indigo-600 hover:underline flex items-center gap-1" target="_blank" rel="noreferrer">
-                    {product.project.name} <ExternalLink className="h-3 w-3" />
-                  </a>
+                  {product.project && (
+                    <a href={`/projects/${product.project.id}`} className="text-indigo-600 hover:underline flex items-center gap-1" target="_blank" rel="noreferrer">
+                      {product.project.name} <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
                 </div>
               ))}
             </div>

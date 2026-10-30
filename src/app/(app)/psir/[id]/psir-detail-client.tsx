@@ -24,7 +24,7 @@ type AttrValue = { id: string; psirId: string; attrDefId: string; value: string 
 
 type ProductRef = {
   id: string; partNumber: string | null; itemName: string | null; brand: string | null; upc: string | null;
-  project: { id: string; name: string };
+  project: { id: string; name: string } | null;
 };
 
 type Document = {
@@ -175,7 +175,7 @@ function ProductPicker({
                   <span className="font-mono text-xs text-gray-500">{p.partNumber ?? "—"}</span>
                   {" "}<span className="text-gray-700">{p.itemName ?? ""}</span>
                 </span>
-                <span className="text-xs text-gray-500 shrink-0">{p.project.name}</span>
+                <span className="text-xs text-gray-500 shrink-0">{p.project?.name ?? "No project"}</span>
               </button>
             ))}
           </div>
@@ -609,13 +609,15 @@ export function PsirDetailClient({ psir: initial, attrDefs }: { psir: Psir; attr
                       {product.brand && <span className="ml-2 text-xs text-gray-500">· {product.brand}</span>}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Link
-                        href={`/projects/${product.project.id}`}
-                        className="text-xs text-violet-600 hover:underline flex items-center gap-1"
-                        target="_blank"
-                      >
-                        {product.project.name} <ExternalLink className="h-3 w-3" />
-                      </Link>
+                      {product.project && (
+                        <Link
+                          href={`/projects/${product.project.id}`}
+                          className="text-xs text-violet-600 hover:underline flex items-center gap-1"
+                          target="_blank"
+                        >
+                          {product.project.name} <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      )}
                       <button onClick={() => removeProduct(product.id)} className="p-1 rounded hover:bg-red-50 text-red-400">
                         <X className="h-3.5 w-3.5" />
                       </button>

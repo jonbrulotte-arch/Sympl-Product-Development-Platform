@@ -18,7 +18,7 @@ import { ProductPicker } from "@/components/compliance/product-picker";
 
 type ProductRef = {
   id: string; partNumber: string | null; itemName: string | null; brand: string | null;
-  project: { id: string; name: string };
+  project: { id: string; name: string } | null;
 };
 
 type EventDocument = {
@@ -417,7 +417,7 @@ export function ComplianceDetailClient({ eventId, userRole }: { eventId: string;
                           <span className="font-mono text-xs text-gray-400">{p.partNumber ?? "—"}</span>
                           {" "}<span className="text-gray-700">{p.itemName ?? ""}</span>
                         </span>
-                        <span className="text-xs text-gray-400 shrink-0">{p.project.name}</span>
+                        <span className="text-xs text-gray-400 shrink-0">{p.project?.name ?? "No project"}</span>
                       </button>
                     ))}
                   </div>
@@ -433,9 +433,11 @@ export function ComplianceDetailClient({ eventId, userRole }: { eventId: string;
                     {" "}<span className="text-gray-700">{product.itemName ?? ""}</span>
                   </span>
                   <span className="flex items-center gap-2">
-                    <a href={`/projects/${product.project.id}`} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline flex items-center gap-1">
-                      {product.project.name} <ExternalLink className="h-3 w-3" />
-                    </a>
+                    {product.project && (
+                      <a href={`/projects/${product.project.id}`} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline flex items-center gap-1">
+                        {product.project.name} <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
                     {canEdit && (
                       <button onClick={() => removeProduct(product.id)} className="text-gray-300 hover:text-red-400" title="Unlink product">
                         <X className="h-3.5 w-3.5" />

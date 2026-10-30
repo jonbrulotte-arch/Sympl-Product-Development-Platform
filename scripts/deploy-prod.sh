@@ -15,12 +15,18 @@ echo "Branch : $BRANCH"
 echo ""
 
 echo "--- Pulling latest code ---"
-git pull origin "$BRANCH"
+git pull --ff-only origin "$BRANCH"
 chmod +x "$APP_DIR/scripts/sympl_manager.py"
 
 echo ""
 echo "--- Installing dependencies ---"
 npm install --production=false
+
+echo ""
+echo "--- Data migrations (idempotent) ---"
+# Moves products to the product master model before db push drops the old
+# columns. Exits non-zero (stopping the deploy) if a pre-flight check fails.
+npm run db:migrate-product-master
 
 echo ""
 echo "--- Syncing database schema ---"

@@ -35,7 +35,7 @@ export default async function ProjectsPage() {
             user: { select: { id: true, name: true, email: true } },
           },
         },
-        _count: { select: { products: { where: { isArchived: false } } } },
+        _count: { select: { products: { where: { isArchived: false, product: { isArchived: false } } } } },
       },
       orderBy: { updatedAt: "desc" },
     }),

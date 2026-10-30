@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { detachProductCommentsFromProjects } from "@/lib/product-catalog";
 import { projectSchema } from "@/lib/validation";
 import { canEditProject, canDeleteProject, can } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
@@ -30,7 +31,7 @@ async function getProject(id: string) {
         },
         orderBy: { sortOrder: "asc" },
       },
-      _count: { select: { products: { where: { isArchived: false } } } },
+      _count: { select: { products: { where: { isArchived: false, product: { isArchived: false } } } } },
     },
   });
 }
@@ -132,7 +133,7 @@ export async function PATCH(
           user: { select: { id: true, name: true, email: true, image: true, role: true } },
         },
       },
-      _count: { select: { products: { where: { isArchived: false } } } },
+      _count: { select: { products: { where: { isArchived: false, product: { isArchived: false } } } } },
     },
   });
 
@@ -190,12 +191,12 @@ export async function DELETE(
       return NextResponse.json({ error: "Only admins can permanently delete projects" }, { status: 403 });
     }
 
-    // Comment rows cascade with the project, so collect their attachment paths
-    // first — once the rows are gone the files on disk are unreachable.
-    // Product comments carry projectId too, but match on either to also catch
-    // rows written before projectId was always set.
+    // Project comments cascade with the project, so collect their attachment
+    // paths first — once the rows are gone the files on disk are unreachable.
+    // Product comments outlive the project with their product.
+    await detachProductCommentsFromProjects([id]);
     const comments = await prisma.comment.findMany({
-      where: { OR: [{ projectId: id }, { product: { projectId: id } }] },
+      where: { projectId: id },
       select: { content: true },
     });
     const attachmentPaths = [...new Set(comments.flatMap((c) => parseCommentAttachments(c.content)))];

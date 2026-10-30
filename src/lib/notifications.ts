@@ -103,7 +103,7 @@ export async function getOwnerIdsForProducts(productIds: string[]): Promise<stri
   if (productIds.length === 0) return [];
   const products = await prisma.productRecord.findMany({
     where: { id: { in: productIds } },
-    select: { project: { select: { ownerId: true } } },
+    select: { projects: { where: { isArchived: false }, select: { project: { select: { ownerId: true } } } } },
   });
-  return [...new Set(products.map((p) => p.project.ownerId))];
+  return [...new Set(products.flatMap((p) => p.projects.map((l) => l.project.ownerId)))];
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isLinked } from "@/lib/product-catalog";
 import { can } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
 import { unresolvedDriftForProduct } from "@/lib/salsify-drift";
@@ -23,16 +24,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
     where: { id: productId },
     select: {
       id: true,
-      projectId: true,
       partNumber: true,
       itemName: true,
       brand: true,
       updatedAt: true,
       salsifyLastSyncedAt: true,
-      project: { select: { id: true, name: true, status: true } },
     },
   });
-  if (!product || product.projectId !== projectId) {
+  if (!product || !(await isLinked(projectId, productId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -72,9 +71,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
       updatedAt: product.updatedAt.toISOString(),
       salsifyLastSyncedAt: product.salsifyLastSyncedAt?.toISOString() ?? null,
     },
-    project: product.project,
+    project: await prisma.project.findUnique({ where: { id: projectId }, select: { id: true, name: true, status: true } }),
     links: {
-      project: `/projects/${product.projectId}`,
+      project: `/projects/${projectId}`,
       product: `/products/${product.id}`,
       salsify: salsifyUrl,
     },

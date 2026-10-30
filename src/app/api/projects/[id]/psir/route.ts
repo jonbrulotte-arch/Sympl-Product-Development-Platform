@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { inProject } from "@/lib/product-catalog";
 import { NextResponse } from "next/server";
 import { checkProjectAccess } from "@/lib/project-access";
 
@@ -17,7 +18,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const productIds = (
     await prisma.productRecord.findMany({
-      where: { projectId, isArchived: false },
+      where: { ...inProject(projectId), isArchived: false },
       select: { id: true },
     })
   ).map((p) => p.id);

@@ -16,6 +16,7 @@ import path from "path";
 import ExcelJS from "exceljs";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { inProject, sortByProjectRows } from "@/lib/product-catalog";
 import { can } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
@@ -77,12 +78,11 @@ export async function POST(
 
   const [products, mappedAttrs] = await Promise.all([
     prisma.productRecord.findMany({
-      // Scoped by projectId as well as id, so ids from another project can't be
+      // Scoped to the project as well as id, so ids from another project can't be
       // smuggled in through the request body.
-      where: { projectId, id: { in: productIds }, isArchived: false },
+      where: { ...inProject(projectId), id: { in: productIds }, isArchived: false },
       include: { attributeValues: true },
-      orderBy: [{ rowIndex: "asc" }, { createdAt: "asc" }],
-    }),
+    }).then((rows) => sortByProjectRows(projectId, rows)),
     prisma.attributeDefinition.findMany({
       where: { qcDimsColumn: { not: null }, isActive: true },
     }),

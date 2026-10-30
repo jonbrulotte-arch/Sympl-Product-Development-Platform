@@ -36,7 +36,7 @@ export default async function DashboardPage({
       include: {
         owner: { select: { id: true, name: true, email: true } },
         category: true,
-        _count: { select: { products: { where: { isArchived: false } } } },
+        _count: { select: { products: { where: { isArchived: false, product: { isArchived: false } } } } },
       },
       orderBy: { updatedAt: "desc" },
       take: 8,
@@ -52,7 +52,7 @@ export default async function DashboardPage({
       },
       include: {
         owner: { select: { id: true, name: true, email: true } },
-        _count: { select: { products: { where: { isArchived: false } } } },
+        _count: { select: { products: { where: { isArchived: false, product: { isArchived: false } } } } },
       },
       take: 5,
     }),
@@ -110,8 +110,11 @@ export default async function DashboardPage({
             products: {
               some: {
                 product: {
-                  project: {
-                    OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+                  projects: {
+                    some: {
+                      isArchived: false,
+                      project: { OR: [{ ownerId: userId }, { members: { some: { userId } } }] },
+                    },
                   },
                 },
               },

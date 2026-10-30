@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { inProject } from "@/lib/product-catalog";
 import { resolveSalsifyCredentials } from "@/lib/salsify-auth";
 import { can } from "@/lib/permissions";
 import { checkProjectAccess } from "@/lib/project-access";
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const products = await prisma.productRecord.findMany({
     where: {
-      projectId,
+      ...inProject(projectId),
       isArchived: false,
       ...(productIds ? { id: { in: productIds } } : {}),
     },

@@ -671,7 +671,7 @@ const sections: Section[] = [
         <ApiBlock
           method="GET"
           path="/api/projects/:id/products"
-          description="List all non-archived products in a project, ordered by rowIndex."
+          description="List the products in a project, in grid order. Products live in a shared catalog; a product can belong to several projects, or none."
           response={`[
   {
     "id": "cmqq2t...",
@@ -732,7 +732,7 @@ const sections: Section[] = [
           params={[
             { name: "page", type: "number", desc: "Page number, default 1." },
             { name: "search", type: "string", desc: "Full-text search across partNumber, modelNumber, itemName, brand, upc." },
-            { name: "projectId", type: "string", desc: "Filter to a single project." },
+            { name: "projectId", type: "string", desc: "Only products linked to this project." },
             { name: "brand", type: "string", desc: "Exact brand match." },
             { name: "inventoryStatus", type: "string", desc: "Exact inventory status match." },
             { name: "categoryId", type: "string", desc: "Filter by category CUID." },

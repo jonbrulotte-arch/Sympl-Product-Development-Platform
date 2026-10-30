@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { primaryProject, withPrimaryProject } from "@/lib/product-catalog";
 import { isInspectionsEnabled } from "@/lib/app-config";
 import { PsirDetailClient } from "./psir-detail-client";
 
@@ -26,7 +27,7 @@ export default async function PsirDetailPage({ params }: { params: Promise<{ id:
             product: {
               select: {
                 id: true, partNumber: true, itemName: true, brand: true, upc: true,
-                project: { select: { id: true, name: true } },
+                projects: primaryProject({ id: true, name: true }),
               },
             },
           },
@@ -45,6 +46,6 @@ export default async function PsirDetailPage({ params }: { params: Promise<{ id:
 
   if (!psir) notFound();
 
-  const serialized = JSON.parse(JSON.stringify({ psir, attrDefs }));
+  const serialized = JSON.parse(JSON.stringify(withPrimaryProject({ psir, attrDefs })));
   return <PsirDetailClient psir={serialized.psir} attrDefs={serialized.attrDefs} />;
 }

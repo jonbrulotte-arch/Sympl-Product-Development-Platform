@@ -5,6 +5,7 @@
 // Non-admin users only see data from projects they own or are members of.
 
 import { prisma } from "@/lib/prisma";
+import { primaryProject } from "@/lib/product-catalog";
 import { isInspectionsEnabled } from "@/lib/app-config";
 import { unresolvedDrift } from "@/lib/salsify-drift";
 import type { Prisma } from "@prisma/client";
@@ -67,7 +68,7 @@ export async function inspectionsReport(ctx: ReportContext): Promise<ReportRow[]
       ...(from || to
         ? { inspectionDate: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
         : {}),
-      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
+      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { projects: { some: { isArchived: false, project: projectScope(ctx) } } } } } }),
     },
     include: {
       createdBy: { select: { name: true, email: true } },
@@ -104,7 +105,7 @@ export async function complianceReport(ctx: ReportContext): Promise<ReportRow[]>
       ...(overdueOnly === "true"
         ? { dueDate: { lt: now }, status: { in: ["OPEN", "IN_PROGRESS"] } }
         : {}),
-      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
+      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { projects: { some: { isArchived: false, project: projectScope(ctx) } } } } } }),
     },
     include: {
       type: { select: { name: true } },
@@ -269,17 +270,17 @@ export async function roadblocksReport(ctx: ReportContext): Promise<ReportRow[]>
   const failed = !(await isInspectionsEnabled()) ? [] : await prisma.psir.findMany({
     where: {
       result: "FAIL",
-      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { project: projectScope(ctx) } } } }),
+      ...(ctx.seesAllProjects ? {} : { products: { some: { product: { projects: { some: { isArchived: false, project: projectScope(ctx) } } } } } }),
     },
     include: {
       products: {
-        include: { product: { select: { project: { select: { name: true, owner: { select: { name: true, email: true } } } } } } },
+        include: { product: { select: { projects: primaryProject({ name: true, owner: { select: { name: true, email: true } } }) } } },
         take: 1,
       },
     },
   });
   for (const psir of failed) {
-    const proj = psir.products[0]?.product.project;
+    const proj = psir.products[0]?.product.projects[0]?.project;
     rows.push({
       "Roadblock Type": "Failed Inspection",
       Item: psir.title,
@@ -323,22 +324,21 @@ export async function outOfSyncReport(ctx: ReportContext): Promise<ReportRow[]> 
   const products = await prisma.productRecord.findMany({
     where: {
       isArchived: false,
-      project: { isArchived: false, ...projectScope(ctx) },
+      projects: { some: { isArchived: false, project: { isArchived: false, ...projectScope(ctx) } } },
       OR: [
         // Synced before but edited since (Salsify is stale)
         { salsifyLastSyncedAt: { not: null } },
-        // Never synced while the project is export-ready
-        { salsifyLastSyncedAt: null, project: { status: "EXPORT_READY" } },
+        // Never synced while a linked project is export-ready
+        { salsifyLastSyncedAt: null, projects: { some: { isArchived: false, project: { status: "EXPORT_READY" } } } },
       ],
     },
     select: {
       id: true,
-      projectId: true,
       partNumber: true,
       itemName: true,
       updatedAt: true,
       salsifyLastSyncedAt: true,
-      project: { select: { name: true, status: true } },
+      projects: primaryProject({ id: true, name: true, status: true }),
     },
   });
 
@@ -356,8 +356,8 @@ export async function outOfSyncReport(ctx: ReportContext): Promise<ReportRow[]> 
   return drifted.map((p) => ({
     "Part Number": p.partNumber ?? null,
     "Item Name": p.itemName ?? null,
-    Project: p.project.name,
-    "Project Status": p.project.status,
+    Project: p.projects[0]?.project.name ?? null,
+    "Project Status": p.projects[0]?.project.status ?? null,
     "Drift Status": p.salsifyLastSyncedAt ? "Changed" : "Never synced",
     "Unsynced Fields": outstanding.get(p.id)?.length ?? 0,
     "Last Synced": fmtDate(p.salsifyLastSyncedAt),
@@ -365,7 +365,7 @@ export async function outOfSyncReport(ctx: ReportContext): Promise<ReportRow[]> 
     // Underscore-prefixed keys are internal: the client uses them to open the
     // detail drawer, and the Excel export strips them.
     _productId: p.id,
-    _projectId: p.projectId,
+    _projectId: p.projects[0]?.project.id ?? null,
   }));
 }
 
@@ -377,7 +377,7 @@ export async function pipelineReport(ctx: ReportContext): Promise<ReportRow[]> {
     where: { isArchived: false, ...projectScope(ctx) },
     include: {
       owner: { select: { name: true, email: true } },
-      _count: { select: { products: { where: { isArchived: false } } } },
+      _count: { select: { products: { where: { isArchived: false, product: { isArchived: false } } } } },
     },
   });
   type Agg = { status: string; owner: string; ownerId: string; count: number; products: number; totalDays: number };

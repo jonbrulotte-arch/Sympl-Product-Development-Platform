@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { formatDate } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   Search, Filter, X, ChevronLeft, ChevronRight,
-  ExternalLink, Pencil, Save, Package, AlertTriangle,
+  ExternalLink, Pencil, Save, Package, Plus,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -33,12 +34,12 @@ type ProductRow = {
   size: string | null;
   htsCode: string | null;
   updatedAt: string;
-  project: { id: string; name: string; status: string; brand: string | null };
+  project: { id: string; name: string; status: string; brand: string | null } | null;
+  projects: { project: { id: string; name: string; status: string; brand: string | null } }[];
   category: { id: string; name: string } | null;
   createdBy: { name: string | null };
   updatedBy: { name: string | null } | null;
   attributeValues: { attributeDefinition: { key: string; label: string }; textValue: string | null }[];
-  duplicateOf: { productId: string; projectId: string; projectName: string } | null;
 };
 
 type Filters = {
@@ -91,11 +92,18 @@ function EditDrawer({
       body[key] = fields[key] || null;
     }
     const res = await fetch(
-      `/api/projects/${product.project.id}/products/${product.id}`,
+      `/api/products/${product.id}`,
       { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
     );
     if (!res.ok) {
-      setError("Failed to save. Please try again.");
+      const err = await res.json().catch(() => ({}));
+      setError(
+        res.status === 409 && err.existingProduct
+          ? `Part number ${err.existingProduct.partNumber} already belongs to another product.`
+          : res.status === 403
+            ? "You don't have permission to edit this product."
+            : "Failed to save. Please try again.",
+      );
       setSaving(false);
       return;
     }
@@ -114,16 +122,16 @@ function EditDrawer({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div>
-            <p className="text-xs text-gray-500 font-medium">{product.project.name}</p>
+            <p className="text-xs text-gray-500 font-medium">{product.projects.map((l) => l.project.name).join(", ") || "Not in any project"}</p>
             <h2 className="text-lg font-semibold text-gray-900 leading-tight">
               {product.itemName ?? product.partNumber ?? "Untitled Product"}
             </h2>
           </div>
           <div className="flex items-center gap-2">
             <Link
-              href={`/projects/${product.project.id}?product=${product.id}`}
+              href={`/products/${product.id}`}
               className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
-              title="Open in project"
+              title="Open product"
             >
               <ExternalLink className="h-4 w-4" />
             </Link>
@@ -138,7 +146,7 @@ function EditDrawer({
           {/* Meta */}
           <div className="flex flex-wrap gap-2 text-xs text-gray-500 mb-2">
             {product.category && <Badge variant="secondary">{product.category.name}</Badge>}
-            <ProjectStatusBadge status={product.project.status as never} />
+            {product.project && <ProjectStatusBadge status={product.project.status as never} />}
             {product.updatedAt && <span>Updated {formatDate(product.updatedAt)}</span>}
           </div>
 
@@ -207,6 +215,15 @@ export function ProductsBrowser({
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { can } = usePermissions();
+  const canCreate = can("products:edit_catalog");
+  const [creating, setCreating] = useState(false);
+  const createProduct = async () => {
+    setCreating(true);
+    const res = await fetch("/api/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    setCreating(false);
+    if (res.ok) router.push(`/products/${(await res.json()).id}`);
+  };
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounce search input
@@ -264,9 +281,14 @@ export function ProductsBrowser({
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Products</h1>
             <p className="text-sm text-gray-500">
-              {loading ? "Loading…" : `${total.toLocaleString()} product${total !== 1 ? "s" : ""} across all projects`}
+              {loading ? "Loading…" : `${total.toLocaleString()} product${total !== 1 ? "s" : ""} in the catalog`}
             </p>
           </div>
+          {canCreate && (
+            <Button size="sm" onClick={createProduct} disabled={creating}>
+              <Plus className="h-4 w-4 mr-1" /> {creating ? "Creating…" : "New Product"}
+            </Button>
+          )}
         </div>
 
         {/* Filters */}
@@ -391,11 +413,6 @@ export function ProductsBrowser({
                 <td className="px-4 py-3 font-mono text-xs text-gray-700 whitespace-nowrap">
                   <div className="flex items-center gap-1.5">
                     {product.partNumber ?? <span className="text-gray-300">—</span>}
-                    {product.duplicateOf && (
-                      <span title={`Duplicate Part Number — also used in project "${product.duplicateOf.projectName}"`}>
-                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                      </span>
-                    )}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-gray-900 max-w-xs truncate">
@@ -425,14 +442,23 @@ export function ProductsBrowser({
                   </div>
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
-                  <Link
-                    href={`/projects/${product.project.id}`}
-                    className="text-blue-600 hover:underline text-xs flex items-center gap-1"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {product.project.name}
-                    <ExternalLink className="h-3 w-3" />
-                  </Link>
+                  {product.projects.length === 0 ? (
+                    <span className="text-gray-300">—</span>
+                  ) : (
+                    <div className="flex flex-col gap-0.5">
+                      {product.projects.map(({ project }) => (
+                        <Link
+                          key={project.id}
+                          href={`/projects/${project.id}`}
+                          className="text-blue-600 hover:underline text-xs flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {project.name}
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
                   {product.category?.name ?? <span className="text-gray-300">—</span>}

@@ -423,11 +423,10 @@ async function main() {
       await prisma.productRecord.create({
         data: {
           ...sampleProducts[i],
-          projectId: project.id,
           createdById: pm.id,
           updatedById: pm.id,
-          rowIndex: i,
           categoryId: categoryMap["circular-saw-blades"],
+          projects: { create: { projectId: project.id, rowIndex: i, addedById: pm.id } },
         },
       });
     }

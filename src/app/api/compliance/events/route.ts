@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { primaryProject, withPrimaryProject } from "@/lib/product-catalog";
 import { NextResponse } from "next/server";
 
 import { createNotificationForMany, getOwnerIdsForProducts } from "@/lib/notifications";
@@ -14,7 +15,7 @@ export const EVENT_INCLUDE = {
       product: {
         select: {
           id: true, partNumber: true, itemName: true, brand: true,
-          project: { select: { id: true, name: true } },
+          projects: primaryProject({ id: true, name: true }),
         },
       },
     },
@@ -41,12 +42,12 @@ export async function GET(req: Request) {
   // Scope to projects the user can access (unless ADMIN/DIRECTOR)
   const projectFilter = seesAllProjects(session.user.role)
     ? {}
-    : { products: { some: { product: { project: { OR: [{ ownerId: session.user.id }, { members: { some: { userId: session.user.id } } }] } } } } };
+    : { products: { some: { product: { projects: { some: { isArchived: false, project: { OR: [{ ownerId: session.user.id }, { members: { some: { userId: session.user.id } } }] } } } } } } };
 
   const where = {
     ...projectFilter,
     ...(productId && { products: { some: { productId } } }),
-    ...(projectId && { products: { some: { product: { projectId } } } }),
+    ...(projectId && { products: { some: { product: { projects: { some: { projectId, isArchived: false } } } } } }),
     ...(status && { status }),
     ...(typeId && { typeId }),
     ...(search && {
@@ -70,7 +71,7 @@ export async function GET(req: Request) {
     prisma.complianceEvent.count({ where }),
   ]);
 
-  return NextResponse.json({ events, total, page, pageSize });
+  return NextResponse.json(withPrimaryProject({ events, total, page, pageSize }));
 }
 
 export async function POST(req: Request) {
@@ -119,5 +120,5 @@ export async function POST(req: Request) {
     });
   })().catch(() => {});
 
-  return NextResponse.json(event, { status: 201 });
+  return NextResponse.json(withPrimaryProject(event), { status: 201 });
 }

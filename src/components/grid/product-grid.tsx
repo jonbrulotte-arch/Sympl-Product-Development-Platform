@@ -17,7 +17,7 @@ import {
   type Row,
   type Column,
 } from "@tanstack/react-table";
-import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw, AlertTriangle, Bookmark, X, DownloadCloud, FileSpreadsheet } from "lucide-react";
+import { Plus, Download, Upload, Trash2, Copy, Search, ChevronUp, ChevronDown, Edit3, Pin, PinOff, HelpCircle, RefreshCw, AlertTriangle, Bookmark, Link2, X, DownloadCloud, FileSpreadsheet } from "lucide-react";
 import { CORE_FIELDS } from "@/lib/core-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -597,6 +597,29 @@ export function ProductGrid({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
           });
+          if (res.status === 409 && field === "partNumber") {
+            // Part numbers are unique in the catalog: offer to bring the
+            // existing product into this project in place of this row.
+            const { existingProduct } = await res.json().catch(() => ({}));
+            const label = existingProduct ? `${existingProduct.partNumber}${existingProduct.itemName ? ` (${existingProduct.itemName})` : ""}` : String(value);
+            if (existingProduct && confirm(`Part number ${label} already exists in the product catalog.\n\nAdd that existing product to this project instead of this row?`)) {
+              const linkRes = await fetch(`/api/projects/${projectId}/products`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ linkProductId: existingProduct.id, replaceProductId: productId }),
+              });
+              if (linkRes.ok) {
+                const linked = await linkRes.json();
+                setProducts((prev) => [
+                  ...prev.filter((p) => p.id !== productId && p.id !== linked.id),
+                  { ...linked, _saveStatus: "idle" },
+                ]);
+                saveTimeouts.current.delete(key);
+                return;
+              }
+            }
+            throw new Error("Duplicate part number");
+          }
           if (!res.ok) throw new Error("Save failed");
           const updated = await res.json().catch(() => null);
           setProducts((prev) =>
@@ -646,8 +669,8 @@ export function ProductGrid({
     if (selectedRows.size === 0) return;
     const count = selectedRows.size;
     const msg = count === 1
-      ? "Are you sure you want to delete this product? This cannot be undone."
-      : `Are you sure you want to delete these ${count} products? This cannot be undone.`;
+      ? "Remove this product from the project? It stays in the Products catalog and any other projects."
+      : `Remove these ${count} products from the project? They stay in the Products catalog and any other projects.`;
     if (!confirm(msg)) return;
     const ids = [...selectedRows];
     await Promise.all(
@@ -669,7 +692,8 @@ export function ProductGrid({
         body: JSON.stringify({
           ...product,
           id: undefined,
-          partNumber: product.partNumber ? `${product.partNumber}-COPY` : undefined,
+          // Part numbers are unique, so the copy starts without one.
+          partNumber: undefined,
           isDuplicate: true,
           sourceProductId: id,
         }),
@@ -932,7 +956,7 @@ export function ProductGrid({
               </Button>
               <Button size="sm" variant="destructive" onClick={deleteSelected}>
                 <Trash2 className="h-3.5 w-3.5" />
-                Delete
+                Remove
               </Button>
             </div>
           )}
@@ -1581,10 +1605,10 @@ function GridRow({
               <div className={cn("px-2 py-1 text-sm truncate min-h-[32px] flex items-center gap-1 flex-wrap", "text-amber-900")}>
                 {colId === "partNumber" && (row.original as ProductRow).duplicateOf && (
                   <span
-                    title={`Duplicate Part Number — also used in project "${(row.original as ProductRow).duplicateOf!.projectName}"`}
+                    title={`Also in project "${(row.original as ProductRow).duplicateOf!.projectName}" — edits here change it there too`}
                     className="shrink-0"
                   >
-                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                    <Link2 className="h-3.5 w-3.5 text-blue-500" />
                   </span>
                 )}
                 {value != null && String(value) !== "" ? (() => {

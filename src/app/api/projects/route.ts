@@ -30,13 +30,13 @@ export async function GET(req: NextRequest) {
         { owner: { name: { contains: search, mode: "insensitive" as const } } },
         { owner: { email: { contains: search, mode: "insensitive" as const } } },
         { members: { some: { user: { name: { contains: search, mode: "insensitive" as const } } } } },
-        { products: { some: { isArchived: false, OR: [
+        { products: { some: { isArchived: false, product: { isArchived: false, OR: [
           { partNumber: { contains: search, mode: "insensitive" as const } },
           { modelNumber: { contains: search, mode: "insensitive" as const } },
           { itemName: { contains: search, mode: "insensitive" as const } },
           { upc: { contains: search, mode: "insensitive" as const } },
           { brand: { contains: search, mode: "insensitive" as const } },
-        ]}}},
+        ]}}}},
       ]
     : null;
 
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
             user: { select: { id: true, name: true, email: true, image: true, role: true } },
           },
         },
-        _count: { select: { products: { where: { isArchived: false } } } },
+        _count: { select: { products: { where: { isArchived: false, product: { isArchived: false } } } } },
       },
       orderBy: { updatedAt: "desc" },
       skip: (page - 1) * pageSize,
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
     include: {
       owner: { select: { id: true, name: true, email: true, image: true, role: true } },
       category: true,
-      _count: { select: { products: { where: { isArchived: false } } } },
+      _count: { select: { products: { where: { isArchived: false, product: { isArchived: false } } } } },
     },
   });
 

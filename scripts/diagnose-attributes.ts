@@ -63,7 +63,7 @@ async function main() {
       where: { attributeDefinitionId: { in: defIds } },
       include: {
         attributeDefinition: { select: { key: true, label: true, isActive: true } },
-        product: { select: { partNumber: true, isArchived: true, projectId: true, categoryId: true } },
+        product: { select: { partNumber: true, isArchived: true, categoryId: true } },
       },
       orderBy: [{ attributeDefinitionId: "asc" }, { valueIndex: "asc" }],
     });
