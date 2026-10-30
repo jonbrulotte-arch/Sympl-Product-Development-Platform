@@ -3,6 +3,10 @@
 //
 //   npm run db:migrate-product-master            # migrate (no-op once done)
 //   npm run db:migrate-product-master -- --check # report only, change nothing
+//   npm run db:migrate-product-master -- --recover
+//       Repair for a database where `prisma db push` dropped the old columns
+//       before this script ran: rebuilds missing product→project links from
+//       each product's history. Combine with --check to preview.
 //
 // Must run BEFORE `prisma db push` on the release that removes
 // ProductRecord.projectId (scripts/deploy-prod.sh does this). Everything runs in
@@ -17,6 +21,7 @@ import path from "path";
 import { Pool, type PoolClient } from "pg";
 
 const CHECK_ONLY = process.argv.includes("--check");
+const RECOVER = process.argv.includes("--recover");
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 async function hasColumn(c: PoolClient, table: string, column: string) {
@@ -41,9 +46,70 @@ function fail(msg: string): never {
 // constraint as possible data loss and would stop the deploy. Safe because the
 // pre-flight has already proven there are no duplicates.
 async function ensurePartNumberUnique(c: PoolClient) {
-  const dup = await c.query(`SELECT "partNumber" FROM "ProductRecord" WHERE "partNumber" IS NOT NULL GROUP BY 1 HAVING count(*) > 1 LIMIT 5`);
-  if (dup.rowCount) fail(`Duplicate part numbers exist: ${dup.rows.map((r) => r.partNumber).join(", ")}`);
+  const dup = await c.query(`
+    SELECT btrim("partNumber") AS pn FROM "ProductRecord"
+    WHERE btrim(coalesce("partNumber", '')) <> '' GROUP BY 1 HAVING count(*) > 1 LIMIT 10`);
+  if (dup.rowCount) fail(`Duplicate part numbers exist: ${dup.rows.map((r) => r.pn).join(", ")}`);
+  // Blank strings would collide with each other; trimmed/blank → NULL first.
+  await c.query(`UPDATE "ProductRecord" SET "partNumber" = NULLIF(btrim("partNumber"), '')
+                 WHERE "partNumber" IS DISTINCT FROM NULLIF(btrim("partNumber"), '')`);
   await c.query(`CREATE UNIQUE INDEX IF NOT EXISTS "ProductRecord_partNumber_key" ON "ProductRecord"("partNumber")`);
+}
+
+// Under the old model a product lived in exactly one project, and every
+// product-level ActivityLog row and product comment recorded that projectId.
+async function recoverLinks(c: PoolClient) {
+  const { rows } = await c.query(`
+    WITH unlinked AS (
+      SELECT p.id, p."isArchived", p."createdAt", p."createdById", p."partNumber", p."itemName"
+      FROM "ProductRecord" p
+      WHERE NOT EXISTS (SELECT 1 FROM "ProjectProduct" l WHERE l."productId" = p.id)
+    ),
+    evidence AS (
+      SELECT a."productId", a."projectId", CASE WHEN a.action IN ('CREATED', 'IMPORTED') THEN 0 ELSE 1 END AS pref, a."createdAt", 'history' AS src
+      FROM "ActivityLog" a WHERE a."productId" IS NOT NULL AND a."projectId" IS NOT NULL
+      UNION ALL
+      SELECT cm."productId", cm."projectId", 2, cm."createdAt", 'comment'
+      FROM "Comment" cm WHERE cm."productId" IS NOT NULL AND cm."projectId" IS NOT NULL
+    ),
+    best AS (
+      SELECT DISTINCT ON (e."productId") e."productId", e."projectId", e.src
+      FROM evidence e JOIN "Project" pr ON pr.id = e."projectId"
+      ORDER BY e."productId", e.pref, e."createdAt" DESC
+    )
+    SELECT u.*, b."projectId", b.src, pr.name AS project_name
+    FROM unlinked u
+    LEFT JOIN best b ON b."productId" = u.id
+    LEFT JOIN "Project" pr ON pr.id = b."projectId"
+    ORDER BY b."projectId", u."createdAt"`);
+
+  if (rows.length === 0) {
+    console.log("  recover: every product already has a project link — nothing to do.");
+    return;
+  }
+  const found = rows.filter((r) => r.projectId);
+  const orphans = rows.filter((r) => !r.projectId);
+  console.log(`\n  recover: ${rows.length} product(s) without a project link; project found for ${found.length}.`);
+  for (const r of found) console.log(`    ${r.partNumber ?? "(no part number)"} — ${r.itemName ?? ""} → "${r.project_name}" (from ${r.src})${r.isArchived ? " [archived]" : ""}`);
+  for (const r of orphans) console.log(`    ${r.partNumber ?? "(no part number)"} — ${r.itemName ?? ""} → no history found; left in the catalog without a project`);
+
+  if (CHECK_ONLY) {
+    console.log("\n  --check: no changes made.");
+    return;
+  }
+  await c.query("BEGIN");
+  for (const r of found) {
+    await c.query(
+      `INSERT INTO "ProjectProduct" ("id", "projectId", "productId", "rowIndex", "isArchived", "addedById", "createdAt")
+       SELECT gen_random_uuid()::text, $1, $2,
+              coalesce((SELECT max("rowIndex") + 1 FROM "ProjectProduct" WHERE "projectId" = $1), 0),
+              $3, $4, $5
+       ON CONFLICT ("projectId", "productId") DO NOTHING`,
+      [r.projectId, r.id, r.isArchived, r.createdById, r.createdAt],
+    );
+  }
+  await c.query("COMMIT");
+  console.log(`  ✔ restored ${found.length} link(s).`);
 }
 
 async function main() {
@@ -52,12 +118,21 @@ async function main() {
     if (!(await hasColumn(c, "ProductRecord", "projectId"))) {
       console.log("Product master migration: already applied (ProductRecord.projectId no longer exists).");
       if (!CHECK_ONLY) await ensurePartNumberUnique(c);
+      else {
+        const d = await c.query(`SELECT btrim("partNumber") AS pn FROM "ProductRecord" WHERE btrim(coalesce("partNumber", '')) <> '' GROUP BY 1 HAVING count(*) > 1`);
+        if (d.rowCount) console.warn(`  warning: duplicate part numbers must be resolved first: ${d.rows.map((r) => r.pn).join(", ")}`);
+      }
       if (await hasTable(c, "ProjectProduct")) {
         const { rows } = await c.query(`
           SELECT (SELECT count(*) FROM "ProductRecord")::int AS products,
                  (SELECT count(*) FROM "ProjectProduct")::int AS links,
                  (SELECT count(*) FROM "ProductRecord" p WHERE NOT EXISTS (SELECT 1 FROM "ProjectProduct" l WHERE l."productId" = p.id))::int AS unlinked`);
         console.log(`  products=${rows[0].products} links=${rows[0].links} products-without-project=${rows[0].unlinked}`);
+        if (RECOVER) await recoverLinks(c);
+        else if (rows[0].unlinked > 0 && rows[0].links === 0) {
+          console.warn("  warning: no product is linked to any project. If the old columns were dropped by `prisma db push`,");
+          console.warn("  run with --recover to rebuild the links from product history.");
+        }
       }
       return;
     }

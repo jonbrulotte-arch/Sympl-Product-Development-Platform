@@ -30,7 +30,8 @@ npm run db:migrate-product-master
 
 echo ""
 echo "--- Syncing database schema ---"
-npx prisma db push
+# stdin closed so a data-loss warning fails the deploy instead of prompting.
+npx prisma db push < /dev/null
 
 echo ""
 echo "--- Generating Prisma client ---"
