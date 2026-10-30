@@ -3,6 +3,10 @@
 //
 //   npm run db:migrate-product-master            # migrate (no-op once done)
 //   npm run db:migrate-product-master -- --check # report only, change nothing
+//   npm run db:migrate-product-master -- --rename-archived-duplicates [--check]
+//       Resolve duplicate part numbers whose extra copies are archived by
+//       renaming those copies ("19968 (archived a1b2c3)"). Live products are
+//       never renamed; aborts if a part number has two live products.
 //   npm run db:migrate-product-master -- --recover
 //       Repair for a database where `prisma db push` dropped the old columns
 //       before this script ran: rebuilds missing product→project links from
@@ -22,6 +26,9 @@ import { Pool, type PoolClient } from "pg";
 
 const CHECK_ONLY = process.argv.includes("--check");
 const RECOVER = process.argv.includes("--recover");
+// Old-model archived rows (deleted from a grid) kept their part numbers; with
+// this flag their copy is renamed so the live product keeps the number.
+const RENAME_ARCHIVED = process.argv.includes("--rename-archived-duplicates");
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 async function hasColumn(c: PoolClient, table: string, column: string) {
@@ -154,17 +161,42 @@ async function main() {
       FROM "ProductRecord" p JOIN "Project" pr ON pr.id = p."projectId"
       WHERE btrim(coalesce("partNumber", '')) <> ''
       GROUP BY btrim("partNumber") HAVING count(*) > 1 ORDER BY 1`);
+    const renames: { id: string; from: string; to: string }[] = [];
     if (dupes.rowCount) {
       console.error(`\n  ${dupes.rowCount} part number(s) are used by more than one product record:`);
       for (const d of dupes.rows) console.error(`    ${d.pn} ×${d.n}: ${d.rows}`);
-      fail("Part numbers must be unique in the product master. Merge or renumber the records above, then re-run.");
+      if (!RENAME_ARCHIVED) {
+        fail("Part numbers must be unique in the product master. Merge or renumber the records above,\n  or re-run with --rename-archived-duplicates to rename the archived copies.");
+      }
+      const { rows: members } = await c.query(`
+        SELECT id, btrim("partNumber") AS pn, "partNumber" AS raw, "isArchived", "updatedAt"
+        FROM "ProductRecord"
+        WHERE btrim("partNumber") IN (
+          SELECT btrim("partNumber") FROM "ProductRecord" WHERE btrim(coalesce("partNumber", '')) <> ''
+          GROUP BY 1 HAVING count(*) > 1)
+        ORDER BY btrim("partNumber"), "isArchived", "updatedAt" DESC`);
+      const groups = new Map<string, typeof members>();
+      for (const m of members) groups.set(m.pn, [...(groups.get(m.pn) ?? []), m]);
+      const blocked: string[] = [];
+      for (const [pn, rows] of groups) {
+        const live = rows.filter((r) => !r.isArchived);
+        if (live.length > 1) { blocked.push(pn); continue; }
+        // Keep the live product (or, if all are archived, the most recently updated one).
+        const keep = live[0] ?? rows[0];
+        for (const r of rows) if (r.id !== keep.id) renames.push({ id: r.id, from: r.raw, to: `${pn} (archived ${r.id.slice(-6)})` });
+      }
+      if (blocked.length) {
+        fail(`These part numbers are used by more than one LIVE product, which can't be resolved automatically: ${blocked.join(", ")}`);
+      }
+      console.log(`\n  --rename-archived-duplicates: ${renames.length} archived cop${renames.length === 1 ? "y" : "ies"} will be renamed:`);
+      for (const r of renames) console.log(`    ${r.from} → ${r.to}`);
     }
     const caseDupes = await c.query(`
       SELECT lower(btrim("partNumber")) AS pn, string_agg(DISTINCT btrim("partNumber"), ', ') AS variants
       FROM "ProductRecord" WHERE btrim(coalesce("partNumber", '')) <> ''
       GROUP BY lower(btrim("partNumber")) HAVING count(DISTINCT btrim("partNumber")) > 1`);
     for (const d of caseDupes.rows) console.warn(`  warning: part numbers differ only by case: ${d.variants} (kept as separate products)`);
-    console.log("  duplicate part numbers: none ✓");
+    if (!renames.length) console.log("  duplicate part numbers: none ✓");
 
     if (CHECK_ONLY) {
       console.log("\n--check: pre-flight passed; no changes made.");
@@ -181,6 +213,9 @@ async function main() {
 
     // ── Migrate (single transaction) ────────────────────────────────────────
     await c.query("BEGIN");
+    for (const r of renames) {
+      await c.query(`UPDATE "ProductRecord" SET "partNumber" = $1 WHERE id = $2`, [r.to, r.id]);
+    }
     await c.query(`
       CREATE TABLE IF NOT EXISTS "ProjectProduct" (
         "id" TEXT NOT NULL,
