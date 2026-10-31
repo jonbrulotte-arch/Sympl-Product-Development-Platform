@@ -43,9 +43,45 @@ def _pid() -> int | None:
         return None
 
 
+def _port_pids() -> list[int]:
+    """PIDs listening on PORT (only ones this user can see without sudo)."""
+    for cmd in (["fuser", f"{PORT}/tcp"], ["lsof", "-t", f"-iTCP:{PORT}", "-sTCP:LISTEN"]):
+        try:
+            out = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+        # fuser prints "8010/tcp:" on stderr and the PIDs on stdout.
+        return sorted({int(t) for t in out.stdout.split() if t.isdigit()})
+    return []
+
+
+def _wait_port_free(seconds: float) -> bool:
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        if not _port_pids():
+            return True
+        time.sleep(0.5)
+    return not _port_pids()
+
+
+def _signal(pid: int, sig: int, group: bool) -> None:
+    try:
+        os.killpg(pid, sig) if group else os.kill(pid, sig)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
 def start() -> None:
     if _pid():
         print("SymplPM is already running.")
+        sys.exit(1)
+
+    # Starting while something else holds the port gives a process that can't
+    # bind, and the old build keeps being served. Refuse instead.
+    holders = _port_pids()
+    if holders:
+        print(f"Port {PORT} is still in use by pid(s) {', '.join(map(str, holders))}. "
+              f"Run '{sys.argv[0]} stop' (or: sudo fuser -k {PORT}/tcp) and try again.")
         sys.exit(1)
 
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -65,19 +101,35 @@ def start() -> None:
 
 
 def stop() -> None:
+    # npm start runs next-server as a child; signalling only npm left that
+    # child holding the port with the old build. start() uses a new session,
+    # so the npm pid is also the process-group id: stop the whole group.
     pid = _pid()
-    if not pid:
-        print("SymplPM is not running.")
-        return
-    os.kill(pid, signal.SIGTERM)
-    for _ in range(30):
-        time.sleep(0.5)
-        if _pid() is None:
-            break
+    if pid:
+        _signal(pid, signal.SIGTERM, group=True)
+        for _ in range(30):
+            time.sleep(0.5)
+            if _pid() is None:
+                break
+        else:
+            _signal(pid, signal.SIGKILL, group=True)
+        PID_FILE.unlink(missing_ok=True)
+        print(f"SymplPM stopped (pid {pid}).")
     else:
-        os.kill(pid, signal.SIGKILL)
-    PID_FILE.unlink(missing_ok=True)
-    print(f"SymplPM stopped (pid {pid}).")
+        print("SymplPM is not running.")
+
+    # Orphans from earlier stops (or a manual start) may still hold the port.
+    if not _wait_port_free(5):
+        for p in _port_pids():
+            print(f"Stopping leftover process {p} on port {PORT}.")
+            _signal(p, signal.SIGTERM, group=False)
+        if not _wait_port_free(10):
+            for p in _port_pids():
+                _signal(p, signal.SIGKILL, group=False)
+            _wait_port_free(5)
+    if _port_pids():
+        print(f"WARNING: port {PORT} is still in use by pid(s) {', '.join(map(str, _port_pids()))} "
+              f"(owned by another user?). Free it with: sudo fuser -k {PORT}/tcp")
 
 
 def restart() -> None:
@@ -88,10 +140,25 @@ def restart() -> None:
 
 def status() -> None:
     pid = _pid()
+    holders = _port_pids()
     if pid:
         print(f"SymplPM is running (pid {pid}) on port {PORT}.")
+        # The listener should be in our process group; anything else is an
+        # orphan serving whatever build it started with.
+        strays = []
+        for p in holders:
+            try:
+                if os.getpgid(p) != pid:
+                    strays.append(p)
+            except ProcessLookupError:
+                pass
+        if strays:
+            print(f"WARNING: port {PORT} is held by pid(s) {', '.join(map(str, strays))}, "
+                  f"which this manager did not start. Run '{sys.argv[0]} restart'.")
     else:
         print("SymplPM is not running.")
+        if holders:
+            print(f"WARNING: port {PORT} is held by pid(s) {', '.join(map(str, holders))}.")
         sys.exit(1)
 
 
