@@ -840,17 +840,32 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
                 )}
               </div>
             )}
-            {canPull && salsifyReady && (
+            {canPull && (
               <div className="flex flex-col items-end gap-0.5">
-                <button
-                  onClick={openPull}
-                  disabled={!product.partNumber}
-                  className="flex items-center gap-1.5 text-xs text-sky-700 hover:text-sky-900 border border-sky-300 bg-sky-50 hover:bg-sky-100 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-60"
-                  title={product.partNumber ? "Review a change report, then pull this product's data from Salsify" : "Add and save a Part Number first — Salsify is looked up by Part Number"}
-                >
-                  <DownloadCloud className="h-3.5 w-3.5" />
-                  Pull from Salsify
-                </button>
+                {salsifyReady ? (
+                  <button
+                    onClick={openPull}
+                    disabled={!product.partNumber}
+                    className="flex items-center gap-1.5 text-xs text-sky-700 hover:text-sky-900 border border-sky-300 bg-sky-50 hover:bg-sky-100 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-60"
+                    title={product.partNumber ? "Review a change report, then pull this product's data from Salsify" : "Add and save a Part Number first — Salsify is looked up by Part Number"}
+                  >
+                    <DownloadCloud className="h-3.5 w-3.5" />
+                    Pull from Salsify
+                  </button>
+                ) : (
+                  /* Say why instead of hiding the button, and link to the fix. */
+                  <Link
+                    href={salsifyHasApiKey ? "/help" : "/profile"}
+                    title={salsifyBlockedReason ?? undefined}
+                    className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-300 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-1.5 transition-colors"
+                  >
+                    <DownloadCloud className="h-3.5 w-3.5" />
+                    Pull unavailable
+                  </Link>
+                )}
+                {!salsifyReady && salsifyBlockedReason && !canSync && (
+                  <p className="text-xs text-gray-500 max-w-xs text-right">{salsifyBlockedReason}</p>
+                )}
               </div>
             )}
             {product.project && (
