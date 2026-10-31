@@ -84,6 +84,7 @@ export const PERMISSIONS = {
   "projects:transfer_ownership": { label: "Bulk Project Actions", description: "Bulk transfer ownership, change status, or archive projects. Permanent delete stays admin-only." },
   "admin:event_log":            { label: "Event Log",              description: "View the platform-wide audit event log" },
   "products:edit_catalog":      { label: "Edit Catalog Products",  description: "Create and edit products outside projects you belong to" },
+  "products:delete":            { label: "Delete Products",        description: "Permanently delete products from the catalog, removing them from every project" },
   "categories:request":         { label: "Request Categories",     description: "Submit requests for new categories and their attributes" },
   "categories:review_requests": { label: "Review Category Requests", description: "Approve, reject or complete category requests" },
   "psir_generator:use":         { label: "Use PSIR Generator",     description: "Generate PSIR workbooks and save PSIR products" },

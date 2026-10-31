@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
+import { deleteProducts } from "@/lib/product-delete";
 import { canEditProduct, projectLinksOf } from "@/lib/product-catalog";
 import { applyProductPatch } from "@/lib/product-update";
-import { logActivity } from "@/lib/activity";
 
 type Params = { params: Promise<{ productId: string }> };
 
@@ -24,18 +23,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   });
 }
 
-// Archives the product in the catalog (hidden everywhere, links kept so it can be restored).
+// Permanently deletes the product (and its project links, values and comments).
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!(await can(session.user.role, "products:edit_catalog"))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await can(session.user.role, "products:delete"))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { productId } = await params;
-  const product = await prisma.productRecord.update({ where: { id: productId }, data: { isArchived: true } }).catch(() => null);
-  if (!product) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  logActivity({
-    userId: session.user.id, action: "DELETED", entityType: "ProductRecord", entityId: productId, productId,
-    oldValue: product.partNumber ?? product.itemName ?? undefined, source: "Products",
-    metadata: { partNumber: product.partNumber, itemName: product.itemName },
-  }).catch(() => {});
-  return NextResponse.json({ success: true });
+  const result = await deleteProducts(session.user.id, [productId]);
+  if (result.deleted === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(result);
 }

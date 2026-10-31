@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { SalsifySyncModal } from "@/components/salsify/salsify-sync-modal";
 import { SalsifyPullModal } from "@/components/salsify/salsify-pull-modal";
+import { DeleteProductsDialog } from "@/components/products/delete-products-dialog";
 import { ShareLinkButton } from "@/components/share-link-button";
 import { useSalsifyStatus } from "@/hooks/use-salsify-status";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -650,6 +651,8 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
   }, [core, eav, coreAttrDefs, globalAttrs, categoryAttrs]);
 
   const [showPullModal, setShowPullModal] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const canDelete = hasPermission("products:delete");
 
   function openPull() {
     // The pull reads the saved part number and the page reloads afterwards,
@@ -844,6 +847,16 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
                   <p className="text-xs text-red-600 max-w-xs text-right">{syncError}</p>
                 )}
               </div>
+            )}
+            {canDelete && (
+              <button
+                onClick={() => setShowDelete(true)}
+                className="flex items-center gap-1.5 text-xs text-red-700 hover:text-red-900 border border-red-300 bg-white hover:bg-red-50 rounded-lg px-3 py-1.5 transition-colors"
+                title="Permanently delete this product"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </button>
             )}
             {canPull && (
               <div className="flex flex-col items-end gap-0.5">
@@ -1140,6 +1153,13 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
         </div>
       </div>}
     </div>
+    {showDelete && (
+      <DeleteProductsDialog
+        ids={[product.id]}
+        onClose={() => setShowDelete(false)}
+        onDeleted={() => router.push("/products?deleted=1")}
+      />
+    )}
     {showPullModal && (
       <SalsifyPullModal
         endpoint={`/api/products/${product.id}/salsify-pull`}

@@ -13,7 +13,9 @@ import { usePermissions } from "@/hooks/use-permissions";
 import {
   Search, Filter, X, ChevronLeft, ChevronRight,
   ExternalLink, Pencil, Save, Package, Plus,
+  Trash2,
 } from "lucide-react";
+import { DeleteProductsDialog } from "@/components/products/delete-products-dialog";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -226,6 +228,30 @@ export function ProductsBrowser({
   };
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Bulk delete. The selection is kept across pages and filters.
+  const canDelete = can("products:delete");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showDelete, setShowDelete] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const toggleOne = (id: string) =>
+    setSelected((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const pageIds = products.map((p) => p.id);
+  const allOnPage = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const togglePage = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of pageIds) if (allOnPage) next.delete(id); else next.add(id);
+      return next;
+    });
+
+  // The product page redirects here with ?deleted=1 after deleting a product.
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).get("deleted")) return;
+    router.replace("/products");
+    const t = setTimeout(() => setNotice("Product deleted."), 0);
+    return () => clearTimeout(t);
+  }, [router]);
+
   // Debounce search input
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -290,6 +316,23 @@ export function ProductsBrowser({
             </Button>
           )}
         </div>
+
+        {notice && (
+          <div className="mb-3 flex items-center justify-between rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+            {notice}
+            <button onClick={() => setNotice(null)} className="text-green-700 hover:text-green-900" aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>
+          </div>
+        )}
+
+        {canDelete && selected.size > 0 && (
+          <div className="mb-3 flex items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm">
+            <span className="font-medium text-gray-800">{selected.size} selected</span>
+            <Button size="sm" onClick={() => setShowDelete(true)} className="bg-red-600 hover:bg-red-700 text-white">
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete…
+            </Button>
+            <button onClick={() => setSelected(new Set())} className="text-gray-600 hover:text-gray-900">Clear selection</button>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex flex-wrap gap-2 items-center">
@@ -374,6 +417,11 @@ export function ProductsBrowser({
         <table className="w-full text-sm border-collapse min-w-[900px]">
           <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
             <tr>
+              {canDelete && (
+                <th className="w-10 pl-4 py-3">
+                  <input type="checkbox" checked={allOnPage} onChange={togglePage} aria-label="Select all on this page" className="h-4 w-4 rounded border-gray-300" />
+                </th>
+              )}
               <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Part #</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Item Name</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Brand</th>
@@ -388,12 +436,12 @@ export function ProductsBrowser({
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={9} className="text-center py-12 text-gray-400">Loading…</td>
+                <td colSpan={canDelete ? 10 : 9} className="text-center py-12 text-gray-400">Loading…</td>
               </tr>
             )}
             {!loading && products.length === 0 && (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={canDelete ? 10 : 9}>
                   <div className="text-center py-16">
                     <Package className="h-10 w-10 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-500 font-medium">No products found</p>
@@ -410,6 +458,11 @@ export function ProductsBrowser({
                 className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer group"
                 onClick={() => router.push(`/products/${product.id}`)}
               >
+                {canDelete && (
+                  <td className="w-10 pl-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" checked={selected.has(product.id)} onChange={() => toggleOne(product.id)} aria-label={`Select ${product.partNumber ?? "product"}`} className="h-4 w-4 rounded border-gray-300" />
+                  </td>
+                )}
                 <td className="px-4 py-3 font-mono text-xs text-gray-700 whitespace-nowrap">
                   <div className="flex items-center gap-1.5">
                     {product.partNumber ?? <span className="text-gray-300">—</span>}
@@ -508,6 +561,18 @@ export function ProductsBrowser({
         </div>
       )}
 
+      {showDelete && (
+        <DeleteProductsDialog
+          ids={[...selected]}
+          onClose={() => setShowDelete(false)}
+          onDeleted={({ deleted }) => {
+            setShowDelete(false);
+            setSelected(new Set());
+            setNotice(`Deleted ${deleted} product${deleted !== 1 ? "s" : ""}.`);
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }
