@@ -303,6 +303,7 @@ const sections: Section[] = [
 
         <H3>Full product edit page</H3>
         <P>Click any row to open the full product edit page at <Code>/products/[id]</Code>. This page shows every core field and every EAV attribute organized by section, plus tabs for <strong>Compliance</strong> events, <strong>Inspections</strong>, and <strong>History</strong> — the full field-level change log showing who changed what, when, and the old → new values.</P>
+        <P>The <strong>Category</strong> picker under the Projects panel sets the product&apos;s own category, which decides the category-specific attributes shown on the page and in grids. It is required for products that aren&apos;t in a project; for products in a project, leaving it on <em>Use project category</em> inherits the project&apos;s category. Changes are recorded in History.</P>
         <P>The header shows a <strong>% complete</strong> chip (required fields filled in) and, for Admins, Directors, and Product Managers, <strong>Share</strong> and <strong>Sync to Salsify</strong> buttons — plus <strong>Pull from Salsify</strong> for anyone holding that permission who can edit the product. Pull works even when the product isn&apos;t in any project, so a product created with <strong>New Product</strong> can be filled straight from Salsify.</P>
       </>
     ),

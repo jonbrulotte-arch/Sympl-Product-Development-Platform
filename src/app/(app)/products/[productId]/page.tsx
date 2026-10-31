@@ -6,6 +6,7 @@ import { notFound, redirect } from "next/navigation";
 import { ProductEditClient } from "./product-edit-client";
 import { CORE_FIELD_KEYS, REMOVED_CORE_KEYS } from "@/lib/core-fields";
 import { canEditProduct } from "@/lib/product-catalog";
+import { categoryPaths } from "@/lib/category-paths";
 import { getCategoryAndAncestorIds } from "@/lib/category-tree";
 import { isInspectionsEnabled } from "@/lib/app-config";
 
@@ -81,7 +82,7 @@ export default async function ProductEditPage({
   ]);
 
   const isAdmin = session.user.role === "ADMIN";
-  const [canEdit, linkableProjects] = await Promise.all([
+  const [canEdit, linkableProjects, allCategories] = await Promise.all([
     canEditProduct(session, product.id),
     prisma.project.findMany({
       where: {
@@ -91,7 +92,9 @@ export default async function ProductEditPage({
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
+    prisma.category.findMany({ where: { isActive: true }, select: { id: true, name: true, parentId: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
+  const categoryOptions = categoryPaths(allCategories).map(({ id, label }) => ({ id, label }));
 
   const serialized = JSON.parse(
     JSON.stringify({ product: { ...product, project: primary, projectId: primary?.id ?? null, duplicateOf: null }, globalAttrs, categoryAttrs, coreAttrDefs })
@@ -107,6 +110,8 @@ export default async function ProductEditPage({
       projectCategory={serialized.product.project?.category ?? null}
       canEdit={canEdit}
       linkableProjects={linkableProjects}
+      categoryOptions={categoryOptions}
+      inheritedCategory={!product.categoryId && primary?.category ? { name: primary.category.name, projectName: primary.name } : null}
       userRole={session.user.role}
       salsifyOrgId={salsifyConfig?.organizationId ?? null}
       inspectionsEnabled={inspectionsEnabled}

@@ -30,6 +30,21 @@ export async function applyProductPatch(opts: {
   const oldProduct = await prisma.productRecord.findUnique({ where: { id: productId } });
   if (!oldProduct) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // The product's own category drives which category-scoped attributes apply.
+  // Null clears it, so the product falls back to its project's category.
+  const categoryNames = new Map<string, string>();
+  // (optionalFk parses null to "absent", so an explicit clear is read from the raw body.)
+  const data = parsed.data as typeof parsed.data & { categoryId?: string | null };
+  if ("categoryId" in coreData) {
+    data.categoryId = coreData.categoryId || null;
+    if (data.categoryId) {
+      const cat = await prisma.category.findUnique({ where: { id: data.categoryId }, select: { name: true, isActive: true } });
+      if (!cat || !cat.isActive) return NextResponse.json({ error: "Category not found" }, { status: 400 });
+    }
+    const ids = [oldProduct.categoryId, data.categoryId].filter((v): v is string => !!v);
+    for (const c of await prisma.category.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })) categoryNames.set(c.id, c.name);
+  }
+
   // Part numbers are unique across the catalog; a clash offers the existing product instead.
   if ("partNumber" in parsed.data) {
     const pn = normalizePartNumber(parsed.data.partNumber);
@@ -117,8 +132,13 @@ export async function applyProductPatch(opts: {
   // Log field-level changes — fire-and-forget so missing ActivityLog table doesn't crash saves
   const changedFields = Object.keys(parsed.data) as (keyof typeof parsed.data)[];
   for (const field of changedFields) {
-    const oldVal = oldProduct?.[field as keyof typeof oldProduct];
-    const newVal = parsed.data[field];
+    let oldVal: unknown = oldProduct?.[field as keyof typeof oldProduct];
+    let newVal: unknown = parsed.data[field];
+    // Log category names, not IDs, so History reads "Framing Blades".
+    if (field === "categoryId") {
+      oldVal = oldVal ? categoryNames.get(oldVal as string) ?? oldVal : oldVal;
+      newVal = newVal ? categoryNames.get(newVal as string) ?? newVal : newVal;
+    }
     if (String(oldVal) !== String(newVal)) {
       logActivity({
         userId: session.user.id,

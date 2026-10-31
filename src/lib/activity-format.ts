@@ -51,6 +51,7 @@ const FIELD_LABELS: Record<string, string> = {
   complianceEventId: "Linked compliance event",
   dependsOnStageId: "Stage dependency",
   upc: "UPC",
+  categoryId: "Category",
   htsCode: "HTS Code",
   htsCodeCanada: "HTS Code (Canada)",
   password: "Password",

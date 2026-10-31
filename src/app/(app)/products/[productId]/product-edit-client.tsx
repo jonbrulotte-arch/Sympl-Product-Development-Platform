@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { cn, formatDate } from "@/lib/utils";
 import { CORE_FIELDS } from "@/lib/core-fields";
+import { fieldLabel } from "@/lib/activity-format";
 import {
   ArrowLeft, ExternalLink, Save, CheckCircle2, AlertCircle, RefreshCw,
   Plus, X, Clock, Circle, Trash2, ChevronDown, ChevronUp, ShieldCheck, ClipboardCheck,
@@ -84,6 +85,10 @@ interface Props {
   coreAttrDefs: AttrDef[];
   effectiveCategoryId: string | null;
   projectCategory: { id: string; name: string } | null;
+  /** Every active category with its full path, for the Category picker. */
+  categoryOptions: { id: string; label: string }[];
+  /** Set when the product has no category of its own and uses its project's. */
+  inheritedCategory: { name: string; projectName: string } | null;
   userRole: string;
   salsifyOrgId: string | null;
   inspectionsEnabled: boolean;
@@ -600,7 +605,7 @@ function PsirPanel({ productId }: { productId: string }) {
 
 type Tab = "details" | "compliance" | "psir" | "history";
 
-export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory, userRole, salsifyOrgId, inspectionsEnabled, canEdit, linkableProjects }: Props) {
+export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAttrDefs, effectiveCategoryId, projectCategory, userRole, salsifyOrgId, inspectionsEnabled, canEdit, linkableProjects, categoryOptions, inheritedCategory }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<Tab>("details");
@@ -908,6 +913,14 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
         {activeTab === "details" && (
           <div className="max-w-6xl mx-auto px-6 py-6 space-y-5">
             <ProjectLinksPanel productId={product.id} links={product.projects} linkableProjects={linkableProjects} />
+            <CategoryPanel
+              productId={product.id}
+              categoryId={product.categoryId}
+              options={categoryOptions}
+              inherited={inheritedCategory}
+              canEdit={canEdit}
+              dirty={dirty}
+            />
             {!canEdit && (
               <div className="rounded-lg bg-gray-100 border border-gray-200 px-4 py-2 text-sm text-gray-600">
                 View only — you can edit this product from a project you can edit, or with the “Edit Catalog Products” permission.
@@ -1188,7 +1201,7 @@ function HistoryPanel({ productId }: { productId: string }) {
                 <p className="text-gray-800">
                   <span className="font-medium">{log.user.name ?? log.user.email}</span>
                   {" "}<span className="text-gray-500 lowercase">{log.action.replace(/_/g, " ")}</span>
-                  {log.fieldKey && <span className="text-gray-700"> · {log.fieldKey.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}</span>}
+                  {log.fieldKey && <span className="text-gray-700"> · {fieldLabel(log.fieldKey)}</span>}
                 </p>
                 {(log.oldValue || log.newValue) && (
                   <p className="text-xs mt-0.5 truncate">
@@ -1229,6 +1242,67 @@ function HistoryPanel({ productId }: { productId: string }) {
 // ─── Project links ────────────────────────────────────────────────────────────
 // A product lives in the catalog; projects reference it. Removing it from a
 // project never deletes the product.
+
+// The product's own category decides which category-scoped attributes appear
+// below. Products outside any project have no other source of a category.
+function CategoryPanel({
+  productId, categoryId, options, inherited, canEdit, dirty,
+}: {
+  productId: string;
+  categoryId: string | null;
+  options: { id: string; label: string }[];
+  inherited: { name: string; projectName: string } | null;
+  canEdit: boolean;
+  dirty: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function change(next: string) {
+    if (dirty && !confirm("You have unsaved changes. Changing the category reloads this product and discards them. Continue?")) return;
+    setBusy(true);
+    setErr(null);
+    const res = await fetch(`/api/products/${productId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categoryId: next || null }),
+    });
+    if (!res.ok) {
+      setErr((await res.json().catch(() => ({}))).error ?? "Update failed");
+      setBusy(false);
+      return;
+    }
+    // Full reload: the attribute sections are built server-side from the category.
+    window.location.reload();
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm font-semibold text-gray-900">Category</span>
+        <select
+          value={categoryId ?? ""}
+          disabled={!canEdit || busy}
+          onChange={(e) => change(e.target.value)}
+          className="h-8 min-w-72 rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-900 disabled:bg-gray-50"
+        >
+          <option value="">{inherited ? `— Use project category (${inherited.name}) —` : "— No category —"}</option>
+          {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+        </select>
+        <span className="text-xs text-gray-500">
+          {busy
+            ? "Saving…"
+            : categoryId
+              ? "Category-specific attributes for this category appear below."
+              : inherited
+                ? `Using ${inherited.name} from project “${inherited.projectName}”.`
+                : "Choose a category to show its category-specific attributes."}
+        </span>
+      </div>
+      {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
+    </div>
+  );
+}
 
 function ProjectLinksPanel({
   productId, links, linkableProjects,
