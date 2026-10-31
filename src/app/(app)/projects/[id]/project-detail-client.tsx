@@ -369,7 +369,7 @@ export function ProjectDetailClient({ project, initialProducts, allAttrDefs = []
       )}
       {showPullModal && (
         <SalsifyPullModal
-          projectId={project.id}
+          endpoint={`/api/projects/${project.id}/salsify-pull`}
           productIds={pullSelectedIds}
           onExport={handleExport}
           onClose={() => setShowPullModal(false)}

@@ -6,6 +6,7 @@ import { isLinked } from "@/lib/product-catalog";
 import { resolveSalsifyCredentials } from "@/lib/salsify-auth";
 import { checkProjectAccess } from "@/lib/project-access";
 import { salsifyFetch, describeFetchError } from "@/lib/salsify-http";
+import { curateSalsifyData } from "@/lib/salsify-pull";
 
 type Params = { params: Promise<{ id: string; productId: string }> };
 
@@ -65,28 +66,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   const remote = await res.json();
 
-  // Keep a curated subset rather than the full payload — assets, identity,
-  // and freshness info are what PMs need to see
-  const digitalAssets = Array.isArray(remote["salsify:digital_assets"])
-    ? remote["salsify:digital_assets"].map((a: Record<string, unknown>) => ({
-        id: a["salsify:id"] ?? null,
-        name: a["salsify:name"] ?? null,
-        url: a["salsify:url"] ?? null,
-        sourceUrl: a["salsify:source_url"] ?? null,
-        format: a["salsify:format"] ?? null,
-      }))
-    : [];
-
-  const salsifyData = {
-    systemId: remote["salsify:system_id"] ?? null,
-    createdAt: remote["salsify:created_at"] ?? null,
-    updatedAt: remote["salsify:updated_at"] ?? null,
-    version: remote["salsify:version"] ?? null,
-    digitalAssets,
-    // Property count gives a quick sense of how much data lives on the
-    // Salsify side vs. what Sympl pushes
-    propertyCount: Object.keys(remote).filter((k) => !k.startsWith("salsify:")).length,
-  };
+  const salsifyData = curateSalsifyData(remote);
 
   const now = new Date();
   await prisma.productRecord.update({

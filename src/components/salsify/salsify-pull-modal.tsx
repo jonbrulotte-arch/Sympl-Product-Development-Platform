@@ -59,16 +59,19 @@ type PullSummary = {
 };
 
 type Props = {
-  projectId: string;
+  /** Pull endpoint: the project bulk pull or a single product's pull. */
+  endpoint: string;
+  /** Subtitle; defaults to describing the grid selection. */
+  scopeLabel?: string;
   /** When set, only these products are pulled instead of the whole grid. */
   productIds?: string[];
   /** Backs the "export current data first" button on the confirmation screen. */
-  onExport: () => void;
+  onExport?: () => void;
   onClose: () => void;
   onApplied: (result: { productsUpdated: number; fieldsUpdated: number }) => void;
 };
 
-export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onApplied }: Props) {
+export function SalsifyPullModal({ endpoint, scopeLabel, productIds, onExport, onClose, onApplied }: Props) {
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +92,7 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
     // Abort on close so cancelling actually stops the preview instead of
     // leaving it running while a re-opened modal starts another one.
     const controller = new AbortController();
-    fetch(`/api/projects/${projectId}/salsify-pull`, {
+    fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ dryRun: true, productIds: productKey ? productKey.split(",") : undefined }),
@@ -112,7 +115,7 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; controller.abort(); };
-  }, [projectId, productKey]);
+  }, [endpoint, productKey]);
 
   function toggle(key: string) {
     setChecked((prev) => {
@@ -134,11 +137,48 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
     });
   }
 
+  // The report as a workbook: one row per value that would change, plus the
+  // warnings and per-product lookup results, so it can be reviewed or shared
+  // before (or kept after) the pull.
+  async function exportReport() {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    const sheet = (name: string, cols: [string, string, number][]) => {
+      const ws = wb.addWorksheet(name, { views: [{ state: "frozen", ySplit: 1 }] });
+      ws.columns = cols.map(([header, key, width]) => ({ header, key, width }));
+      ws.getRow(1).font = { bold: true };
+      ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
+      return ws;
+    };
+    const changes = sheet("Changes", [
+      ["Part Number", "part", 16], ["Item Name", "item", 32], ["Section", "section", 20], ["Attribute", "attr", 28],
+      ["Salsify Property", "prop", 28], ["Current Value", "current", 40], ["Incoming Value", "incoming", 40], ["Selected", "selected", 10],
+    ]);
+    for (const a of attributes) for (const c of a.changes) {
+      changes.addRow({ part: c.partNumber ?? "", item: c.itemName ?? "", section: a.section, attr: a.label, prop: a.salsifyPropertyId ?? "",
+        current: c.current, incoming: c.incoming, selected: checked.has(a.key) ? "Yes" : "No" });
+    }
+    const warn = sheet("Warnings", [["Part Number", "part", 16], ["Attribute", "attr", 28], ["Value", "value", 40], ["Reason", "reason", 60]]);
+    for (const w of summary?.warnings ?? []) warn.addRow({ part: w.partNumber ?? "", attr: w.attributeLabel, value: w.value, reason: w.reason });
+    const look = sheet("Lookup Results", [["Part Number", "part", 16], ["Result", "result", 18], ["Mapped Properties Found", "present", 22], ["Changes", "changes", 10], ["Detail", "detail", 60]]);
+    for (const p of summary?.products ?? []) {
+      look.addRow({ part: p.partNumber ?? "", result: PRODUCT_STATUS[p.status].label, present: p.propsPresent, changes: p.changeCount, detail: p.detail ?? "" });
+    }
+    const parts = summary?.products?.map((p) => p.partNumber).filter(Boolean) ?? [];
+    const label = parts.length === 1 ? parts[0] : `${parts.length}-products`;
+    const blob = new Blob([await wb.xlsx.writeBuffer()], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `salsify-pull-report-${label}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   async function apply() {
     setApplying(true);
     setError(null);
     try {
-      const res = await fetch(`/api/projects/${projectId}/salsify-pull`, {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dryRun: false, productIds, attributeKeys: [...checked] }),
@@ -176,9 +216,9 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-semibold text-gray-900">Pull Data from Salsify</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {productIds?.length
+              {scopeLabel ?? (productIds?.length
                 ? `${productIds.length} selected product${productIds.length !== 1 ? "s" : ""}`
-                : "All products in this grid"}
+                : "All products in this grid")}
               {" — review what will change before anything is written."}
             </p>
           </div>
@@ -318,20 +358,29 @@ export function SalsifyPullModal({ projectId, productIds, onExport, onClose, onA
                     <p className="flex items-start gap-2 text-sm text-amber-900">
                       <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                       <span>
-                        <strong>Your grid data will be overwritten.</strong> Every checked attribute
+                        <strong>Your product data will be overwritten.</strong> Every checked attribute
                         below is replaced with the Salsify value for that product. This cannot be
-                        undone — export a backup first if you want one.
+                        undone — export the change report (it keeps every current value) or a
+                        backup first if you want one.
                       </span>
                     </p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => { onExport(); setExported(true); }}
-                      className="bg-white"
-                    >
-                      <Download className="h-3.5 w-3.5 mr-1.5" />
-                      {exported ? "Export again" : "Export current data first"}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={exportReport} className="bg-white">
+                        <Download className="h-3.5 w-3.5 mr-1.5" />
+                        Export change report
+                      </Button>
+                      {onExport && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { onExport(); setExported(true); }}
+                          className="bg-white"
+                        >
+                          <Download className="h-3.5 w-3.5 mr-1.5" />
+                          {exported ? "Export again" : "Export current data first"}
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-4">

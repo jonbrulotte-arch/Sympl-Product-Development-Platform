@@ -166,7 +166,7 @@ const sections: Section[] = [
         <P>Invitation links are single-use and expire after 7 days. Until the password is set the account cannot sign in, and the user list marks it <strong>Invite pending</strong> — the envelope icon on that row sends a fresh invitation and cancels the old link.</P>
         <Callout>Invitations need email to be configured on the server. If it isn&apos;t, the invitation link is shown to the admin right after the account is created so it can be passed along another way.</Callout>
 
-        <Callout>All product data is project-scoped. The global Products page lets you search and edit across all your projects at once.</Callout>
+        <Callout>Products live once in a shared product catalog and are linked to projects — one product can be in several projects, or none. The Products page lists the whole catalog, where you can search, edit, and create products.</Callout>
       </>
     ),
   },
@@ -303,7 +303,7 @@ const sections: Section[] = [
 
         <H3>Full product edit page</H3>
         <P>Click any row to open the full product edit page at <Code>/products/[id]</Code>. This page shows every core field and every EAV attribute organized by section, plus tabs for <strong>Compliance</strong> events, <strong>Inspections</strong>, and <strong>History</strong> — the full field-level change log showing who changed what, when, and the old → new values.</P>
-        <P>The header shows a <strong>% complete</strong> chip (required fields filled in) and, for Admins, Directors, and Product Managers, <strong>Share</strong> and <strong>Sync to Salsify</strong> buttons — plus <strong>Pull from Salsify</strong> for anyone holding that permission.</P>
+        <P>The header shows a <strong>% complete</strong> chip (required fields filled in) and, for Admins, Directors, and Product Managers, <strong>Share</strong> and <strong>Sync to Salsify</strong> buttons — plus <strong>Pull from Salsify</strong> for anyone holding that permission who can edit the product. Pull works even when the product isn&apos;t in any project, so a product created with <strong>New Product</strong> can be filled straight from Salsify.</P>
       </>
     ),
   },
@@ -915,7 +915,9 @@ const sections: Section[] = [
         <Callout type="warning">A pull replaces your grid values with Salsify&apos;s and cannot be undone. Products with no Part Number, and Part Numbers that don&apos;t exist in Salsify, are skipped and reported. The Part Number column itself is never overwritten — it&apos;s the key each product is looked up by.</Callout>
 
         <H3>Pull from Salsify (single product)</H3>
-        <P>On the product edit page, users with the <strong>Pull from Salsify</strong> permission can click <strong>Pull from Salsify</strong> to fetch the product&apos;s current state from Salsify. An <strong>In Salsify</strong> panel then shows digital-asset thumbnails, Salsify&apos;s last-updated date, version, and property count — so you can see what retail has without leaving Sympl.</P>
+        <P>On the product edit page, users with the <strong>Pull from Salsify</strong> permission and edit access to the product can click <strong>Pull from Salsify</strong>. The product doesn&apos;t need to be in a project, but it needs a saved Part Number — Salsify is looked up by it.</P>
+        <P>The same change report as the grid pull opens first: every Salsify-enabled attribute whose value differs, current → incoming, with a checkbox per attribute. Nothing is written until you click <strong>Overwrite &amp; Pull</strong>. <strong>Export change report</strong> downloads the report as Excel (Changes, Warnings, and Lookup Results sheets) — the Changes sheet keeps every current value, so it doubles as a backup. Each pulled field is recorded in the product&apos;s <strong>History</strong> with the source <em>Salsify Pull</em>.</P>
+        <P>Opening the report also refreshes the <strong>In Salsify</strong> panel: digital-asset thumbnails, Salsify&apos;s last-updated date, version, and property count — so you can see what retail has without leaving Sympl.</P>
 
         <Callout type="tip">After a project or row-selection sync, the result (how many products sent and any errors) appears next to the Sync button in the project header.</Callout>
       </>

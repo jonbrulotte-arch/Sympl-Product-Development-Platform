@@ -13,8 +13,10 @@ import {
   ArrowLeft, ExternalLink, Save, CheckCircle2, AlertCircle, RefreshCw,
   Plus, X, Clock, Circle, Trash2, ChevronDown, ChevronUp, ShieldCheck, ClipboardCheck,
   FileText, CheckCircle, XCircle, AlertTriangle,
+  DownloadCloud,
 } from "lucide-react";
 import { SalsifySyncModal } from "@/components/salsify/salsify-sync-modal";
+import { SalsifyPullModal } from "@/components/salsify/salsify-pull-modal";
 import { ShareLinkButton } from "@/components/share-link-button";
 import { useSalsifyStatus } from "@/hooks/use-salsify-status";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -619,9 +621,10 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
   // Salsify actions are project-scoped, so they need the product to be in a project.
   const canSync = ["ADMIN", "DIRECTOR", "PRODUCT_MANAGER"].includes(userRole) && !!product.projectId;
   // Pulling has its own grant — it overwrites Sympl data with Salsify's, which
-  // is a different risk from pushing, so it's configurable separately.
+  // is a different risk from pushing, so it's configurable separately. It works
+  // on the product itself, so a catalog product outside any project can pull.
   const { can: hasPermission } = usePermissions();
-  const canPull = hasPermission("products:pull_salsify") && !!product.projectId;
+  const canPull = hasPermission("products:pull_salsify") && canEdit;
   const { ready: salsifyReady, blockedReason: salsifyBlockedReason, hasApiKey: salsifyHasApiKey } = useSalsifyStatus();
 
   // % of REQUIRED attributes with a value — drives the completeness chip
@@ -641,23 +644,13 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
     return Math.round((filled / total) * 100);
   }, [core, eav, coreAttrDefs, globalAttrs, categoryAttrs]);
 
-  const [pulling, setPulling] = useState(false);
-  const [pullError, setPullError] = useState<string | null>(null);
+  const [showPullModal, setShowPullModal] = useState(false);
 
-  async function pullFromSalsify() {
-    setPulling(true);
-    setPullError(null);
-    const res = await fetch(
-      `/api/projects/${product.projectId}/products/${product.id}/salsify-pull`,
-      { method: "POST" }
-    );
-    if (res.ok) {
-      startTransition(() => router.refresh());
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setPullError(data.error ?? "Pull failed");
-    }
-    setPulling(false);
+  function openPull() {
+    // The pull reads the saved part number and the page reloads afterwards,
+    // so unsaved edits would be looked up wrongly and then lost.
+    if (dirty && !confirm("You have unsaved changes. Pulling from Salsify reloads this product and discards them. Continue?")) return;
+    setShowPullModal(true);
   }
 
   async function syncToSalsify(skipKeys: string[]) {
@@ -850,15 +843,14 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
             {canPull && salsifyReady && (
               <div className="flex flex-col items-end gap-0.5">
                 <button
-                  onClick={pullFromSalsify}
-                  disabled={pulling}
+                  onClick={openPull}
+                  disabled={!product.partNumber}
                   className="flex items-center gap-1.5 text-xs text-sky-700 hover:text-sky-900 border border-sky-300 bg-sky-50 hover:bg-sky-100 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-60"
-                  title="Fetch current digital assets and state from Salsify"
+                  title={product.partNumber ? "Review a change report, then pull this product's data from Salsify" : "Add and save a Part Number first — Salsify is looked up by Part Number"}
                 >
-                  <RefreshCw className={`h-3.5 w-3.5 ${pulling ? "animate-spin" : ""}`} />
-                  {pulling ? "Pulling…" : "Pull from Salsify"}
+                  <DownloadCloud className="h-3.5 w-3.5" />
+                  Pull from Salsify
                 </button>
-                {pullError && <p className="text-xs text-red-600 max-w-xs text-right">{pullError}</p>}
               </div>
             )}
             {product.project && (
@@ -1120,6 +1112,16 @@ export function ProductEditClient({ product, globalAttrs, categoryAttrs, coreAtt
         </div>
       </div>}
     </div>
+    {showPullModal && (
+      <SalsifyPullModal
+        endpoint={`/api/products/${product.id}/salsify-pull`}
+        scopeLabel={`Part ${product.partNumber}${product.itemName ? ` · ${product.itemName}` : ""}`}
+        onClose={() => setShowPullModal(false)}
+        // A full reload, not router.refresh(): the form keeps its own copy of
+        // every field and would otherwise keep showing the pre-pull values.
+        onApplied={() => window.location.reload()}
+      />
+    )}
     {showSalsifyModal && product.projectId && (
       <SalsifySyncModal
         mode="product"
